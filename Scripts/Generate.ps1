@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     CMake プリセットでプロジェクト（VS ソリューション等）を生成する。
 .DESCRIPTION

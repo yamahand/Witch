@@ -1,7 +1,7 @@
 @echo off
-rem Run.ps1 のダブルクリック / コマンドプロンプト用ラッパー。
-rem 例: Run.bat            （debug をビルドして実行）
-rem     Run.bat release    （-Config release として渡る）
+rem Wrapper for Run.ps1 (double-click / cmd).
+rem   Run.bat            -> build and run debug
+rem   Run.bat release    -> passes -Config release
 setlocal
 set "CONFIG=%~1"
 if "%CONFIG%"=="" set "CONFIG=debug"

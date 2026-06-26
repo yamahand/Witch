@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     WitchGame をビルドして実行する。
 .DESCRIPTION

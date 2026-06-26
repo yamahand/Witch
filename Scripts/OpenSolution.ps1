@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     生成された Visual Studio ソリューション（Witch.slnx）を開く。
 .DESCRIPTION
