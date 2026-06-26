@@ -35,7 +35,7 @@
     {
       "name": "ci-base",
       "hidden": true,
-      "generator": "Visual Studio 17 2022",
+      "generator": "Visual Studio 18 2026",
       "architecture": "x64",
       "toolset": "host=x64",
       "cacheVariables": {
@@ -48,7 +48,7 @@
     {
       "name": "ci-windows-debug",
       "displayName": "CI Windows Debug (x64)",
-      "description": "GitHub windows-latest: VS2022 + vcpkg via $env{VCPKG_ROOT}. Separate from local VS2026 presets.",
+      "description": "GitHub windows-latest: VS2026 + vcpkg via $env{VCPKG_ROOT}. Separate toolchain from local VS2026 presets.",
       "inherits": "ci-base",
       "binaryDir": "${sourceDir}/build/ci-debug",
       "cacheVariables": {
