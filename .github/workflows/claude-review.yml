@@ -1,0 +1,39 @@
+name: Claude Auto Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--allowedTools Bash(gh:*)"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            上記PRの差分をレビューしてください。バグ・セキュリティ・可読性の観点で確認し、
+            以下の手順で結果を投稿してください。
+
+            1. まず `gh pr diff ${{ github.event.pull_request.number }}` で差分を取得する。
+            2. 指摘事項がある場合は、該当ファイル・行に対してインラインコメントを投稿する。
+               各指摘ごとに以下のコマンドを実行する（COMMIT_IDは `gh pr view ${{ github.event.pull_request.number }} --json headRefOid -q .headRefOid` で取得）:
+               gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments \
+                 --method POST \
+                 -f commit_id="<COMMIT_ID>" \
+                 -f path="<ファイルパス>" \
+                 -F line=<行番号> \
+                 -f side="RIGHT" \
+                 -f body="<指摘内容>"
+            3. 最後に総評を `gh pr comment ${{ github.event.pull_request.number }} --body "<総評>"` で投稿する。
+               指摘が無い場合も「レビュー完了、問題なし」と総評を投稿してください。

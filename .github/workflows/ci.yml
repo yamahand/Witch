@@ -1,0 +1,19 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # GitHub-hosted windows-latest provides VS2022 and a preinstalled vcpkg
+      # exposed via VCPKG_ROOT, which the ci-windows-debug preset references.
+      - name: Configure
+        run: cmake --preset ci-windows-debug
+      - name: Build
+        run: cmake --build --preset build-ci-windows-debug
+      - name: Test
+        run: ctest --preset test-ci-windows-debug

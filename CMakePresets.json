@@ -31,6 +31,29 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "ci-base",
+      "hidden": true,
+      "comment": "CI runner (GitHub windows-latest) uses VS2022 and resolves vcpkg via $env{VCPKG_ROOT}. Local presets above use VS2026 with a fixed VS-bundled vcpkg path.",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "toolset": "host=x64",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": {
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+          "type": "FILEPATH"
+        }
+      }
+    },
+    {
+      "name": "ci-windows-debug",
+      "displayName": "CI Windows Debug (x64)",
+      "inherits": "ci-base",
+      "binaryDir": "${sourceDir}/build/ci-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     }
   ],
   "buildPresets": [
@@ -45,6 +68,27 @@
       "displayName": "Build Release",
       "configurePreset": "release",
       "configuration": "Release"
+    },
+    {
+      "name": "build-ci-windows-debug",
+      "displayName": "Build CI Windows Debug",
+      "configurePreset": "ci-windows-debug",
+      "configuration": "Debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-ci-windows-debug",
+      "displayName": "Test CI Windows Debug",
+      "configurePreset": "ci-windows-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "ignore",
+        "stopOnFailure": false
+      }
     }
   ]
 }
