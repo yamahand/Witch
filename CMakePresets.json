@@ -35,7 +35,6 @@
     {
       "name": "ci-base",
       "hidden": true,
-      "comment": "CI runner (GitHub windows-latest) uses VS2022 and resolves vcpkg via $env{VCPKG_ROOT}. Local presets above use VS2026 with a fixed VS-bundled vcpkg path.",
       "generator": "Visual Studio 17 2022",
       "architecture": "x64",
       "toolset": "host=x64",
@@ -49,6 +48,7 @@
     {
       "name": "ci-windows-debug",
       "displayName": "CI Windows Debug (x64)",
+      "description": "GitHub windows-latest: VS2022 + vcpkg via $env{VCPKG_ROOT}. Separate from local VS2026 presets.",
       "inherits": "ci-base",
       "binaryDir": "${sourceDir}/build/ci-debug",
       "cacheVariables": {
