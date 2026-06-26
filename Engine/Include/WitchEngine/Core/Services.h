@@ -7,12 +7,14 @@ class IRenderer;
 namespace witch {
 
 class Time;
+class ResourceManager;
 
 // Non-owning view of engine-owned service instances.
 // Engine sets each pointer during Init (in creation order) and clears them during Shutdown.
 struct Services {
-    rhi::IRenderer* renderer = nullptr;
-    Time* time = nullptr;
+    rhi::IRenderer*  renderer  = nullptr;
+    Time*            time      = nullptr;
+    ResourceManager* resources = nullptr;
 
     static Services& Instance() {
         static Services s;

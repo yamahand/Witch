@@ -7,6 +7,8 @@
 
 namespace witch {
 
+class ResourceManager;
+
 class Engine {
 public:
     static Engine& Get();
@@ -32,11 +34,12 @@ private:
 
     void ApplyPendingSceneChange();
 
-    std::unique_ptr<Time> time_;
-    std::unique_ptr<rhi::IRenderer> renderer_;
-    std::unique_ptr<Scene> currentScene_;
-    std::unique_ptr<Scene> pendingScene_;
-    bool running_ = false;
+    std::unique_ptr<Time>            time_;
+    std::unique_ptr<rhi::IRenderer>  renderer_;
+    std::unique_ptr<ResourceManager> resourceManager_;
+    std::unique_ptr<Scene>           currentScene_;
+    std::unique_ptr<Scene>           pendingScene_;
+    bool running_     = false;
     bool initialized_ = false;
 };
 

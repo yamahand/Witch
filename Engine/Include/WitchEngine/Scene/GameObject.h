@@ -1,5 +1,6 @@
 #pragma once
 #include "WitchEngine/Scene/Component.h"
+#include "WitchEngine/Scene/Transform.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -31,6 +32,8 @@ public:
 
     ObjectId Id() const { return id_; }
     Scene* GetScene() const { return scene_; }
+
+    Transform transform;
 
 private:
     friend class Scene;

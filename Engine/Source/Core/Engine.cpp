@@ -1,5 +1,6 @@
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/Logger.h"
+#include "WitchEngine/Core/ResourceManager.h"
 #include "Platform/PlatformWindow.h"
 #include "Rhi/D3D12/D3D12Renderer.h"
 
@@ -35,6 +36,9 @@ void Engine::Init(int width, int height, const char* title) {
         log::Error("D3D12Renderer failed to initialize.");
     }
 
+    resourceManager_ = std::make_unique<ResourceManager>();
+    Services::Instance().resources = resourceManager_.get();
+
     initialized_ = true;
     log::Info("Engine init complete.");
 }
@@ -53,14 +57,14 @@ void Engine::Run() {
 
         time_->Tick();
 
-        if (currentScene_) {
-            currentScene_->Update(time_->DeltaTime());
-        }
-
         if (renderer_) {
             auto* cmdList = renderer_->BeginFrame();
             cmdList->Clear({kCornflowerBlue});
+            if (currentScene_) currentScene_->Update(time_->DeltaTime());
+            cmdList->FlushSprites();
             renderer_->EndFrame(cmdList);
+        } else if (currentScene_) {
+            currentScene_->Update(time_->DeltaTime());
         }
     }
 
@@ -74,7 +78,10 @@ void Engine::Shutdown() {
     }
     pendingScene_.reset();
 
-    // Destroy services in reverse creation order (renderer before time).
+    // Destroy services in reverse creation order.
+    Services::Instance().resources = nullptr;
+    resourceManager_.reset();
+
     if (renderer_) {
         renderer_->Shutdown();
         Services::Instance().renderer = nullptr;
