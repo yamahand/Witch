@@ -1,8 +1,11 @@
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/Logger.h"
 #include "Platform/PlatformWindow.h"
+#include "Rhi/D3D12/D3D12Renderer.h"
 
 namespace witch {
+
+static constexpr rhi::Color kCornflowerBlue{0.392f, 0.584f, 0.929f, 1.0f};
 
 Engine& Engine::Get() {
     static Engine instance;
@@ -22,7 +25,15 @@ void Engine::Init(int width, int height, const char* title) {
     time_->Start();
     Services::Instance().time = time_.get();
 
-    platform::CreateMainWindow({width, height, title});
+    void* hwnd = platform::CreateMainWindow({width, height, title});
+
+    auto renderer = std::make_unique<D3D12Renderer>();
+    if (renderer->Init(hwnd, width, height)) {
+        renderer_ = std::move(renderer);
+        Services::Instance().renderer = renderer_.get();
+    } else {
+        log::Error("D3D12Renderer failed to initialize.");
+    }
 
     initialized_ = true;
     log::Info("Engine init complete.");
@@ -45,20 +56,32 @@ void Engine::Run() {
         if (currentScene_) {
             currentScene_->Update(time_->DeltaTime());
         }
+
+        if (renderer_) {
+            auto* cmdList = renderer_->BeginFrame();
+            cmdList->Clear({kCornflowerBlue});
+            renderer_->EndFrame(cmdList);
+        }
     }
 
     log::Info("Engine run loop exited.");
 }
 
 void Engine::Shutdown() {
-    // Exit current scene.
     if (currentScene_) {
         currentScene_->OnExit();
         currentScene_.reset();
     }
     pendingScene_.reset();
 
-    // Destroy services in reverse creation order.
+    // Destroy services in reverse creation order (renderer before time).
+    if (renderer_) {
+        renderer_->Shutdown();
+        Services::Instance().renderer = nullptr;
+        renderer_.reset();
+        log::Info("Renderer destroyed.");
+    }
+
     Services::Instance().time = nullptr;
     time_.reset();
     log::Info("Time destroyed.");

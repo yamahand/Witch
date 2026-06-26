@@ -14,9 +14,10 @@ add_library(WitchEngine STATIC
 if(WIN32)
     target_sources(WitchEngine PRIVATE
         Engine/Source/Platform/Windows/PlatformWindow.cpp
+        Engine/Source/Rhi/D3D12/D3D12Renderer.cpp
     )
     target_compile_definitions(WitchEngine PUBLIC UNICODE _UNICODE)
-    target_link_libraries(WitchEngine PUBLIC user32)
+    target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi)
 endif()
 
 target_include_directories(WitchEngine

@@ -4,6 +4,8 @@
 #include "Platform/PlatformWindow.h"
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/Logger.h"
+#include "WitchEngine/Core/Services.h"
+#include "WitchEngine/Rhi/IRenderer.h"
 
 namespace witch::platform {
 
@@ -13,6 +15,15 @@ constexpr wchar_t kClassName[] = L"WitchWindowClass";
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
+    case WM_SIZE:
+        {
+            int w = static_cast<int>(LOWORD(lp));
+            int h = static_cast<int>(HIWORD(lp));
+            auto* renderer = Services::Instance().renderer;
+            if (renderer && w > 0 && h > 0)
+                renderer->OnResize(w, h);
+        }
+        return DefWindowProcW(hwnd, msg, wp, lp);
     case WM_DESTROY:
         Engine::Get().RequestExit();
         PostQuitMessage(0);

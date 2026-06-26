@@ -1,14 +1,17 @@
 #pragma once
 
+namespace witch::rhi {
+class IRenderer;
+} // namespace witch::rhi
+
 namespace witch {
 
-class IRenderer;
 class Time;
 
 // Non-owning view of engine-owned service instances.
 // Engine sets each pointer during Init (in creation order) and clears them during Shutdown.
 struct Services {
-    IRenderer* renderer = nullptr;
+    rhi::IRenderer* renderer = nullptr;
     Time* time = nullptr;
 
     static Services& Instance() {

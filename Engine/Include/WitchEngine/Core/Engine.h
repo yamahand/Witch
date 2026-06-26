@@ -1,6 +1,7 @@
 #pragma once
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Core/Time.h"
+#include "WitchEngine/Rhi/IRenderer.h"
 #include "WitchEngine/Scene/Scene.h"
 #include <memory>
 
@@ -32,6 +33,7 @@ private:
     void ApplyPendingSceneChange();
 
     std::unique_ptr<Time> time_;
+    std::unique_ptr<rhi::IRenderer> renderer_;
     std::unique_ptr<Scene> currentScene_;
     std::unique_ptr<Scene> pendingScene_;
     bool running_ = false;
