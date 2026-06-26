@@ -6,25 +6,29 @@
 
 namespace witch {
 
+/// オブジェクト所有ツリーの根。1 シーン = 1 画面を表す。
 class Scene {
 public:
     virtual ~Scene() = default;
 
+    /// シーンがアクティブになる直前に呼ばれる。
     virtual void OnEnter() {}
+    /// シーンが非アクティブになる直前に呼ばれる。
     virtual void OnExit() {}
 
-    // 3-stage update: reflect spawns → update all → collect destroyed.
-    // Subclasses may override to add per-frame logic; must call Scene::Update(dt).
+    /// 生成反映 → 全更新 → 破棄回収 の 3 段階で更新する。順序は厳守。
+    /// サブクラスがオーバーライドする場合は必ず Scene::Update(dt) を呼ぶ。
     virtual void Update(float dt);
 
-    // Safe to call during Update; the object is added at the start of the next stage.
+    /// 更新中に呼んでも安全。保留リストに積み、次の生成フェーズで反映する。
     template<typename T, typename... Args>
     T* Spawn(Args&&... args);
 
-    // Linear search by id. Returns nullptr if not found.
+    /// ObjectId で線形探索する。現状 O(n) で許容している（最適化は必要になってから）。
+    /// 見つからなければ nullptr を返す。
     GameObject* Find(ObjectId id) const;
 
-    // Instantiates objects from a level file via ObjectRegistry (implemented in M6).
+    /// ObjectRegistry 経由でレベルファイルを実体化する（M6 実装予定）。
     void LoadLevel(std::string_view path);
 
 private:

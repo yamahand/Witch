@@ -7,13 +7,14 @@ namespace witch {
 
 class D3D12Renderer;
 
-// Thin non-owning wrapper set up by D3D12Renderer each frame.
+/// D3D12Renderer が毎フレーム設定する非所有の薄いラッパー。
+/// 所有しないため寿命管理は D3D12Renderer が行う。
 class D3D12CommandList : public rhi::ICommandList {
 public:
     void Clear(const rhi::ClearDesc& desc) override;
     void FlushSprites() override;
 
-    // Set by D3D12Renderer::BeginFrame before returning this object.
+    /// D3D12Renderer::BeginFrame が返す前に設定する。
     ID3D12GraphicsCommandList* raw      = nullptr;
     D3D12_CPU_DESCRIPTOR_HANDLE rtv{};
     D3D12Renderer* renderer             = nullptr;

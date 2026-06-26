@@ -9,8 +9,9 @@ namespace witch {
 class Time;
 class ResourceManager;
 
-// Non-owning view of engine-owned service instances.
-// Engine sets each pointer during Init (in creation order) and clears them during Shutdown.
+/// エンジンが所有するサービスへの非所有ビュー。
+/// Engine が Init で各ポインタを設定し、Shutdown でクリアする。
+/// サービスを直接 Singleton にせずここで一元管理することで、生成・破棄順を Engine が握る。
 struct Services {
     rhi::IRenderer*  renderer  = nullptr;
     Time*            time      = nullptr;

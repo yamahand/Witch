@@ -2,17 +2,19 @@
 
 namespace witch::platform {
 
+/// ウィンドウ生成パラメータ。
 struct WindowParams {
     int width;
     int height;
     const char* title;
 };
 
-// Creates and shows the main window. Returns an opaque native handle (HWND on Windows).
+/// メインウィンドウを生成して表示する。
+/// @return Win32 では HWND を void* にキャストして返す。
 void* CreateMainWindow(const WindowParams& params);
 
-// Dispatches all pending OS messages.
-// Returns false when a quit/close message has been received.
+/// 保留中の OS メッセージをすべて処理する。
+/// @return 終了メッセージ（WM_QUIT 等）を受けたら false を返す。
 bool PumpMessages();
 
 } // namespace witch::platform

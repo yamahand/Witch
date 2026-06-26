@@ -15,10 +15,15 @@ namespace witch {
 
 using Microsoft::WRL::ComPtr;
 
+/// ダブルバッファリングのバックバッファ数。
 static constexpr uint32_t kBackBufferCount    = 2;
+/// SRV ヒープの固定スロット数。実行時に動的拡張はしない。
 static constexpr uint32_t kMaxTextures        = 64;
+/// 1 フレームのスプライト上限。超えたものは破棄される。
 static constexpr uint32_t kMaxSpritesPerFrame = 1024;
 
+/// Direct3D 12 による IRenderer 実装。
+/// D3D12/DXGI 型はこのクラスの外に漏らさない（RHI 境界を守るため）。
 class D3D12Renderer : public rhi::IRenderer {
 public:
     bool Init(void* windowHandle, int width, int height) override;
@@ -32,15 +37,18 @@ public:
     void DestroyTexture(rhi::TextureHandle handle) override;
     void SubmitSprite(const rhi::SpriteDrawDesc& desc) override;
 
-    // Called by D3D12CommandList::FlushSprites.
+    /// D3D12CommandList::FlushSprites から呼ばれる。
+    /// スプライトバッチを頂点バッファに書き込んでドローコールを発行する。
     void DoFlushSprites(ID3D12GraphicsCommandList* cl);
 
 private:
     void CreateBackBufferRTVs();
+    /// 指定フレームインデックスの GPU 処理完了をフェンスで待つ。
     void WaitForFrame(uint32_t frameIdx);
     void WaitIdle();
     bool InitSpritePipeline();
 
+    /// ダブルバッファリング用フレームコンテキスト。
     struct FrameCtx {
         ComPtr<ID3D12CommandAllocator> allocator;
         uint64_t fenceValue = 0;
@@ -73,12 +81,12 @@ private:
     ComPtr<ID3D12RootSignature>       spriteRootSig_;
     ComPtr<ID3D12PipelineState>       spritePSO_;
 
-    // Per-frame constant buffer (256-byte aligned, persistently mapped).
+    /// 256 バイトアライン済み定数バッファ（永続マップ）。
     static constexpr uint32_t kCBAlignedSize = 256;
     ComPtr<ID3D12Resource>            cbUpload_[kBackBufferCount];
     uint8_t*                          cbMapped_[kBackBufferCount]{};
 
-    // Per-frame dynamic vertex buffer (persistently mapped).
+    /// フレーム毎動的頂点バッファ（永続マップ）。
     struct SpriteVertex { float x, y, u, v; };
     static constexpr uint32_t kVBSize =
         kMaxSpritesPerFrame * 4 * sizeof(SpriteVertex);
@@ -94,7 +102,7 @@ private:
     };
     TextureEntry                      textures_[kMaxTextures]{};
 
-    // Sprites accumulated this frame; cleared in DoFlushSprites.
+    /// このフレームで蓄積したスプライト。DoFlushSprites でクリアされる。
     std::vector<rhi::SpriteDrawDesc>  pendingSprites_;
 };
 
