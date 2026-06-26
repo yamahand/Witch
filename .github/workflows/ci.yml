@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The runner preinstalls vcpkg and exposes it via VCPKG_INSTALLATION_ROOT.
+      # The ci-windows-debug preset references $env{VCPKG_ROOT}, so bridge it here.
+      - name: Set VCPKG_ROOT
+        shell: pwsh
+        run: echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" >> $env:GITHUB_ENV
+      - name: Configure
+        run: cmake --preset ci-windows-debug
+      - name: Build
+        run: cmake --build --preset build-ci-windows-debug
+      - name: Test
+        run: ctest --preset test-ci-windows-debug
