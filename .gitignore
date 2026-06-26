@@ -52,6 +52,16 @@ Makefile
 install_manifest.txt
 compile_commands.json
 
+# In-source CMake / MSBuild artifacts (should never appear at repo root)
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.slnx
+*.dir/
+Debug/
+Release/
+out/
+
 # Temporary files
 *.tmp
 *.log
