@@ -148,11 +148,18 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
         return false;
     }
 
-    // 11. Upload command allocator (used by CreateTexture outside the render loop)
+    // 11. Upload command allocator + dedicated command list for texture uploads.
+    //     Kept separate from cmdList_ so CreateTexture never touches the frame recording.
     if (!Check(device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
                                                IID_PPV_ARGS(&uploadAllocator_)),
                "CreateCommandAllocator (upload)"))
         return false;
+    if (!Check(device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                          uploadAllocator_.Get(),
+                                          nullptr, IID_PPV_ARGS(&uploadCmdList_)),
+               "CreateCommandList (upload)"))
+        return false;
+    uploadCmdList_->Close();
 
     // 12. Sprite pipeline (shaders, root sig, PSO, per-frame buffers, SRV heap)
     if (!InitSpritePipeline())
@@ -324,9 +331,9 @@ D3D12Renderer::CreateTexture(const uint8_t* pixels, int width, int height) {
     }
     uploadBuf->Unmap(0, nullptr);
 
-    // Record copy + transition using the upload allocator + shared cmdList_.
+    // Record copy + transition using the dedicated upload command list.
     uploadAllocator_->Reset();
-    cmdList_->Reset(uploadAllocator_.Get(), nullptr);
+    uploadCmdList_->Reset(uploadAllocator_.Get(), nullptr);
 
     D3D12_TEXTURE_COPY_LOCATION copySrc{};
     copySrc.pResource        = uploadBuf.Get();
@@ -338,7 +345,7 @@ D3D12Renderer::CreateTexture(const uint8_t* pixels, int width, int height) {
     copyDst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     copyDst.SubresourceIndex = 0;
 
-    cmdList_->CopyTextureRegion(&copyDst, 0, 0, 0, &copySrc, nullptr);
+    uploadCmdList_->CopyTextureRegion(&copyDst, 0, 0, 0, &copySrc, nullptr);
 
     D3D12_RESOURCE_BARRIER barrier{};
     barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -346,10 +353,10 @@ D3D12Renderer::CreateTexture(const uint8_t* pixels, int width, int height) {
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
     barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    cmdList_->ResourceBarrier(1, &barrier);
+    uploadCmdList_->ResourceBarrier(1, &barrier);
 
-    cmdList_->Close();
-    ID3D12CommandList* lists[] = {cmdList_.Get()};
+    uploadCmdList_->Close();
+    ID3D12CommandList* lists[] = {uploadCmdList_.Get()};
     queue_->ExecuteCommandLists(1, lists);
 
     // Wait for the upload to finish before releasing uploadBuf.
@@ -386,8 +393,15 @@ void D3D12Renderer::DestroyTexture(rhi::TextureHandle handle) {
 }
 
 void D3D12Renderer::SubmitSprite(const rhi::SpriteDrawDesc& desc) {
-    if (pendingSprites_.size() < kMaxSpritesPerFrame)
+    if (pendingSprites_.size() < kMaxSpritesPerFrame) {
         pendingSprites_.push_back(desc);
+    } else {
+        static bool warnedOnce = false;
+        if (!warnedOnce) {
+            log::Warn("SubmitSprite: kMaxSpritesPerFrame ({}) exceeded; sprites dropped.", kMaxSpritesPerFrame);
+            warnedOnce = true;
+        }
+    }
 }
 
 void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {

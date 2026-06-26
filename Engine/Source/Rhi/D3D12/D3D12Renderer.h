@@ -71,6 +71,9 @@ private:
     HANDLE                            fenceEvent_   = nullptr;
     uint64_t                          fenceCounter_ = 0;
 
+    /// テクスチャアップロード専用コマンドリスト。cmdList_（フレーム描画用）とは完全に分離。
+    ComPtr<ID3D12GraphicsCommandList> uploadCmdList_;
+
     uint32_t                          frameIndex_   = 0;
     int                               width_        = 0;
     int                               height_       = 0;

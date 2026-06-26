@@ -15,11 +15,13 @@ ObjectId Scene::NextId() {
 
 void Scene::Update(float dt) {
     // Stage 1: Reflect pending spawns into the live list.
-    for (auto& obj : pendingSpawn_) {
+    // Swap to local first: OnSpawn() may call Spawn(), which pushes to pendingSpawn_.
+    // Iterating and push_back-ing the same vector causes reallocation UB.
+    auto spawning = std::move(pendingSpawn_);
+    for (auto& obj : spawning) {
         obj->OnSpawn();
         objects_.push_back(std::move(obj));
     }
-    pendingSpawn_.clear();
 
     // Stage 2: Update all live objects.
     for (auto& obj : objects_) {
