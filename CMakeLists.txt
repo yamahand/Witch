@@ -6,6 +6,7 @@ project(Witch
 )
 
 find_package(mimalloc CONFIG REQUIRED)
+find_package(Tracy CONFIG REQUIRED)
 
 # ─── WitchEngine (STATIC) ────────────────────────────────────────────────────
 add_library(WitchEngine STATIC
@@ -25,8 +26,10 @@ if(WIN32)
         Engine/Source/Platform/Windows/PlatformWindow.cpp
         Engine/Source/Rhi/D3D12/D3D12Renderer.cpp
     )
-    target_compile_definitions(WitchEngine PUBLIC UNICODE _UNICODE)
-    target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler mimalloc)
+    target_compile_definitions(WitchEngine PUBLIC UNICODE _UNICODE
+        $<$<NOT:$<CONFIG:Release>>:TRACY_ENABLE>
+    )
+    target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler mimalloc Tracy::TracyClient)
 endif()
 
 target_include_directories(WitchEngine

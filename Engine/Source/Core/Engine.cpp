@@ -3,6 +3,7 @@
 #include "WitchEngine/Core/ResourceManager.h"
 #include "Platform/PlatformWindow.h"
 #include "Rhi/D3D12/D3D12Renderer.h"
+#include <tracy/Tracy.hpp>
 
 namespace witch {
 
@@ -47,12 +48,16 @@ void Engine::Run() {
     running_ = true;
 
     while (running_) {
-        // Apply a queued scene transition at the head of each frame.
+        ZoneScopedN("Frame");
+
         ApplyPendingSceneChange();
 
-        if (!platform::PumpMessages()) {
-            running_ = false;
-            break;
+        {
+            ZoneScopedN("PumpMessages");
+            if (!platform::PumpMessages()) {
+                running_ = false;
+                break;
+            }
         }
 
         time_->Tick();
@@ -60,12 +65,18 @@ void Engine::Run() {
         if (renderer_) {
             auto* cmdList = renderer_->BeginFrame();
             cmdList->Clear({kCornflowerBlue});
-            if (currentScene_) currentScene_->Update(time_->DeltaTime());
+            {
+                ZoneScopedN("SceneUpdate");
+                if (currentScene_) currentScene_->Update(time_->DeltaTime());
+            }
             cmdList->FlushSprites();
             renderer_->EndFrame(cmdList);
         } else if (currentScene_) {
+            ZoneScopedN("SceneUpdate");
             currentScene_->Update(time_->DeltaTime());
         }
+
+        FrameMark;
     }
 
     log::Info("Engine run loop exited.");
