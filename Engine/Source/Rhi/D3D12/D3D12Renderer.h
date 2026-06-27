@@ -17,8 +17,10 @@ using Microsoft::WRL::ComPtr;
 
 /// ダブルバッファリングのバックバッファ数。
 static constexpr uint32_t kBackBufferCount    = 2;
-/// SRV ヒープの固定スロット数。実行時に動的拡張はしない。
+/// SRV ヒープのエンジンテクスチャ用スロット数。実行時に動的拡張はしない。
 static constexpr uint32_t kMaxTextures        = 64;
+/// SRV ヒープ内の ImGui フォントテクスチャ用スロット（エンジンテクスチャの直後）。
+static constexpr uint32_t kImGuiSrvSlot       = kMaxTextures;
 /// 1 フレームのスプライト上限。超えたものは破棄される。
 static constexpr uint32_t kMaxSpritesPerFrame = 1024;
 
@@ -36,6 +38,9 @@ public:
         const uint8_t* pixels, int width, int height) override;
     void DestroyTexture(rhi::TextureHandle handle) override;
     void SubmitSprite(const rhi::SpriteDrawDesc& desc) override;
+
+    void ImGuiNewFrame() override;
+    void ImGuiRender(rhi::ICommandList* cmdList) override;
 
     /// D3D12CommandList::FlushSprites から呼ばれる。
     /// スプライトバッチを頂点バッファに書き込んでドローコールを発行する。

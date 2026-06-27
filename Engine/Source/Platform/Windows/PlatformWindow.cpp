@@ -6,6 +6,7 @@
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Rhi/IRenderer.h"
+#include <imgui_impl_win32.h>
 
 namespace witch::platform {
 
@@ -14,6 +15,9 @@ namespace {
 constexpr wchar_t kClassName[] = L"WitchWindowClass";
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp))
+        return true;
+
     switch (msg) {
     case WM_SIZE:
         {

@@ -58,10 +58,12 @@ void Engine::Run() {
         time_->Tick();
 
         if (renderer_) {
+            renderer_->ImGuiNewFrame();
             auto* cmdList = renderer_->BeginFrame();
             cmdList->Clear({kCornflowerBlue});
             if (currentScene_) currentScene_->Update(time_->DeltaTime());
             cmdList->FlushSprites();
+            renderer_->ImGuiRender(cmdList);
             renderer_->EndFrame(cmdList);
         } else if (currentScene_) {
             currentScene_->Update(time_->DeltaTime());

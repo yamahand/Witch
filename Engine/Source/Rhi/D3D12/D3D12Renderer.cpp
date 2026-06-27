@@ -4,6 +4,9 @@
 #include "WitchEngine/Core/Logger.h"
 #include <cassert>
 #include <string>
+#include <imgui.h>
+#include <imgui_impl_dx12.h>
+#include <imgui_impl_win32.h>
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -165,6 +168,19 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     if (!InitSpritePipeline())
         return false;
 
+    // 13. Dear ImGui (Win32 + DX12 backend)
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::GetIO().IniFilename = nullptr;
+    ImGui_ImplWin32_Init(hwnd);
+
+    D3D12_CPU_DESCRIPTOR_HANDLE imguiFontCpu = srvHeap_->GetCPUDescriptorHandleForHeapStart();
+    imguiFontCpu.ptr += kImGuiSrvSlot * srvDescSize_;
+    D3D12_GPU_DESCRIPTOR_HANDLE imguiFontGpu = srvHeap_->GetGPUDescriptorHandleForHeapStart();
+    imguiFontGpu.ptr += kImGuiSrvSlot * srvDescSize_;
+    ImGui_ImplDX12_Init(device_.Get(), static_cast<int>(kBackBufferCount),
+        DXGI_FORMAT_R8G8B8A8_UNORM, srvHeap_.Get(), imguiFontCpu, imguiFontGpu);
+
     log::Info("D3D12Renderer initialized ({}x{}).", width, height);
     return true;
 }
@@ -238,6 +254,10 @@ void D3D12Renderer::OnResize(int width, int height) {
 }
 
 void D3D12Renderer::Shutdown() {
+    ImGui_ImplDX12_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+
     WaitIdle();
 
     // Unmap persistently mapped upload buffers before releasing.
@@ -390,6 +410,17 @@ void D3D12Renderer::DestroyTexture(rhi::TextureHandle handle) {
         textures_[slot].resource.Reset();
         textures_[slot].used = false;
     }
+}
+
+void D3D12Renderer::ImGuiNewFrame() {
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+}
+
+void D3D12Renderer::ImGuiRender([[maybe_unused]] rhi::ICommandList*) {
+    ImGui::Render();
+    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList_.Get());
 }
 
 void D3D12Renderer::SubmitSprite(const rhi::SpriteDrawDesc& desc) {
@@ -634,8 +665,9 @@ bool D3D12Renderer::InitSpritePipeline() {
     }
 
     // ── GPU-visible SRV descriptor heap ──────────────────────────────────────
+    // kMaxTextures slots for engine textures + 1 slot (kImGuiSrvSlot) for ImGui font.
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
-    srvHeapDesc.NumDescriptors = kMaxTextures;
+    srvHeapDesc.NumDescriptors = kMaxTextures + 1;
     srvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     if (!Check(device_->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap_)),

@@ -42,6 +42,11 @@ public:
 
     /// スプライトを描画キューに積む。ICommandList::FlushSprites で実際のコマンドに変換される。
     virtual void SubmitSprite(const SpriteDrawDesc& desc) = 0;
+
+    /// Dear ImGui のフレームを開始する。PumpMessages の直後、BeginFrame の前に呼ぶ。
+    virtual void ImGuiNewFrame() {}
+    /// Dear ImGui の描画コマンドをコマンドリストに記録する。FlushSprites の直後に呼ぶ。
+    virtual void ImGuiRender(ICommandList* cmdList) {}
 };
 
 } // namespace witch::rhi
