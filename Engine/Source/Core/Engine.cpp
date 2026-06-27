@@ -1,5 +1,6 @@
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/Logger.h"
+#include "WitchEngine/Core/Memory.h"
 #include "WitchEngine/Core/ResourceManager.h"
 #include "Platform/PlatformWindow.h"
 #include "Rhi/D3D12/D3D12Renderer.h"
@@ -18,6 +19,9 @@ void Engine::Init(int width, int height, const char* title) {
         log::Warn("Engine::Init called more than once.");
         return;
     }
+
+    // アロケータ差し替えが有効か最初に検証する（他サービス生成前）。
+    EnsureAllocatorActive();
 
     log::Info("Engine init start.");
 
