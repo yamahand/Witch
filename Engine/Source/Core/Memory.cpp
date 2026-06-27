@@ -1,11 +1,13 @@
-#include "WitchEngine/Core/Memory.h"
+#include "Platform/Memory.h"
+
+#include "WitchEngine/Core/Logger.h"
 
 #include <mimalloc.h>
 #include <mimalloc-new-delete.h>
 
-#include "WitchEngine/Core/Logger.h"
+#include <new>
 
-namespace witch {
+namespace witch::platform {
 
 void EnsureAllocatorActive() {
     // この関数が他 TU（Engine::Init）から参照されることで、MSVC リンカが
@@ -16,13 +18,18 @@ void EnsureAllocatorActive() {
     // mimalloc は static リンク（redirect DLL 不使用）のため mi_is_redirected()
     // は常に false。代わりにグローバル new が mimalloc ヒープから確保されるかを
     // 実測し、operator new/delete の差し替えが実際に効いているか検証する。
-    void* p = ::operator new(64);
+    // 例外をエンジン内部へ伝播させない方針のため nothrow 版を使う。
+    void* p = ::operator new(64, std::nothrow);
+    if (!p) {
+        log::Warn("mimalloc probe allocation failed.");
+        return;
+    }
     const bool overridden = mi_is_in_heap_region(p);
-    ::operator delete(p);
+    ::operator delete(p, std::nothrow);
 
     if (!overridden) {
         log::Warn("mimalloc override is NOT active; using the standard allocator.");
     }
 }
 
-}  // namespace witch
+}  // namespace witch::platform
