@@ -1,10 +1,17 @@
 cmake_minimum_required(VERSION 3.28)
-project(Witch CXX)
+project(Witch
+    VERSION 0.1.0
+    DESCRIPTION "2D Game Engine and Game"
+    LANGUAGES CXX C
+)
+
+find_package(mimalloc CONFIG REQUIRED)
 
 # ─── WitchEngine (STATIC) ────────────────────────────────────────────────────
 add_library(WitchEngine STATIC
     Engine/Source/Core/Engine.cpp
     Engine/Source/Core/Logger.cpp
+    Engine/Source/Core/Memory.cpp
     Engine/Source/Core/ObjectRegistry.cpp
     Engine/Source/Core/ResourceManager.cpp
     Engine/Source/Core/Time.cpp
@@ -19,7 +26,7 @@ if(WIN32)
         Engine/Source/Rhi/D3D12/D3D12Renderer.cpp
     )
     target_compile_definitions(WitchEngine PUBLIC UNICODE _UNICODE)
-    target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler)
+    target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler mimalloc)
 endif()
 
 target_include_directories(WitchEngine
