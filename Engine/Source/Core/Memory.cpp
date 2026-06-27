@@ -1,8 +1,9 @@
+#include "WitchEngine/Core/Memory.h"
+
 #include <mimalloc.h>
 #include <mimalloc-new-delete.h>
 
 #include "WitchEngine/Core/Logger.h"
-#include "WitchEngine/Core/Memory.h"
 
 namespace witch {
 
