@@ -13,7 +13,7 @@ void EnsureAllocatorActive() {
     // この関数が他 TU（Engine::Init）から参照されることで、MSVC リンカが
     // Memory.obj（new/delete 差し替えを含む）を静的ライブラリから取りこぼす
     // silent failure を防ぐ。mi_version() 参照も同じ保証に寄与する。
-    log::Info("mimalloc {} active.", mi_version());
+    log::Info("Verifying mimalloc allocator (v{})...", mi_version());
 
     // mimalloc は static リンク（redirect DLL 不使用）のため mi_is_redirected()
     // は常に false。代わりにグローバル new が mimalloc ヒープから確保されるかを
@@ -27,7 +27,9 @@ void EnsureAllocatorActive() {
     const bool overridden = mi_is_in_heap_region(p);
     ::operator delete(p, std::nothrow);
 
-    if (!overridden) {
+    if (overridden) {
+        log::Info("mimalloc override verified.");
+    } else {
         log::Warn("mimalloc override is NOT active; using the standard allocator.");
     }
 }
