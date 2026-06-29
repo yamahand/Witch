@@ -6,8 +6,10 @@ project(Witch
     LANGUAGES CXX C
 )
 
-find_package(mimalloc CONFIG REQUIRED)
-find_package(Tracy CONFIG REQUIRED)
+# ─── Profiling option ────────────────────────────────────────────────────────
+# Tracy プロファイラの有効化。明示的に ON にしたビルドだけで計測する
+# （RelWithDebInfo のパフォーマンス計測に Tracy のオーバーヘッドが紛れ込むのを避ける）。
+option(WITCH_PROFILING "Enable Tracy profiling" OFF)
 
 # ─── WitchEngine (STATIC) ────────────────────────────────────────────────────
 add_library(WitchEngine STATIC
@@ -23,16 +25,23 @@ add_library(WitchEngine STATIC
 
 if(WIN32)
     find_package(mimalloc CONFIG REQUIRED)
+    find_package(Tracy CONFIG REQUIRED)
 
     target_sources(WitchEngine PRIVATE
         Engine/Source/Platform/Windows/PlatformWindow.cpp
         Engine/Source/Platform/Windows/Memory.cpp
         Engine/Source/Rhi/D3D12/D3D12Renderer.cpp
     )
-    target_compile_definitions(WitchEngine PUBLIC UNICODE _UNICODE
-        $<$<NOT:$<CONFIG:Release>>:TRACY_ENABLE>
+    target_compile_definitions(WitchEngine PUBLIC UNICODE _UNICODE)
+    target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler)
+    # new/delete 差し替えは Memory.cpp 内で完結し API を外部公開しないため PRIVATE。
+    # Tracy も計測は Engine の .cpp 内で完結するため PRIVATE。
+    target_link_libraries(WitchEngine PRIVATE mimalloc Tracy::TracyClient)
+    # WITCH_PROFILING が ON のときだけ Tracy を有効化。WitchEngine の .cpp が
+    # Tracy マクロを使うため PRIVATE で十分（公開ヘッダには漏らさない）。
+    target_compile_definitions(WitchEngine PRIVATE
+        $<$<BOOL:${WITCH_PROFILING}>:TRACY_ENABLE>
     )
-    target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler mimalloc Tracy::TracyClient)
 endif()
 
 target_include_directories(WitchEngine

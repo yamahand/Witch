@@ -76,8 +76,10 @@ void Engine::Run() {
             cmdList->FlushSprites();
             renderer_->EndFrame(cmdList);
         } else if (currentScene_) {
-            ZoneScopedN("SceneUpdate");
-            currentScene_->Update(time_->DeltaTime());
+            {
+                ZoneScopedN("SceneUpdate");
+                currentScene_->Update(time_->DeltaTime());
+            }
         }
 
         FrameMark;
