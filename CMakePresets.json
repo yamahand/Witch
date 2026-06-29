@@ -26,6 +26,17 @@
       }
     },
     {
+      "name": "debug-profiling",
+      "displayName": "MSVC Debug + Tracy (x64)",
+      "description": "Debug ビルドに Tracy プロファイラを有効化。vcpkg の profiling feature 経由で tracy を取得する。",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/debug-profiling",
+      "cacheVariables": {
+        "WITCH_PROFILING": "ON",
+        "VCPKG_MANIFEST_FEATURES": "profiling"
+      }
+    },
+    {
       "name": "release",
       "displayName": "MSVC Release (x64)",
       "inherits": "base",
@@ -65,6 +76,12 @@
       "name": "debug",
       "displayName": "Build Debug",
       "configurePreset": "debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "debug-profiling",
+      "displayName": "Build Debug + Tracy",
+      "configurePreset": "debug-profiling",
       "configuration": "Debug"
     },
     {

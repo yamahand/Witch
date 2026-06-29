@@ -4,16 +4,7 @@
 #include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
 #include "Rhi/D3D12/D3D12Renderer.h"
-
-// Tracy は WITCH_PROFILING=ON のときだけ依存に加わる（TRACY_ENABLE が立つ）。
-// OFF ビルドでは Tracy がインストールされていない可能性があるため、ヘッダ自体を
-// インクルードせず計測マクロを no-op に潰す。
-#ifdef TRACY_ENABLE
-#include <tracy/Tracy.hpp>
-#else
-#define ZoneScopedN(name)
-#define FrameMark
-#endif
+#include "Core/Profiling.h"
 
 namespace witch {
 
@@ -82,6 +73,7 @@ void Engine::Run() {
         }
 
         if (renderer_) {
+            ZoneScopedN("Render");
             auto* cmdList = renderer_->BeginFrame();
             cmdList->Clear({kCornflowerBlue});
             cmdList->FlushSprites();

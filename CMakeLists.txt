@@ -40,9 +40,10 @@ endif()
 # ─── Tracy profiling ─────────────────────────────────────────────────────────
 # WITCH_PROFILING=ON のときだけ Tracy をリンクし TRACY_ENABLE を定義する。
 # OFF 時は find_package / link / define を一切行わないため、Engine 自体は Tracy に
-# 非依存（Engine.cpp は計測マクロを no-op に潰す）。
-# 注意: vcpkg マニフェスト（vcpkg.json）は OFF でも tracy を取得・ビルドする。
-# CI でのビルドコストを嫌う場合は vcpkg の feature 化を検討する（今は許容）。
+# 非依存（計測マクロは Core/Profiling.h が no-op に潰す）。
+# tracy 自体の取得も vcpkg の profiling feature に切り出してあり（vcpkg.json）、
+# debug-profiling プリセット（VCPKG_MANIFEST_FEATURES=profiling）でのみ取得される。
+# 通常の debug / release / ci プリセットは tracy を取得しないため依存ゼロ。
 # 計測は Engine の .cpp 内で完結するため PRIVATE で十分（公開ヘッダには漏らさない）。
 if(WITCH_PROFILING)
     find_package(Tracy CONFIG REQUIRED)
