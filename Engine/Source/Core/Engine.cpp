@@ -61,7 +61,6 @@ void Engine::Run() {
                 WITCH_PROFILE_SCOPE_N("PumpMessages");
                 if (!platform::PumpMessages()) {
                     running_ = false;
-                    WITCH_PROFILE_FRAME();  // 最終フレームを Tracy 上で正常クローズしてから抜ける
                     break;
                 }
             }
