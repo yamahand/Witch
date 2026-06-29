@@ -3,6 +3,8 @@
 #include "WitchEngine/Core/Logger.h"
 
 #include <mimalloc.h>
+// グローバル operator new/delete を mimalloc に差し替える。ODR 違反を避けるため
+// このヘッダはプロセス全体で「ちょうど 1 つの TU」だけに含めること。
 #include <mimalloc-new-delete.h>
 
 #include <new>

@@ -4,6 +4,7 @@
 #include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
 #include "Rhi/D3D12/D3D12Renderer.h"
+#include "Core/Profiling.h"
 
 namespace witch {
 
@@ -51,26 +52,38 @@ void Engine::Run() {
     running_ = true;
 
     while (running_) {
-        // Apply a queued scene transition at the head of each frame.
-        ApplyPendingSceneChange();
+        {
+            WITCH_PROFILE_SCOPE_N("Frame");
 
-        if (!platform::PumpMessages()) {
-            running_ = false;
-            break;
+            ApplyPendingSceneChange();
+
+            {
+                WITCH_PROFILE_SCOPE_N("PumpMessages");
+                if (!platform::PumpMessages()) {
+                    running_ = false;
+                    break;
+                }
+            }
+
+            time_->Tick();
+
+            {
+                WITCH_PROFILE_SCOPE_N("SceneUpdate");
+                if (currentScene_) currentScene_->Update(time_->DeltaTime());
+            }
+
+            if (renderer_) {
+                WITCH_PROFILE_SCOPE_N("Render");
+                auto* cmdList = renderer_->BeginFrame();
+                cmdList->Clear({ kCornflowerBlue });
+                cmdList->FlushSprites();
+                renderer_->EndFrame(cmdList);
+            }
         }
 
-        time_->Tick();
-
-        if (renderer_) {
-            auto* cmdList = renderer_->BeginFrame();
-            cmdList->Clear({kCornflowerBlue});
-            if (currentScene_) currentScene_->Update(time_->DeltaTime());
-            cmdList->FlushSprites();
-            renderer_->EndFrame(cmdList);
-        } else if (currentScene_) {
-            currentScene_->Update(time_->DeltaTime());
-        }
+        WITCH_PROFILE_FRAME();
     }
+    WITCH_PROFILE_FRAME();
 
     log::Info("Engine run loop exited.");
 }

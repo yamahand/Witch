@@ -6,6 +6,11 @@ project(Witch
     LANGUAGES CXX C
 )
 
+# ─── Profiling option ────────────────────────────────────────────────────────
+# Tracy プロファイラの有効化。明示的に ON にしたビルドだけで計測する
+# （RelWithDebInfo のパフォーマンス計測に Tracy のオーバーヘッドが紛れ込むのを避ける）。
+option(WITCH_PROFILING "Enable Tracy profiling" OFF)
+
 # ─── WitchEngine (STATIC) ────────────────────────────────────────────────────
 add_library(WitchEngine STATIC
     Engine/Source/Core/Engine.cpp
@@ -28,8 +33,22 @@ if(WIN32)
     )
     target_compile_definitions(WitchEngine PUBLIC UNICODE _UNICODE)
     target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler)
-    # new/delete 差し替えは Memory.cpp 内で完結し API を外部公開しないため PRIVATE
+    # new/delete 差し替えは Memory.cpp 内で完結し API を外部公開しないため PRIVATE。
     target_link_libraries(WitchEngine PRIVATE mimalloc)
+endif()
+
+# ─── Tracy profiling ─────────────────────────────────────────────────────────
+# WITCH_PROFILING=ON のときだけ Tracy をリンクし TRACY_ENABLE を定義する。
+# OFF 時は find_package / link / define を一切行わないため、Engine 自体は Tracy に
+# 非依存（計測マクロは Core/Profiling.h が no-op に潰す）。
+# tracy 自体の取得も vcpkg の profiling feature に切り出してあり（vcpkg.json）、
+# debug-profiling プリセット（VCPKG_MANIFEST_FEATURES=profiling）でのみ取得される。
+# 通常の debug / release / ci プリセットは tracy を取得しないため依存ゼロ。
+# 計測は Engine の .cpp 内で完結するため PRIVATE で十分（公開ヘッダには漏らさない）。
+if(WITCH_PROFILING)
+    find_package(Tracy CONFIG REQUIRED)
+    target_link_libraries(WitchEngine PRIVATE Tracy::TracyClient)
+    target_compile_definitions(WitchEngine PRIVATE TRACY_ENABLE)
 endif()
 
 target_include_directories(WitchEngine
