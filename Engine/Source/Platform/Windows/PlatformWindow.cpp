@@ -8,6 +8,10 @@
 #include "WitchEngine/Rhi/IRenderer.h"
 #include <imgui_impl_win32.h>
 
+// imgui_impl_win32.h は <windows.h> 依存を避けるため、この前方宣言を #if 0 で握り潰している。
+// ヘッダの指示どおり、利用側で 1 行コピーして宣言する。
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 namespace witch::platform {
 
 namespace {
@@ -16,7 +20,7 @@ constexpr wchar_t kClassName[] = L"WitchWindowClass";
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp))
-        return true;
+        return TRUE;
 
     switch (msg) {
     case WM_SIZE:
