@@ -254,11 +254,12 @@ void D3D12Renderer::OnResize(int width, int height) {
 }
 
 void D3D12Renderer::Shutdown() {
+    // GPU がフレームリソース（ImGui フォントテクスチャ含む）を使い終わるのを待ってから解放する。
+    WaitIdle();
+
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
-
-    WaitIdle();
 
     // Unmap persistently mapped upload buffers before releasing.
     for (uint32_t i = 0; i < kBackBufferCount; ++i) {
@@ -412,14 +413,16 @@ void D3D12Renderer::DestroyTexture(rhi::TextureHandle handle) {
     }
 }
 
-void D3D12Renderer::ImGuiNewFrame() {
+void D3D12Renderer::BeginDebugUI() {
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 }
 
-void D3D12Renderer::ImGuiRender([[maybe_unused]] rhi::ICommandList*) {
+void D3D12Renderer::RenderDebugUI([[maybe_unused]] rhi::ICommandList*) {
     ImGui::Render();
+    // 単一フレームコマンドリスト方式のため、引数のラッパーではなく内部の cmdList_ を直接使う
+    // （EndFrame と同じ流儀）。
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList_.Get());
 }
 
