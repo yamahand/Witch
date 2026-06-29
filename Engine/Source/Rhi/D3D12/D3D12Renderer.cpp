@@ -174,12 +174,34 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     ImGui::GetIO().IniFilename = nullptr;
     ImGui_ImplWin32_Init(hwnd);
 
-    D3D12_CPU_DESCRIPTOR_HANDLE imguiFontCpu = srvHeap_->GetCPUDescriptorHandleForHeapStart();
-    imguiFontCpu.ptr += kImGuiSrvSlot * srvDescSize_;
-    D3D12_GPU_DESCRIPTOR_HANDLE imguiFontGpu = srvHeap_->GetGPUDescriptorHandleForHeapStart();
-    imguiFontGpu.ptr += kImGuiSrvSlot * srvDescSize_;
-    ImGui_ImplDX12_Init(device_.Get(), static_cast<int>(kBackBufferCount),
-        DXGI_FORMAT_R8G8B8A8_UNORM, srvHeap_.Get(), imguiFontCpu, imguiFontGpu);
+    // ImGui 1.92 以降の DX12 バックエンドは動的テクスチャ（RendererHasTextures）に対応し、
+    // フォントアトラスを含むテクスチャを RenderDrawData 内で自前アップロードする。これには
+    // SRV ディスクリプタの確保/解放コールバックが必要。レガシーな 6 引数 Init はこのフラグを
+    // 無効化してしまい、v1.92 ではフォントアトラスが構築されず assert になる。
+    // 本エンジンは ImGui テクスチャを font 1 枚しか使わないため、予約済みの kImGuiSrvSlot を
+    // 単一スロットとして払い出す最小アロケータを与える。
+    ImGui_ImplDX12_InitInfo initInfo{};
+    initInfo.Device            = device_.Get();
+    initInfo.CommandQueue      = queue_.Get();
+    initInfo.NumFramesInFlight = static_cast<int>(kBackBufferCount);
+    initInfo.RTVFormat         = DXGI_FORMAT_R8G8B8A8_UNORM;
+    initInfo.SrvDescriptorHeap = srvHeap_.Get();
+    initInfo.UserData          = this;
+    initInfo.SrvDescriptorAllocFn =
+        [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* outCpu,
+           D3D12_GPU_DESCRIPTOR_HANDLE* outGpu) {
+            auto* self = static_cast<D3D12Renderer*>(info->UserData);
+            *outCpu = self->srvHeap_->GetCPUDescriptorHandleForHeapStart();
+            outCpu->ptr += kImGuiSrvSlot * self->srvDescSize_;
+            *outGpu = self->srvHeap_->GetGPUDescriptorHandleForHeapStart();
+            outGpu->ptr += kImGuiSrvSlot * self->srvDescSize_;
+        };
+    initInfo.SrvDescriptorFreeFn =
+        [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE,
+           D3D12_GPU_DESCRIPTOR_HANDLE) {
+            // 単一の予約スロットのため解放処理は不要。
+        };
+    ImGui_ImplDX12_Init(&initInfo);
 
     log::Info("D3D12Renderer initialized ({}x{}).", width, height);
     return true;
