@@ -10,7 +10,7 @@
 #include <tracy/Tracy.hpp>
 #endif
 
-#if defined(TRACY_ENABLE)
+#ifdef TRACY_ENABLE
     #define WITCH_PROFILE_SCOPE()       ZoneScoped
     #define WITCH_PROFILE_SCOPE_N(name) ZoneScopedN(name)
     #define WITCH_PROFILE_FRAME()       FrameMark
