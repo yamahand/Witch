@@ -8,7 +8,14 @@
 // 重複させずに済む。
 #ifdef TRACY_ENABLE
 #include <tracy/Tracy.hpp>
+#endif
+
+#if defined(TRACY_ENABLE)
+    #define WITCH_PROFILE_SCOPE()       ZoneScoped
+    #define WITCH_PROFILE_SCOPE_N(name) ZoneScopedN(name)
+    #define WITCH_PROFILE_FRAME()       FrameMark
 #else
-#define ZoneScopedN(name)
-#define FrameMark
+    #define WITCH_PROFILE_SCOPE()         ((void)0)
+    #define WITCH_PROFILE_SCOPE_N(name)   ((void)0)
+    #define WITCH_PROFILE_FRAME()         ((void)0)
 #endif

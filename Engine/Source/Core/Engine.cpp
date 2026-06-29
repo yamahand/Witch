@@ -52,15 +52,15 @@ void Engine::Run() {
     running_ = true;
 
     while (running_) {
-        ZoneScopedN("Frame");
+        WITCH_PROFILE_SCOPE_N("Frame");
 
         ApplyPendingSceneChange();
 
         {
-            ZoneScopedN("PumpMessages");
+            WITCH_PROFILE_SCOPE_N("PumpMessages");
             if (!platform::PumpMessages()) {
                 running_ = false;
-                FrameMark;  // 最終フレームを Tracy 上で正常クローズしてから抜ける
+                WITCH_PROFILE_FRAME();  // 最終フレームを Tracy 上で正常クローズしてから抜ける
                 break;
             }
         }
@@ -68,19 +68,19 @@ void Engine::Run() {
         time_->Tick();
 
         {
-            ZoneScopedN("SceneUpdate");
+            WITCH_PROFILE_SCOPE_N("SceneUpdate");
             if (currentScene_) currentScene_->Update(time_->DeltaTime());
         }
 
         if (renderer_) {
-            ZoneScopedN("Render");
+            WITCH_PROFILE_SCOPE_N("Render");
             auto* cmdList = renderer_->BeginFrame();
             cmdList->Clear({kCornflowerBlue});
             cmdList->FlushSprites();
             renderer_->EndFrame(cmdList);
         }
 
-        FrameMark;
+        WITCH_PROFILE_FRAME();
     }
 
     log::Info("Engine run loop exited.");
