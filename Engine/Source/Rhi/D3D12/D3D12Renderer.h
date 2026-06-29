@@ -39,8 +39,8 @@ public:
     void DestroyTexture(rhi::TextureHandle handle) override;
     void SubmitSprite(const rhi::SpriteDrawDesc& desc) override;
 
-    void ImGuiNewFrame() override;
-    void ImGuiRender(rhi::ICommandList* cmdList) override;
+    void BeginDebugUI() override;
+    void RenderDebugUI(rhi::ICommandList* cmdList) override;
 
     /// D3D12CommandList::FlushSprites から呼ばれる。
     /// スプライトバッチを頂点バッファに書き込んでドローコールを発行する。
