@@ -52,36 +52,39 @@ void Engine::Run() {
     running_ = true;
 
     while (running_) {
-        WITCH_PROFILE_SCOPE_N("Frame");
-
-        ApplyPendingSceneChange();
-
         {
-            WITCH_PROFILE_SCOPE_N("PumpMessages");
-            if (!platform::PumpMessages()) {
-                running_ = false;
-                WITCH_PROFILE_FRAME();  // 最終フレームを Tracy 上で正常クローズしてから抜ける
-                break;
+            WITCH_PROFILE_SCOPE_N("Frame");
+
+            ApplyPendingSceneChange();
+
+            {
+                WITCH_PROFILE_SCOPE_N("PumpMessages");
+                if (!platform::PumpMessages()) {
+                    running_ = false;
+                    WITCH_PROFILE_FRAME();  // 最終フレームを Tracy 上で正常クローズしてから抜ける
+                    break;
+                }
             }
-        }
 
-        time_->Tick();
+            time_->Tick();
 
-        {
-            WITCH_PROFILE_SCOPE_N("SceneUpdate");
-            if (currentScene_) currentScene_->Update(time_->DeltaTime());
-        }
+            {
+                WITCH_PROFILE_SCOPE_N("SceneUpdate");
+                if (currentScene_) currentScene_->Update(time_->DeltaTime());
+            }
 
-        if (renderer_) {
-            WITCH_PROFILE_SCOPE_N("Render");
-            auto* cmdList = renderer_->BeginFrame();
-            cmdList->Clear({kCornflowerBlue});
-            cmdList->FlushSprites();
-            renderer_->EndFrame(cmdList);
+            if (renderer_) {
+                WITCH_PROFILE_SCOPE_N("Render");
+                auto* cmdList = renderer_->BeginFrame();
+                cmdList->Clear({ kCornflowerBlue });
+                cmdList->FlushSprites();
+                renderer_->EndFrame(cmdList);
+            }
         }
 
         WITCH_PROFILE_FRAME();
     }
+    WITCH_PROFILE_FRAME();
 
     log::Info("Engine run loop exited.");
 }

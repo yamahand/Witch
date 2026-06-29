@@ -9,3 +9,10 @@ set(VCPKG_LIBRARY_LINKAGE dynamic)
 if(PORT STREQUAL "mimalloc")
     set(VCPKG_LIBRARY_LINKAGE static)
 endif()
+
+# Tracy もシングル EXE 構成では DLL 不要。static にして deploy を単純化する。
+# vcpkg が TRACY_STATIC を Tracy::TracyClient の INTERFACE 定義として自動伝播するため
+# 呼び出し側（Profiling.h）の変更は不要。
+if(PORT STREQUAL "tracy")
+    set(VCPKG_LIBRARY_LINKAGE static)
+endif()
