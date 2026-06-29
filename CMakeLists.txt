@@ -38,10 +38,12 @@ if(WIN32)
 endif()
 
 # ─── Tracy profiling ─────────────────────────────────────────────────────────
-# WITCH_PROFILING=ON のときだけ Tracy を依存に加える。find_package / link / define
-# をまとめてガードすることで、OFF 時は Tracy への依存が完全にゼロになる
-# （未インストール環境でも OFF ビルドが通る）。計測は Engine の .cpp 内で完結する
-# ため PRIVATE で十分（公開ヘッダには漏らさない）。
+# WITCH_PROFILING=ON のときだけ Tracy をリンクし TRACY_ENABLE を定義する。
+# OFF 時は find_package / link / define を一切行わないため、Engine 自体は Tracy に
+# 非依存（Engine.cpp は計測マクロを no-op に潰す）。
+# 注意: vcpkg マニフェスト（vcpkg.json）は OFF でも tracy を取得・ビルドする。
+# CI でのビルドコストを嫌う場合は vcpkg の feature 化を検討する（今は許容）。
+# 計測は Engine の .cpp 内で完結するため PRIVATE で十分（公開ヘッダには漏らさない）。
 if(WITCH_PROFILING)
     find_package(Tracy CONFIG REQUIRED)
     target_link_libraries(WitchEngine PRIVATE Tracy::TracyClient)

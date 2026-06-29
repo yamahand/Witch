@@ -69,26 +69,23 @@ void Engine::Run() {
             ZoneScopedN("PumpMessages");
             if (!platform::PumpMessages()) {
                 running_ = false;
+                FrameMark;  // 最終フレームを Tracy 上で正常クローズしてから抜ける
                 break;
             }
         }
 
         time_->Tick();
 
+        {
+            ZoneScopedN("SceneUpdate");
+            if (currentScene_) currentScene_->Update(time_->DeltaTime());
+        }
+
         if (renderer_) {
             auto* cmdList = renderer_->BeginFrame();
             cmdList->Clear({kCornflowerBlue});
-            {
-                ZoneScopedN("SceneUpdate");
-                if (currentScene_) currentScene_->Update(time_->DeltaTime());
-            }
             cmdList->FlushSprites();
             renderer_->EndFrame(cmdList);
-        } else if (currentScene_) {
-            {
-                ZoneScopedN("SceneUpdate");
-                currentScene_->Update(time_->DeltaTime());
-            }
         }
 
         FrameMark;
