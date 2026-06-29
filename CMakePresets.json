@@ -11,7 +11,9 @@
         "CMAKE_TOOLCHAIN_FILE": {
           "value": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/vcpkg/scripts/buildsystems/vcpkg.cmake",
           "type": "FILEPATH"
-        }
+        },
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-mimalloc-static"
       }
     },
     {
@@ -21,6 +23,17 @@
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "debug-profiling",
+      "displayName": "MSVC Debug + Tracy (x64)",
+      "description": "Debug ビルドに Tracy プロファイラを有効化。vcpkg の profiling feature 経由で tracy を取得する。",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/debug-profiling",
+      "cacheVariables": {
+        "WITCH_PROFILING": "ON",
+        "VCPKG_MANIFEST_FEATURES": "profiling"
       }
     },
     {
@@ -42,7 +55,9 @@
         "CMAKE_TOOLCHAIN_FILE": {
           "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
           "type": "FILEPATH"
-        }
+        },
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-mimalloc-static"
       }
     },
     {
@@ -61,6 +76,12 @@
       "name": "debug",
       "displayName": "Build Debug",
       "configurePreset": "debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "debug-profiling",
+      "displayName": "Build Debug + Tracy",
+      "configurePreset": "debug-profiling",
       "configuration": "Debug"
     },
     {

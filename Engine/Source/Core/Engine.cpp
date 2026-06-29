@@ -1,8 +1,10 @@
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/ResourceManager.h"
+#include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
 #include "Rhi/D3D12/D3D12Renderer.h"
+#include "Core/Profiling.h"
 
 namespace witch {
 
@@ -18,6 +20,9 @@ void Engine::Init(int width, int height, const char* title) {
         log::Warn("Engine::Init called more than once.");
         return;
     }
+
+    // アロケータ差し替えが有効か最初に検証する（他サービス生成前）。
+    platform::EnsureAllocatorActive();
 
     log::Info("Engine init start.");
 
@@ -47,28 +52,44 @@ void Engine::Run() {
     running_ = true;
 
     while (running_) {
-        // Apply a queued scene transition at the head of each frame.
-        ApplyPendingSceneChange();
+        {
+            WITCH_PROFILE_SCOPE_N("Frame");
 
-        if (!platform::PumpMessages()) {
-            running_ = false;
-            break;
+            ApplyPendingSceneChange();
+
+            {
+                WITCH_PROFILE_SCOPE_N("PumpMessages");
+                if (!platform::PumpMessages()) {
+                    running_ = false;
+                    break;
+                }
+            }
+
+            time_->Tick();
+
+            if (renderer_) {
+                renderer_->ImGuiNewFrame();
+                auto* cmdList = renderer_->BeginFrame();
+                cmdList->Clear({kCornflowerBlue});
+                {
+                    WITCH_PROFILE_SCOPE_N("SceneUpdate");
+                    if (currentScene_) currentScene_->Update(time_->DeltaTime());
+                }
+                {
+                    WITCH_PROFILE_SCOPE_N("Render");
+                    cmdList->FlushSprites();
+                    renderer_->ImGuiRender(cmdList);
+                    renderer_->EndFrame(cmdList);
+                }
+            } else if (currentScene_) {
+                WITCH_PROFILE_SCOPE_N("SceneUpdate");
+                currentScene_->Update(time_->DeltaTime());
+            }
         }
 
-        time_->Tick();
-
-        if (renderer_) {
-            renderer_->ImGuiNewFrame();
-            auto* cmdList = renderer_->BeginFrame();
-            cmdList->Clear({kCornflowerBlue});
-            if (currentScene_) currentScene_->Update(time_->DeltaTime());
-            cmdList->FlushSprites();
-            renderer_->ImGuiRender(cmdList);
-            renderer_->EndFrame(cmdList);
-        } else if (currentScene_) {
-            currentScene_->Update(time_->DeltaTime());
-        }
+        WITCH_PROFILE_FRAME();
     }
+    WITCH_PROFILE_FRAME();
 
     log::Info("Engine run loop exited.");
 }
