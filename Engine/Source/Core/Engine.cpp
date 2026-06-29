@@ -67,23 +67,23 @@ void Engine::Run() {
 
             time_->Tick();
 
+            // 1) 入力を反映しデバッグ UI のフレームを開始（BeginFrame より前に呼べる）。
+            if (renderer_) renderer_->BeginDebugUI();
+
+            // 2) ロジック更新。描画器の有無に依存せず、重複なく 1 か所で行う。
+            {
+                WITCH_PROFILE_SCOPE_N("SceneUpdate");
+                if (currentScene_) currentScene_->Update(time_->DeltaTime());
+            }
+
+            // 3) 描画（描画器がある場合のみ）。
             if (renderer_) {
-                renderer_->ImGuiNewFrame();
+                WITCH_PROFILE_SCOPE_N("Render");
                 auto* cmdList = renderer_->BeginFrame();
                 cmdList->Clear({kCornflowerBlue});
-                {
-                    WITCH_PROFILE_SCOPE_N("SceneUpdate");
-                    if (currentScene_) currentScene_->Update(time_->DeltaTime());
-                }
-                {
-                    WITCH_PROFILE_SCOPE_N("Render");
-                    cmdList->FlushSprites();
-                    renderer_->ImGuiRender(cmdList);
-                    renderer_->EndFrame(cmdList);
-                }
-            } else if (currentScene_) {
-                WITCH_PROFILE_SCOPE_N("SceneUpdate");
-                currentScene_->Update(time_->DeltaTime());
+                cmdList->FlushSprites();
+                renderer_->RenderDebugUI(cmdList);
+                renderer_->EndFrame(cmdList);
             }
         }
 
