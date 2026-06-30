@@ -5,17 +5,22 @@
   "builtin-baseline": "cb2981c4e03d421fa03b9bb5044cd1986180e7e4",
   "dependencies": [
     "stb",
-    "mimalloc",
-    {
-      "name": "imgui",
-      "features": ["dx12-binding", "win32-binding"]
-    }
+    "mimalloc"
   ],
   "features": {
     "profiling": {
       "description": "Enable Tracy profiler client",
       "dependencies": [
         "tracy"
+      ]
+    },
+    "debug-ui": {
+      "description": "Enable Dear ImGui debug UI (Win32 + DX12 backend)",
+      "dependencies": [
+        {
+          "name": "imgui",
+          "features": ["dx12-binding", "win32-binding"]
+        }
       ]
     }
   }

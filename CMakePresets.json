@@ -22,7 +22,9 @@
       "inherits": "base",
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WITCH_DEBUG_UI": "ON",
+        "VCPKG_MANIFEST_FEATURES": "debug-ui"
       }
     },
     {
@@ -33,7 +35,7 @@
       "binaryDir": "${sourceDir}/build/debug-profiling",
       "cacheVariables": {
         "WITCH_PROFILING": "ON",
-        "VCPKG_MANIFEST_FEATURES": "profiling"
+        "VCPKG_MANIFEST_FEATURES": "profiling;debug-ui"
       }
     },
     {
@@ -42,7 +44,8 @@
       "inherits": "base",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "WITCH_DEBUG_UI": "OFF"
       }
     },
     {
@@ -67,7 +70,9 @@
       "inherits": "ci-base",
       "binaryDir": "${sourceDir}/build/ci-debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WITCH_DEBUG_UI": "ON",
+        "VCPKG_MANIFEST_FEATURES": "debug-ui"
       }
     }
   ],
