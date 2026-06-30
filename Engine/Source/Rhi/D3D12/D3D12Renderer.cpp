@@ -206,9 +206,12 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
             outGpu->ptr += kImGuiSrvSlot * self->srvDescSize_;
         };
     initInfo.SrvDescriptorFreeFn =
-        [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE,
+        [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE,
            D3D12_GPU_DESCRIPTOR_HANDLE) {
-            // 単一の予約スロットのため解放処理は不要。
+            // 単一の予約スロットのため実際の解放処理は不要。ただし将来フォントを作り直す等で
+            // Free→Alloc が再発生したとき AllocFn の guard が誤発火しないようフラグを戻す。
+            auto* self = static_cast<D3D12Renderer*>(info->UserData);
+            self->imguiSrvAllocated_ = false;
         };
     if (!ImGui_ImplDX12_Init(&initInfo)) {
         log::Error("ImGui_ImplDX12_Init failed.");

@@ -77,7 +77,9 @@ void Engine::Run() {
             }
 
             // 2.5) ゲームのデバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
-            if (currentScene_) currentScene_->DrawDebugUI();
+            //      renderer_ が無いときは BeginDebugUI が呼ばれず ImGui フレームが
+            //      開始されないため、ゲーム側 ImGui 呼び出しを避けてスキップする。
+            if (renderer_ && currentScene_) currentScene_->DrawDebugUI();
 
             // 3) 描画（描画器がある場合のみ）。
             if (renderer_) {
