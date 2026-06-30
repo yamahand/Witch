@@ -76,12 +76,12 @@ void Engine::Run() {
                 if (currentScene_) currentScene_->Update(time_->DeltaTime());
             }
 
-            // 2.5) ゲームのデバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
-            //      renderer_ が無いときは BeginDebugUI が呼ばれず ImGui フレームが
-            //      開始されないため、ゲーム側 ImGui 呼び出しを避けてスキップする。
+            // 3) ゲームのデバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
+            //    renderer_ が無いときは BeginDebugUI が呼ばれず ImGui フレームが
+            //    開始されないため、ゲーム側 ImGui 呼び出しを避けてスキップする。
             if (renderer_ && currentScene_) currentScene_->DrawDebugUI();
 
-            // 3) 描画（描画器がある場合のみ）。
+            // 4) 描画（描画器がある場合のみ）。
             if (renderer_) {
                 WITCH_PROFILE_SCOPE_N("Render");
                 auto* cmdList = renderer_->BeginFrame();
