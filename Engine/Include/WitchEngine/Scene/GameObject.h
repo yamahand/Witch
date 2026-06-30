@@ -24,6 +24,9 @@ public:
     virtual void OnSpawn() {}
     /// 毎フレーム全コンポーネントを更新する。サブクラスは追加処理を書いて base を呼ぶ。
     virtual void Update(float dt);
+    /// ImGui フレーム内で呼ばれる。既定で全 Component の DrawDebugUI を呼ぶ。
+    /// サブクラスは追加の ImGui::* 呼び出しを書いて base を呼ぶ。
+    virtual void DrawDebugUI();
     /// 破棄直前に呼ばれる。
     virtual void OnDespawn() {}
 

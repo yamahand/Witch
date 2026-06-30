@@ -34,6 +34,8 @@ if(WIN32)
         Engine/Source/Rhi/D3D12/D3D12Renderer.cpp
     )
     target_compile_definitions(WitchEngine PUBLIC UNICODE _UNICODE)
+    # ImGui はゲーム側が GameObject::DrawDebugUI() 内で直接使う設計のため、あえて PUBLIC で
+    # Game へ伝播させる（デバッグ UI 記述のイテレーション速度を優先）。
     target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler imgui::imgui)
     # new/delete 差し替えは Memory.cpp 内で完結し API を外部公開しないため PRIVATE。
     target_link_libraries(WitchEngine PRIVATE mimalloc)

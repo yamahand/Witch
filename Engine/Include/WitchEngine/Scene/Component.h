@@ -13,6 +13,8 @@ public:
     virtual void OnAttach() {}
     /// 毎フレーム GameObject::Update から呼ばれる。
     virtual void Update([[maybe_unused]] float dt) {}
+    /// 毎フレーム、ImGui フレーム内で呼ばれる。デバッグ UI を描く。既定は何もしない。
+    virtual void DrawDebugUI() {}
     /// コンポーネント破棄直前に呼ばれる。
     virtual void OnDetach() {}
 

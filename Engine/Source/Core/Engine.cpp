@@ -76,6 +76,9 @@ void Engine::Run() {
                 if (currentScene_) currentScene_->Update(time_->DeltaTime());
             }
 
+            // 2.5) ゲームのデバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
+            if (currentScene_) currentScene_->DrawDebugUI();
+
             // 3) 描画（描画器がある場合のみ）。
             if (renderer_) {
                 WITCH_PROFILE_SCOPE_N("Render");

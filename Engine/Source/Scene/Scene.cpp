@@ -41,6 +41,12 @@ void Scene::Update(float dt) {
     });
 }
 
+void Scene::DrawDebugUI() {
+    for (auto& obj : objects_) {
+        if (!obj->IsDestroyed()) obj->DrawDebugUI();
+    }
+}
+
 GameObject* Scene::Find(ObjectId id) const {
     for (const auto& obj : objects_) {
         if (obj->Id() == id)

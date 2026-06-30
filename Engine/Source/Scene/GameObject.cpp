@@ -15,4 +15,10 @@ void GameObject::Update(float dt) {
     }
 }
 
+void GameObject::DrawDebugUI() {
+    for (auto& comp : components_) {
+        comp->DrawDebugUI();
+    }
+}
+
 } // namespace witch

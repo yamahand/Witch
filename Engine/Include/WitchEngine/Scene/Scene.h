@@ -20,6 +20,10 @@ public:
     /// サブクラスがオーバーライドする場合は必ず Scene::Update(dt) を呼ぶ。
     virtual void Update(float dt);
 
+    /// 生存オブジェクトの DrawDebugUI を呼ぶ。ImGui フレーム内（BeginDebugUI 後・
+    /// RenderDebugUI 前）に呼ぶこと。
+    virtual void DrawDebugUI();
+
     /// 更新中に呼んでも安全。保留リストに積み、次の生成フェーズで反映する。
     template<typename T, typename... Args>
     T* Spawn(Args&&... args);
