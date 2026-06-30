@@ -195,6 +195,11 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
         [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* outCpu,
            D3D12_GPU_DESCRIPTOR_HANDLE* outGpu) {
             auto* self = static_cast<D3D12Renderer*>(info->UserData);
+            assert(!self->imguiSrvAllocated_ &&
+                   "ImGui SRV slot allocated twice "
+                   "(kImGuiSrvSlot は font 1 枚専用。ImGui::Image 等で複数テクスチャを使うなら "
+                   "可変長アロケータへ拡張すること)");
+            self->imguiSrvAllocated_ = true;
             *outCpu = self->srvHeap_->GetCPUDescriptorHandleForHeapStart();
             outCpu->ptr += kImGuiSrvSlot * self->srvDescSize_;
             *outGpu = self->srvHeap_->GetGPUDescriptorHandleForHeapStart();

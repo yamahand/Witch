@@ -104,6 +104,7 @@ private:
     // ── Texture management ──────────────────────────────────────────────────────
     ComPtr<ID3D12DescriptorHeap>      srvHeap_;
     uint32_t                          srvDescSize_ = 0;
+    bool                              imguiSrvAllocated_ = false;  // ImGui SRV スロットの多重払い出し検出用
     struct TextureEntry {
         ComPtr<ID3D12Resource> resource;
         bool used = false;
