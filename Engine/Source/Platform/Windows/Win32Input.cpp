@@ -1,44 +1,6 @@
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 #include "Platform/Windows/Win32Input.h"
 
 namespace witch::platform {
-
-namespace {
-
-/// VK_* → Key。未対応コードは Key::Count を返し、呼び出し側が無視する。
-Key VkToKey(unsigned int vk) {
-    // A–Z / 0–9 は ASCII と一致する（'A'..'Z', '0'..'9'）。
-    if (vk >= 'A' && vk <= 'Z')
-        return static_cast<Key>(static_cast<int>(Key::A) + (vk - 'A'));
-    if (vk >= '0' && vk <= '9')
-        return static_cast<Key>(static_cast<int>(Key::Num0) + (vk - '0'));
-
-    switch (vk) {
-    case VK_LEFT:     return Key::Left;
-    case VK_RIGHT:    return Key::Right;
-    case VK_UP:       return Key::Up;
-    case VK_DOWN:     return Key::Down;
-    case VK_SPACE:    return Key::Space;
-    case VK_RETURN:   return Key::Enter;
-    case VK_ESCAPE:   return Key::Escape;
-    case VK_TAB:      return Key::Tab;
-    case VK_BACK:     return Key::Backspace;
-    case VK_SHIFT:    return Key::LeftShift;
-    case VK_LSHIFT:   return Key::LeftShift;
-    case VK_CONTROL:  return Key::LeftControl;
-    case VK_LCONTROL: return Key::LeftControl;
-    case VK_MENU:     return Key::LeftAlt;
-    case VK_LMENU:    return Key::LeftAlt;
-    // VK_RSHIFT / VK_RCONTROL / VK_RMENU は Key enum に右側キーが未定義のため
-    // ここで無視される（Key::Count に落ちて SetKey で破棄）。
-    // 将来 RightShift 等を Key に追加したら、この switch にも対応 case を足すこと。
-    default:          return Key::Count;
-    }
-}
-
-} // namespace
 
 void Win32Input::SetKey(std::array<bool, kKeyCount>& state, Key key, bool down) {
     if (key == Key::Count)
@@ -73,16 +35,8 @@ bool Win32Input::WasReleased(Key key) const {
     return !current_[i] && previous_[i];
 }
 
-void Win32Input::OnKeyDown(unsigned int vk) {
-    SetKey(current_, VkToKey(vk), true);
-}
-
-void Win32Input::OnKeyUp(unsigned int vk) {
-    SetKey(current_, VkToKey(vk), false);
-}
-
-void Win32Input::OnMouseButton(Key button, bool down) {
-    SetKey(current_, button, down);
+void Win32Input::OnKeyChange(Key key, bool down) {
+    SetKey(current_, key, down);
 }
 
 void Win32Input::OnMouseMove(float x, float y) {
@@ -92,6 +46,13 @@ void Win32Input::OnMouseMove(float x, float y) {
 
 void Win32Input::OnMouseWheel(float delta) {
     wheelDelta_ += delta;
+}
+
+void Win32Input::ClearAll() {
+    // フォーカス喪失時に呼ばれる。previous_ は触らない（次フレームの Update で
+    // current_ の全 false が previous_ に伝播し、WasReleased が一度だけ立つ）。
+    current_.fill(false);
+    wheelDelta_ = 0.0f;
 }
 
 } // namespace witch::platform

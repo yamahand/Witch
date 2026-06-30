@@ -4,13 +4,14 @@
 
 namespace witch::platform {
 
-/// IInput の Win32 実装。WndProc が捕まえた生メッセージを On* 受け口へ流し込み、
+/// IInput の Win32 実装。WndProc が（VK→Key 変換済みの）イベントを受け口へ流し込み、
 /// Update() でフレーム境界のスナップショットを更新する。
 ///
-/// On* 群はメインスレッド（メッセージポンプ）からのみ呼ばれる前提で、追加の同期は持たない。
+/// 受け口群はメインスレッド（メッセージポンプ）からのみ呼ばれる前提で、追加の同期は持たない。
+/// VK→Key 変換はプラットフォーム層（PlatformWindow.cpp）側が担い、本クラスは Key で受ける。
 class Win32Input final : public IInput {
 public:
-    // ── IInput ───────────────────────────────────────────────────────────
+    // ── 状態クエリ ─────────────────────────────────────────────────────────
     void Update() override;
     bool IsDown(Key key) const override;
     bool WasPressed(Key key) const override;
@@ -19,16 +20,11 @@ public:
     float MouseY() const override { return mouseY_; }
     float MouseWheelDelta() const override { return wheelDelta_; }
 
-    // ── WndProc からの受け口（生 Win32 値を渡す）─────────────────────────
-    /// 仮想キーコード（VK_*）の押下／解放。未対応の VK は無視する。
-    void OnKeyDown(unsigned int vk);
-    void OnKeyUp(unsigned int vk);
-    /// マウスボタンの押下／解放。
-    void OnMouseButton(Key button, bool down);
-    /// クライアント座標でのカーソル移動。
-    void OnMouseMove(float x, float y);
-    /// ホイール回転量を加算する（Update でリセットされるまで蓄積）。
-    void OnMouseWheel(float delta);
+    // ── イベント受け口（IInput, すべて抽象 Key / 数値で受ける）───────────────
+    void OnKeyChange(Key key, bool down) override;
+    void OnMouseMove(float x, float y) override;
+    void OnMouseWheel(float delta) override;
+    void ClearAll() override;
 
 private:
     static void SetKey(std::array<bool, kKeyCount>& state, Key key, bool down);

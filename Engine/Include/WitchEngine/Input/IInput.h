@@ -31,6 +31,21 @@ public:
     virtual float MouseY() const = 0;
     /// このフレームのホイール回転量（前方向が正、WHEEL_DELTA=120 単位で正規化）。
     virtual float MouseWheelDelta() const = 0;
+
+    // ── イベント受け口 ───────────────────────────────────────────────────
+    // プラットフォーム層（WndProc 等）が生の OS イベントを「抽象キー Key」に
+    // 変換してから呼ぶ。VK などプラットフォーム固有コードはここに持ち込まない
+    // （IInput はプラットフォーム非依存を保つ）。これにより上位コードは IInput*
+    // 越しに受け口を呼べ、具象へのダウンキャストが不要になる。
+
+    /// キー／ボタンの押下状態が変化した（down=true で押下、false で解放）。
+    virtual void OnKeyChange(Key key, bool down) = 0;
+    /// マウスカーソルが移動した（クライアント座標, ピクセル）。
+    virtual void OnMouseMove(float x, float y) = 0;
+    /// ホイールが回転した（WHEEL_DELTA 単位で正規化済み、前方向が正）。
+    virtual void OnMouseWheel(float delta) = 0;
+    /// すべての押下状態をクリアする（フォーカス喪失時など）。
+    virtual void ClearAll() = 0;
 };
 
 } // namespace witch

@@ -2,12 +2,11 @@
 #include <windows.h>
 
 #include "Platform/PlatformWindow.h"
-#include "Platform/Windows/Win32Input.h"
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/Services.h"
+#include "WitchEngine/Input/IInput.h"
 #include "WitchEngine/Rhi/IRenderer.h"
-#include <cassert>
 #ifdef WITCH_DEBUG_UI
 #include <imgui_impl_win32.h>
 
@@ -22,17 +21,43 @@ namespace {
 
 constexpr wchar_t kClassName[] = L"WitchWindowClass";
 
-/// アクティブな入力サービスを具象型で取得する。未生成なら nullptr。
+/// アクティブな入力サービスを取得する（未生成なら nullptr）。
+/// IInput* をそのまま返し、受け口は IInput 越しに呼ぶ（具象へのダウンキャストをしない）。
 /// renderer の OnResize 転送と同じく Services 経由で参照し、新しいグローバルを増やさない。
-///
-/// この Windows 専用 TU では Engine が必ず Win32Input を登録する前提（CMake の if(WIN32)）。
-/// その契約を debug ビルドで dynamic_cast により検証し、release では static_cast の
-/// ゼロコストパス（メッセージ毎に呼ばれるホットパス）を保つ。
-Win32Input* ActiveInput() {
-    IInput* input = Services::Instance().input;
-    assert((input == nullptr || dynamic_cast<Win32Input*>(input) != nullptr) &&
-           "Services::input must be a Win32Input on Windows.");
-    return static_cast<Win32Input*>(input);
+IInput* ActiveInput() {
+    return Services::Instance().input;
+}
+
+/// VK_* → 抽象キー Key。未対応コードは Key::Count を返し、呼び出し側が無視する。
+/// プラットフォーム固有の VK 変換はこの Windows TU に閉じ込め、IInput へは Key で渡す。
+Key VkToKey(unsigned int vk) {
+    // A–Z / 0–9 は ASCII と一致する（'A'..'Z', '0'..'9'）。
+    if (vk >= 'A' && vk <= 'Z')
+        return static_cast<Key>(static_cast<int>(Key::A) + (vk - 'A'));
+    if (vk >= '0' && vk <= '9')
+        return static_cast<Key>(static_cast<int>(Key::Num0) + (vk - '0'));
+
+    switch (vk) {
+    case VK_LEFT:     return Key::Left;
+    case VK_RIGHT:    return Key::Right;
+    case VK_UP:       return Key::Up;
+    case VK_DOWN:     return Key::Down;
+    case VK_SPACE:    return Key::Space;
+    case VK_RETURN:   return Key::Enter;
+    case VK_ESCAPE:   return Key::Escape;
+    case VK_TAB:      return Key::Tab;
+    case VK_BACK:     return Key::Backspace;
+    case VK_SHIFT:    return Key::LeftShift;
+    case VK_LSHIFT:   return Key::LeftShift;
+    case VK_CONTROL:  return Key::LeftControl;
+    case VK_LCONTROL: return Key::LeftControl;
+    case VK_MENU:     return Key::LeftAlt;
+    case VK_LMENU:    return Key::LeftAlt;
+    // VK_RSHIFT / VK_RCONTROL / VK_RMENU は Key enum に右側キーが未定義のため
+    // ここで無視される（Key::Count に落ちて Win32Input 側で破棄）。
+    // 将来 RightShift 等を Key に追加したら、この switch にも対応 case を足すこと。
+    default:          return Key::Count;
+    }
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -57,7 +82,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:
         if (auto* input = ActiveInput())
-            input->OnKeyDown(static_cast<unsigned int>(wp));
+            input->OnKeyChange(VkToKey(static_cast<unsigned int>(wp)), true);
         // SYSKEY は DefWindowProc に渡してメニュー連携等を壊さない。
         if (msg == WM_SYSKEYDOWN)
             return DefWindowProcW(hwnd, msg, wp, lp);
@@ -65,29 +90,38 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_KEYUP:
     case WM_SYSKEYUP:
         if (auto* input = ActiveInput())
-            input->OnKeyUp(static_cast<unsigned int>(wp));
+            input->OnKeyChange(VkToKey(static_cast<unsigned int>(wp)), false);
         if (msg == WM_SYSKEYUP)
             return DefWindowProcW(hwnd, msg, wp, lp);
         return 0;
 
     // ── Mouse buttons ────────────────────────────────────────────────────
+    // down で SetCapture、up で全ボタンが離れたら ReleaseCapture。これにより
+    // ウィンドウ外でボタンを離しても WM_*BUTTONUP がこのウィンドウに届き、
+    // ボタンが押下のまま stuck するのを防ぐ。wp の MK_* で残ボタンを判定する。
     case WM_LBUTTONDOWN:
-        if (auto* input = ActiveInput()) input->OnMouseButton(Key::MouseLeft, true);
+        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseLeft, true);
+        SetCapture(hwnd);
         return 0;
     case WM_LBUTTONUP:
-        if (auto* input = ActiveInput()) input->OnMouseButton(Key::MouseLeft, false);
+        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseLeft, false);
+        if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON))) ReleaseCapture();
         return 0;
     case WM_RBUTTONDOWN:
-        if (auto* input = ActiveInput()) input->OnMouseButton(Key::MouseRight, true);
+        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseRight, true);
+        SetCapture(hwnd);
         return 0;
     case WM_RBUTTONUP:
-        if (auto* input = ActiveInput()) input->OnMouseButton(Key::MouseRight, false);
+        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseRight, false);
+        if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON))) ReleaseCapture();
         return 0;
     case WM_MBUTTONDOWN:
-        if (auto* input = ActiveInput()) input->OnMouseButton(Key::MouseMiddle, true);
+        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseMiddle, true);
+        SetCapture(hwnd);
         return 0;
     case WM_MBUTTONUP:
-        if (auto* input = ActiveInput()) input->OnMouseButton(Key::MouseMiddle, false);
+        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseMiddle, false);
+        if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON))) ReleaseCapture();
         return 0;
 
     // ── Mouse move / wheel ───────────────────────────────────────────────
@@ -104,6 +138,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             input->OnMouseWheel(static_cast<float>(raw) / static_cast<float>(WHEEL_DELTA));
         }
         return 0;
+
+    // ── Focus ────────────────────────────────────────────────────────────
+    // フォーカス喪失（Alt+Tab・最小化等）。OS は押下中キーの WM_KEYUP を送らないため、
+    // ここで全状態をクリアしてキーが押されっぱなしになるのを防ぐ。
+    case WM_KILLFOCUS:
+        if (auto* input = ActiveInput()) input->ClearAll();
+        return DefWindowProcW(hwnd, msg, wp, lp);
 
     case WM_DESTROY:
         Engine::Get().RequestExit();
