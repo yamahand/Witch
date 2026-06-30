@@ -35,6 +35,7 @@
       "binaryDir": "${sourceDir}/build/debug-profiling",
       "cacheVariables": {
         "WITCH_PROFILING": "ON",
+        "WITCH_DEBUG_UI": "ON",
         "VCPKG_MANIFEST_FEATURES": "profiling;debug-ui"
       }
     },
