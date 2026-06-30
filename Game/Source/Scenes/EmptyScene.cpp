@@ -50,6 +50,9 @@ void EmptyScene::Update(float dt) {
         }
 
         // 矢印キーで Witch スプライトを移動（ワールド座標, IsDown の継続入力）。
+        // 注: OnEnter の Spawn は pendingSpawn_ 行きのため、最初の Update フレームでは
+        // まだ objects_ に反映されておらず Find は nullptr を返す（移動が1フレーム遅れる）。
+        // null チェックで安全にスキップされ、デモ用途では実害なし。
         if (GameObject* witch = Find(witchId_)) {
             float dx = 0.0f;
             float dy = 0.0f;

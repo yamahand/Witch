@@ -18,9 +18,14 @@ public:
     /// 注視点を相対移動する。
     void Move(float dx, float dy) { x_ += dx; y_ += dy; }
 
-    /// ズーム倍率（>0）。1.0 で等倍、2.0 で 2 倍に拡大表示。
-    void SetZoom(float zoom) { zoom_ = zoom > 0.0f ? zoom : zoom_; }
+    /// ズーム倍率。1.0 で等倍、2.0 で 2 倍に拡大表示。
+    /// 0 以下や極小値は反転・破綻を招くため kMinZoom にクランプする
+    /// （呼び出し側が連続減算しても「効かないのに値が変わらない」混乱を避ける）。
+    /// std::max は使わない: 公開ヘッダが <windows.h> の max マクロと衝突しうるため。
+    void SetZoom(float zoom) { zoom_ = zoom < kMinZoom ? kMinZoom : zoom; }
     float Zoom() const { return zoom_; }
+
+    static constexpr float kMinZoom = 0.01f;
 
     /// ビューポート（描画先）サイズをピクセルで設定する。
     /// 通常はウィンドウサイズ。Engine/Scene がリサイズ時に更新する。

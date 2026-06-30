@@ -7,6 +7,7 @@
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Rhi/IRenderer.h"
+#include <cassert>
 #ifdef WITCH_DEBUG_UI
 #include <imgui_impl_win32.h>
 
@@ -23,8 +24,15 @@ constexpr wchar_t kClassName[] = L"WitchWindowClass";
 
 /// アクティブな入力サービスを具象型で取得する。未生成なら nullptr。
 /// renderer の OnResize 転送と同じく Services 経由で参照し、新しいグローバルを増やさない。
+///
+/// この Windows 専用 TU では Engine が必ず Win32Input を登録する前提（CMake の if(WIN32)）。
+/// その契約を debug ビルドで dynamic_cast により検証し、release では static_cast の
+/// ゼロコストパス（メッセージ毎に呼ばれるホットパス）を保つ。
 Win32Input* ActiveInput() {
-    return static_cast<Win32Input*>(Services::Instance().input);
+    IInput* input = Services::Instance().input;
+    assert((input == nullptr || dynamic_cast<Win32Input*>(input) != nullptr) &&
+           "Services::input must be a Win32Input on Windows.");
+    return static_cast<Win32Input*>(input);
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {

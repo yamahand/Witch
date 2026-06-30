@@ -33,4 +33,15 @@ enum class Key {
 /// Key の総数。状態配列（current/previous）のサイズに使う。
 inline constexpr std::size_t kKeyCount = static_cast<std::size_t>(Key::Count);
 
+// Win32Input の VK→Key 変換は A..Z / Num0..9 が連番であることに依存する。
+// 途中にキーが挿入されてもコンパイル時に気づけるよう、契約を static_assert で固定する。
+static_assert(static_cast<int>(Key::B) == static_cast<int>(Key::A) + 1,
+              "Key enum must be contiguous from A (Win32Input relies on this).");
+static_assert(static_cast<int>(Key::Z) == static_cast<int>(Key::A) + 25,
+              "Key enum A..Z must be contiguous (Win32Input relies on this).");
+static_assert(static_cast<int>(Key::Num1) == static_cast<int>(Key::Num0) + 1,
+              "Key enum must be contiguous from Num0 (Win32Input relies on this).");
+static_assert(static_cast<int>(Key::Num9) == static_cast<int>(Key::Num0) + 9,
+              "Key enum Num0..Num9 must be contiguous (Win32Input relies on this).");
+
 } // namespace witch
