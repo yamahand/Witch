@@ -11,6 +11,15 @@ project(Witch
 # （RelWithDebInfo のパフォーマンス計測に Tracy のオーバーヘッドが紛れ込むのを避ける）。
 option(WITCH_PROFILING "Enable Tracy profiling" OFF)
 
+# Dear ImGui デバッグ UI の有効化。OFF（例: release プリセット）では ImGui を
+# find_package / link / define せず、ビルドから完全に外す。vcpkg 側も debug-ui feature を
+# 付けたプリセットでのみ imgui を取得する（CMakePresets.json / vcpkg.json 参照）。
+option(WITCH_DEBUG_UI "Enable Dear ImGui debug UI" OFF)
+
+if(WITCH_DEBUG_UI)
+    find_package(imgui CONFIG REQUIRED)
+endif()
+
 # ─── WitchEngine (STATIC) ────────────────────────────────────────────────────
 add_library(WitchEngine STATIC
     Engine/Source/Core/Engine.cpp
@@ -35,6 +44,15 @@ if(WIN32)
     target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler)
     # new/delete 差し替えは Memory.cpp 内で完結し API を外部公開しないため PRIVATE。
     target_link_libraries(WitchEngine PRIVATE mimalloc)
+endif()
+
+if(WITCH_DEBUG_UI)
+    # ImGui はゲーム側が GameObject::DrawDebugUI() 内で直接使う設計のため、あえて PUBLIC で
+    # Game へ伝播させる（デバッグ UI 記述のイテレーション速度を優先）。
+    # WITCH_DEBUG_UI マクロも PUBLIC 定義し、Game 側 TU が自分の ImGui コードを
+    # #ifdef WITCH_DEBUG_UI で守れるようにする。
+    target_link_libraries(WitchEngine PUBLIC imgui::imgui)
+    target_compile_definitions(WitchEngine PUBLIC WITCH_DEBUG_UI)
 endif()
 
 # ─── Tracy profiling ─────────────────────────────────────────────────────────

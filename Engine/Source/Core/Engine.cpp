@@ -67,16 +67,36 @@ void Engine::Run() {
 
             time_->Tick();
 
+            // 1) 入力を反映しデバッグ UI のフレームを開始（BeginFrame より前に呼べる）。
+#ifdef WITCH_DEBUG_UI
+            if (renderer_) renderer_->BeginDebugUI();
+#endif
+
+            // 2) ロジック更新。描画器の有無に依存せず、重複なく 1 か所で行う。
             {
                 WITCH_PROFILE_SCOPE_N("SceneUpdate");
                 if (currentScene_) currentScene_->Update(time_->DeltaTime());
             }
 
+            // 3) ゲームのデバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
+            //    renderer_ が無いときは BeginDebugUI が呼ばれず ImGui フレームが
+            //    開始されないため、ゲーム側 ImGui 呼び出しを避けてスキップする。
+#ifdef WITCH_DEBUG_UI
+            if (renderer_ && currentScene_) {
+                WITCH_PROFILE_SCOPE_N("DebugUI");
+                currentScene_->DrawDebugUI();
+            }
+#endif
+
+            // 4) 描画（描画器がある場合のみ）。
             if (renderer_) {
                 WITCH_PROFILE_SCOPE_N("Render");
                 auto* cmdList = renderer_->BeginFrame();
-                cmdList->Clear({ kCornflowerBlue });
+                cmdList->Clear({kCornflowerBlue});
                 cmdList->FlushSprites();
+#ifdef WITCH_DEBUG_UI
+                renderer_->RenderDebugUI();
+#endif
                 renderer_->EndFrame(cmdList);
             }
         }

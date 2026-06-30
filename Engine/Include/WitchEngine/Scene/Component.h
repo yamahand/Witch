@@ -1,11 +1,13 @@
 #pragma once
+#include "WitchEngine/Scene/DebugUI.h"
 
 namespace witch {
 
 class GameObject;
 
 /// すべてのコンポーネントの基底。振る舞いを GameObject から分離する単位。
-class Component {
+/// DrawDebugUI() は DebugUI 基底から継承する（WITCH_DEBUG_UI 定義時のみ存在）。
+class Component : public DebugUI {
 public:
     virtual ~Component() = default;
 

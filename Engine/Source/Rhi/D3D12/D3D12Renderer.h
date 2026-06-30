@@ -17,8 +17,10 @@ using Microsoft::WRL::ComPtr;
 
 /// ダブルバッファリングのバックバッファ数。
 static constexpr uint32_t kBackBufferCount    = 2;
-/// SRV ヒープの固定スロット数。実行時に動的拡張はしない。
+/// SRV ヒープのエンジンテクスチャ用スロット数。実行時に動的拡張はしない。
 static constexpr uint32_t kMaxTextures        = 64;
+/// SRV ヒープ内の ImGui フォントテクスチャ用スロット（エンジンテクスチャの直後）。
+static constexpr uint32_t kImGuiSrvSlot       = kMaxTextures;
 /// 1 フレームのスプライト上限。超えたものは破棄される。
 static constexpr uint32_t kMaxSpritesPerFrame = 1024;
 
@@ -36,6 +38,11 @@ public:
         const uint8_t* pixels, int width, int height) override;
     void DestroyTexture(rhi::TextureHandle handle) override;
     void SubmitSprite(const rhi::SpriteDrawDesc& desc) override;
+
+#ifdef WITCH_DEBUG_UI
+    void BeginDebugUI() override;
+    void RenderDebugUI() override;
+#endif
 
     /// D3D12CommandList::FlushSprites から呼ばれる。
     /// スプライトバッチを頂点バッファに書き込んでドローコールを発行する。
@@ -99,6 +106,9 @@ private:
     // ── Texture management ──────────────────────────────────────────────────────
     ComPtr<ID3D12DescriptorHeap>      srvHeap_;
     uint32_t                          srvDescSize_ = 0;
+#ifdef WITCH_DEBUG_UI
+    bool                              imguiSrvAllocated_ = false;  // ImGui SRV スロットの多重払い出し検出用
+#endif
     struct TextureEntry {
         ComPtr<ID3D12Resource> resource;
         bool used = false;

@@ -22,7 +22,9 @@
       "inherits": "base",
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WITCH_DEBUG_UI": "ON",
+        "VCPKG_MANIFEST_FEATURES": "debug-ui"
       }
     },
     {
@@ -33,7 +35,8 @@
       "binaryDir": "${sourceDir}/build/debug-profiling",
       "cacheVariables": {
         "WITCH_PROFILING": "ON",
-        "VCPKG_MANIFEST_FEATURES": "profiling"
+        "WITCH_DEBUG_UI": "ON",
+        "VCPKG_MANIFEST_FEATURES": "profiling;debug-ui"
       }
     },
     {
@@ -42,7 +45,8 @@
       "inherits": "base",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "WITCH_DEBUG_UI": "OFF"
       }
     },
     {
@@ -67,7 +71,20 @@
       "inherits": "ci-base",
       "binaryDir": "${sourceDir}/build/ci-debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WITCH_DEBUG_UI": "ON",
+        "VCPKG_MANIFEST_FEATURES": "debug-ui"
+      }
+    },
+    {
+      "name": "ci-windows-release",
+      "displayName": "CI Windows Release (x64)",
+      "description": "GitHub windows-latest: VS2026 + vcpkg via $env{VCPKG_ROOT}. Release build without debug UI.",
+      "inherits": "ci-base",
+      "binaryDir": "${sourceDir}/build/ci-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WITCH_DEBUG_UI": "OFF"
       }
     }
   ],
@@ -95,6 +112,12 @@
       "displayName": "Build CI Windows Debug",
       "configurePreset": "ci-windows-debug",
       "configuration": "Debug"
+    },
+    {
+      "name": "build-ci-windows-release",
+      "displayName": "Build CI Windows Release",
+      "configurePreset": "ci-windows-release",
+      "configuration": "Release"
     }
   ],
   "testPresets": [
@@ -103,6 +126,19 @@
       "displayName": "Test CI Windows Debug",
       "configurePreset": "ci-windows-debug",
       "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "ignore",
+        "stopOnFailure": false
+      }
+    },
+    {
+      "name": "test-ci-windows-release",
+      "displayName": "Test CI Windows Release",
+      "configurePreset": "ci-windows-release",
+      "configuration": "Release",
       "output": {
         "outputOnFailure": true
       },

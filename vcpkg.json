@@ -13,6 +13,15 @@
       "dependencies": [
         "tracy"
       ]
+    },
+    "debug-ui": {
+      "description": "Enable Dear ImGui debug UI (Win32 + DX12 backend)",
+      "dependencies": [
+        {
+          "name": "imgui",
+          "features": ["dx12-binding", "win32-binding"]
+        }
+      ]
     }
   }
 }

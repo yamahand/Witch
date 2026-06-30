@@ -4,6 +4,11 @@
 #include "WitchEngine/Core/Logger.h"
 #include <cassert>
 #include <string>
+#ifdef WITCH_DEBUG_UI
+#include <imgui.h>
+#include <imgui_impl_dx12.h>
+#include <imgui_impl_win32.h>
+#endif
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -165,6 +170,61 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     if (!InitSpritePipeline())
         return false;
 
+    // 13. Dear ImGui (Win32 + DX12 backend)
+#ifdef WITCH_DEBUG_UI
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::GetIO().IniFilename = nullptr;
+    if (!ImGui_ImplWin32_Init(hwnd)) {
+        log::Error("ImGui_ImplWin32_Init failed.");
+        ImGui::DestroyContext();
+        return false;
+    }
+
+    // ImGui 1.92 以降の DX12 バックエンドは動的テクスチャ（RendererHasTextures）に対応し、
+    // フォントアトラスを含むテクスチャを RenderDrawData 内で自前アップロードする。これには
+    // SRV ディスクリプタの確保/解放コールバックが必要。レガシーな 6 引数 Init はこのフラグを
+    // 無効化してしまい、v1.92 ではフォントアトラスが構築されず assert になる。
+    // 本エンジンは ImGui テクスチャを font 1 枚しか使わないため、予約済みの kImGuiSrvSlot を
+    // 単一スロットとして払い出す最小アロケータを与える。
+    ImGui_ImplDX12_InitInfo initInfo{};
+    initInfo.Device            = device_.Get();
+    initInfo.CommandQueue      = queue_.Get();
+    initInfo.NumFramesInFlight = static_cast<int>(kBackBufferCount);
+    initInfo.RTVFormat         = DXGI_FORMAT_R8G8B8A8_UNORM;
+    initInfo.SrvDescriptorHeap = srvHeap_.Get();
+    initInfo.UserData          = this;
+    initInfo.SrvDescriptorAllocFn =
+        [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* outCpu,
+           D3D12_GPU_DESCRIPTOR_HANDLE* outGpu) {
+            auto* self = static_cast<D3D12Renderer*>(info->UserData);
+            assert(!self->imguiSrvAllocated_ &&
+                   "ImGui SRV slot allocated twice "
+                   "(kImGuiSrvSlot は font 1 枚専用。ImGui::Image 等で複数テクスチャを使うなら "
+                   "可変長アロケータへ拡張すること)");
+            self->imguiSrvAllocated_ = true;
+            *outCpu = self->srvHeap_->GetCPUDescriptorHandleForHeapStart();
+            outCpu->ptr += kImGuiSrvSlot * self->srvDescSize_;
+            *outGpu = self->srvHeap_->GetGPUDescriptorHandleForHeapStart();
+            outGpu->ptr += kImGuiSrvSlot * self->srvDescSize_;
+        };
+    initInfo.SrvDescriptorFreeFn =
+        [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE,
+           D3D12_GPU_DESCRIPTOR_HANDLE) {
+            // 単一の予約スロットのため実際の解放処理は不要。ただし将来フォントを作り直す等で
+            // Free→Alloc が再発生したとき AllocFn の guard が誤発火しないようフラグを戻す。
+            auto* self = static_cast<D3D12Renderer*>(info->UserData);
+            self->imguiSrvAllocated_ = false;
+        };
+    if (!ImGui_ImplDX12_Init(&initInfo)) {
+        log::Error("ImGui_ImplDX12_Init failed.");
+        // 既に成功した Win32 バックエンドも巻き戻す。
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+        return false;
+    }
+#endif // WITCH_DEBUG_UI
+
     log::Info("D3D12Renderer initialized ({}x{}).", width, height);
     return true;
 }
@@ -238,7 +298,14 @@ void D3D12Renderer::OnResize(int width, int height) {
 }
 
 void D3D12Renderer::Shutdown() {
+    // GPU がフレームリソース（ImGui フォントテクスチャ含む）を使い終わるのを待ってから解放する。
     WaitIdle();
+
+#ifdef WITCH_DEBUG_UI
+    ImGui_ImplDX12_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+#endif
 
     // Unmap persistently mapped upload buffers before releasing.
     for (uint32_t i = 0; i < kBackBufferCount; ++i) {
@@ -391,6 +458,21 @@ void D3D12Renderer::DestroyTexture(rhi::TextureHandle handle) {
         textures_[slot].used = false;
     }
 }
+
+#ifdef WITCH_DEBUG_UI
+void D3D12Renderer::BeginDebugUI() {
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+}
+
+void D3D12Renderer::RenderDebugUI() {
+    ImGui::Render();
+    // 単一フレームコマンドリスト方式のため、BeginFrame で開始した内部の cmdList_ に直接記録する
+    // （EndFrame と同じ流儀）。
+    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList_.Get());
+}
+#endif // WITCH_DEBUG_UI
 
 void D3D12Renderer::SubmitSprite(const rhi::SpriteDrawDesc& desc) {
     if (pendingSprites_.size() < kMaxSpritesPerFrame) {
@@ -634,8 +716,13 @@ bool D3D12Renderer::InitSpritePipeline() {
     }
 
     // ── GPU-visible SRV descriptor heap ──────────────────────────────────────
+    // エンジンテクスチャ用スロット kMaxTextures 個 + ImGui フォント用スロット 1 個（kImGuiSrvSlot）。
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
+#ifdef WITCH_DEBUG_UI
+    srvHeapDesc.NumDescriptors = kMaxTextures + 1;
+#else
     srvHeapDesc.NumDescriptors = kMaxTextures;
+#endif
     srvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     if (!Check(device_->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap_)),
