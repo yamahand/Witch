@@ -14,7 +14,7 @@ option(WITCH_PROFILING "Enable Tracy profiling" OFF)
 # Dear ImGui デバッグ UI の有効化。OFF（例: release プリセット）では ImGui を
 # find_package / link / define せず、ビルドから完全に外す。vcpkg 側も debug-ui feature を
 # 付けたプリセットでのみ imgui を取得する（CMakePresets.json / vcpkg.json 参照）。
-option(WITCH_DEBUG_UI "Enable Dear ImGui debug UI" ON)
+option(WITCH_DEBUG_UI "Enable Dear ImGui debug UI" OFF)
 
 if(WITCH_DEBUG_UI)
     find_package(imgui CONFIG REQUIRED)

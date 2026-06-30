@@ -43,7 +43,8 @@ public:
     /// スプライトを描画キューに積む。ICommandList::FlushSprites で実際のコマンドに変換される。
     virtual void SubmitSprite(const SpriteDrawDesc& desc) = 0;
 
-    /// デバッグ UI のフレームを開始する。PumpMessages の直後、BeginFrame の前に呼ぶ。
+    /// デバッグ UI のフレームを開始する。入力ポンプ後・BeginFrame の前に呼ぶ
+    /// （実際の呼び出し位置は Engine::Run 参照）。
     virtual void BeginDebugUI() {}
     /// デバッグ UI の描画コマンドを記録する。FlushSprites の直後、EndFrame の前に呼ぶ。
     /// 実装は BeginFrame で開始した内部のコマンドリストに記録する（引数で渡さない）。
