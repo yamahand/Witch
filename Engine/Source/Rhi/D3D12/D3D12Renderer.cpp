@@ -718,7 +718,11 @@ bool D3D12Renderer::InitSpritePipeline() {
     // ── GPU-visible SRV descriptor heap ──────────────────────────────────────
     // エンジンテクスチャ用スロット kMaxTextures 個 + ImGui フォント用スロット 1 個（kImGuiSrvSlot）。
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
+#ifdef WITCH_DEBUG_UI
     srvHeapDesc.NumDescriptors = kMaxTextures + 1;
+#else
+    srvHeapDesc.NumDescriptors = kMaxTextures;
+#endif
     srvHeapDesc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     if (!Check(device_->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap_)),
