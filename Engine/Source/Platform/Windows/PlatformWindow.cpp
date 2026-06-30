@@ -99,13 +99,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // down で SetCapture、up で全ボタンが離れたら ReleaseCapture。これにより
     // ウィンドウ外でボタンを離しても WM_*BUTTONUP がこのウィンドウに届き、
     // ボタンが押下のまま stuck するのを防ぐ。wp の MK_* で残ボタンを判定する。
+    // サイドボタン（XBUTTON1/2）は Key 未定義だが、押下中の早期解放を防ぐため
+    // 残ボタン判定には含める（将来 Mouse4/5 を Key に追加する際も整合する）。
     case WM_LBUTTONDOWN:
         if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseLeft, true);
         SetCapture(hwnd);
         return 0;
     case WM_LBUTTONUP:
         if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseLeft, false);
-        if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON))) ReleaseCapture();
+        if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2))) ReleaseCapture();
         return 0;
     case WM_RBUTTONDOWN:
         if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseRight, true);
@@ -113,7 +115,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_RBUTTONUP:
         if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseRight, false);
-        if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON))) ReleaseCapture();
+        if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2))) ReleaseCapture();
         return 0;
     case WM_MBUTTONDOWN:
         if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseMiddle, true);
@@ -121,7 +123,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_MBUTTONUP:
         if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseMiddle, false);
-        if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON))) ReleaseCapture();
+        if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2))) ReleaseCapture();
         return 0;
 
     // ── Mouse move / wheel ───────────────────────────────────────────────

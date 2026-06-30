@@ -52,6 +52,9 @@ void Win32Input::ClearAll() {
     // フォーカス喪失時に呼ばれる。previous_ は触らない（次フレームの Update で
     // current_ の全 false が previous_ に伝播し、WasReleased が一度だけ立つ）。
     current_.fill(false);
+    // wheelDelta_ も 0 にする。同一 PumpMessages 内で [WM_MOUSEWHEEL, WM_KILLFOCUS] の
+    // 順に届くとそのフレームのホイール量が消えるが、フォーカスを失う瞬間の入力は
+    // 破棄する方が一貫するため許容（ゲーム的に実害なしの edge case）。
     wheelDelta_ = 0.0f;
 }
 
