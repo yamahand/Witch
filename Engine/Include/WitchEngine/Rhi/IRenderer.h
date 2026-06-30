@@ -33,6 +33,11 @@ public:
     virtual void OnResize(int width, int height) = 0;
     virtual void Shutdown() = 0;
 
+    /// 現在の描画先（バックバッファ）サイズをピクセルで返す。
+    /// カメラのビューポート同期などに使う。D3D12 型は一切漏らさない。
+    virtual int Width() const = 0;
+    virtual int Height() const = 0;
+
     /// @param pixels RGBA 4バイト/ピクセルのピクセルデータ。
     /// @return DestroyTexture が呼ばれるまで有効なハンドル。失敗時はエラーメッセージ。
     virtual std::expected<TextureHandle, std::string> CreateTexture(

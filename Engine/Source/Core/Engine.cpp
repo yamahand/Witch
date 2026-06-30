@@ -76,6 +76,14 @@ void Engine::Run() {
             // このフレームの WasPressed/WasReleased がシーンから一貫して見える。
             if (input_) input_->Update();
 
+            // カメラのビューポートを現在の描画先サイズに同期する。
+            // SpriteComponent のワールド→スクリーン変換（Scene::Update 内）より前に行う。
+            if (currentScene_ && renderer_) {
+                currentScene_->Camera().SetViewport(
+                    static_cast<float>(renderer_->Width()),
+                    static_cast<float>(renderer_->Height()));
+            }
+
             // 1) 入力を反映しデバッグ UI のフレームを開始（BeginFrame より前に呼べる）。
 #ifdef WITCH_DEBUG_UI
             if (renderer_) renderer_->BeginDebugUI();
