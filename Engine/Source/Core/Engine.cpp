@@ -68,7 +68,9 @@ void Engine::Run() {
             time_->Tick();
 
             // 1) 入力を反映しデバッグ UI のフレームを開始（BeginFrame より前に呼べる）。
+#ifdef WITCH_DEBUG_UI
             if (renderer_) renderer_->BeginDebugUI();
+#endif
 
             // 2) ロジック更新。描画器の有無に依存せず、重複なく 1 か所で行う。
             {
@@ -92,7 +94,9 @@ void Engine::Run() {
                 auto* cmdList = renderer_->BeginFrame();
                 cmdList->Clear({kCornflowerBlue});
                 cmdList->FlushSprites();
+#ifdef WITCH_DEBUG_UI
                 renderer_->RenderDebugUI();
+#endif
                 renderer_->EndFrame(cmdList);
             }
         }
