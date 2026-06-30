@@ -31,6 +31,9 @@ Key VkToKey(unsigned int vk) {
     case VK_LCONTROL: return Key::LeftControl;
     case VK_MENU:     return Key::LeftAlt;
     case VK_LMENU:    return Key::LeftAlt;
+    // VK_RSHIFT / VK_RCONTROL / VK_RMENU は Key enum に右側キーが未定義のため
+    // ここで無視される（Key::Count に落ちて SetKey で破棄）。
+    // 将来 RightShift 等を Key に追加したら、この switch にも対応 case を足すこと。
     default:          return Key::Count;
     }
 }
@@ -44,8 +47,10 @@ void Win32Input::SetKey(std::array<bool, kKeyCount>& state, Key key, bool down) 
 }
 
 void Win32Input::Update() {
+    // PumpMessages の「前」に呼ばれる前提（Engine::Run 参照）。ここで前フレームの
+    // current_ を previous_ に確定し、直後の PumpMessages が今フレームの入力を current_ に積む。
     previous_   = current_;
-    wheelDelta_ = 0.0f; // ホイールは 1 フレーム限りの量。次フレーム頭でリセット。
+    wheelDelta_ = 0.0f; // ホイールは 1 フレーム限りの量。世代更新でリセット。
 }
 
 bool Win32Input::IsDown(Key key) const {

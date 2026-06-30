@@ -7,8 +7,10 @@ namespace witch {
 /// プラットフォーム差異は具象（Win32Input 等）に閉じ込め、上位コードはこの型だけを見る。
 ///
 /// 状態は「現フレーム」と「前フレーム」の 2 スナップショットで管理し、
-/// Engine がメインループ先頭（Time::Tick の直後・Scene::Update より前）で Update() を 1 回呼ぶ。
-/// これにより同一フレーム内のすべての参照が一貫したエッジ判定を得る。
+/// Engine がメインループ先頭で、OS メッセージのポンプ（PumpMessages）より「前」に
+/// Update() を 1 回呼ぶ。Update() で current → previous を確定してから今フレームの
+/// 入力を current に取り込むことで、Scene::Update でのエッジ判定（current vs previous）が
+/// 正しく出る。順序を逆にすると差分が即消えて WasPressed/WasReleased が常に false になる。
 class IInput {
 public:
     virtual ~IInput() = default;

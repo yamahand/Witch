@@ -1,10 +1,11 @@
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/ResourceManager.h"
+#include "WitchEngine/Input/IInput.h"
+#include "WitchEngine/Rhi/IRenderer.h"
 #include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
-#include "Platform/Windows/Win32Input.h"
-#include "Rhi/D3D12/D3D12Renderer.h"
+#include "Platform/PlatformFactory.h"
 #include "Core/Profiling.h"
 
 namespace witch {
@@ -34,16 +35,16 @@ void Engine::Init(int width, int height, const char* title) {
 
     void* hwnd = platform::CreateMainWindow({width, height, title});
 
-    auto renderer = std::make_unique<D3D12Renderer>();
+    auto renderer = platform::CreatePlatformRenderer();
     if (renderer->Init(hwnd, width, height)) {
         renderer_ = std::move(renderer);
         Services::Instance().renderer = renderer_.get();
     } else {
-        log::Error("D3D12Renderer failed to initialize.");
+        log::Error("Renderer failed to initialize.");
     }
 
     // 入力サービス。WndProc が Services::Instance().input 経由で具象へメッセージを流す。
-    input_ = std::make_unique<platform::Win32Input>();
+    input_ = platform::CreatePlatformInput();
     Services::Instance().input = input_.get();
 
     resourceManager_ = std::make_unique<ResourceManager>();
@@ -62,6 +63,13 @@ void Engine::Run() {
 
             ApplyPendingSceneChange();
 
+            // 入力の世代を進める（previous_ = current_、wheel をリセット）。
+            // 必ず PumpMessages の「前」に呼ぶこと。これにより PumpMessages が反映する
+            // 今フレームのキー／ホイールが current_ に積まれ、Scene::Update での
+            // WasPressed/WasReleased（current vs previous）と MouseWheelDelta が正しく出る。
+            // 逆順にすると差分が即座に消えてエッジ検出が常に false になる。
+            if (input_) input_->Update();
+
             {
                 WITCH_PROFILE_SCOPE_N("PumpMessages");
                 if (!platform::PumpMessages()) {
@@ -71,10 +79,6 @@ void Engine::Run() {
             }
 
             time_->Tick();
-
-            // 入力スナップショットを確定。Scene::Update より前に呼ぶことで、
-            // このフレームの WasPressed/WasReleased がシーンから一貫して見える。
-            if (input_) input_->Update();
 
             // カメラのビューポートを現在の描画先サイズに同期する。
             // SpriteComponent のワールド→スクリーン変換（Scene::Update 内）より前に行う。
