@@ -41,11 +41,13 @@ void Scene::Update(float dt) {
     });
 }
 
+#ifdef WITCH_DEBUG_UI
 void Scene::DrawDebugUI() {
     for (auto& obj : objects_) {
         if (!obj->IsDestroyed()) obj->DrawDebugUI();
     }
 }
+#endif
 
 GameObject* Scene::Find(ObjectId id) const {
     for (const auto& obj : objects_) {

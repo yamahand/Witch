@@ -1,5 +1,6 @@
 #pragma once
 #include "WitchEngine/Scene/Component.h"
+#include "WitchEngine/Scene/DebugUI.h"
 #include "WitchEngine/Scene/Transform.h"
 #include <cstdint>
 #include <memory>
@@ -16,7 +17,8 @@ static constexpr ObjectId kInvalidId = 0;
 
 /// ゲームに登場するすべての実体の基底。振る舞いは Component に分解する。
 /// サブクラスは「種別」だけを表し、継承を縦横に広げない。
-class GameObject {
+/// DrawDebugUI() は DebugUI 基底から継承する（WITCH_DEBUG_UI 定義時のみ存在）。
+class GameObject : public DebugUI {
 public:
     virtual ~GameObject();
 
@@ -24,11 +26,11 @@ public:
     virtual void OnSpawn() {}
     /// 毎フレーム全コンポーネントを更新する。サブクラスは追加処理を書いて base を呼ぶ。
     virtual void Update(float dt);
+#ifdef WITCH_DEBUG_UI
     /// ImGui フレーム内で呼ばれる。既定で全 Component の DrawDebugUI を呼ぶ。
     /// サブクラスは追加の ImGui::* 呼び出しを書いて base を呼ぶ。
-    /// その ImGui コードは必ず #ifdef WITCH_DEBUG_UI で囲むこと
-    /// （OFF ビルド（release 等）では ImGui がリンクされない）。
-    virtual void DrawDebugUI();
+    void DrawDebugUI() override;
+#endif
     /// 破棄直前に呼ばれる。
     virtual void OnDespawn() {}
 
