@@ -21,7 +21,9 @@ public:
     virtual void Update(float dt);
 
     /// 生存オブジェクトの DrawDebugUI を呼ぶ。ImGui フレーム内（BeginDebugUI 後・
-    /// RenderDebugUI 前）に呼ぶこと。
+    /// RenderDebugUI 前）に呼ぶこと。override 側で ImGui を呼ぶ場合は必ず
+    /// #ifdef WITCH_DEBUG_UI で囲むこと（OFF ビルド（release 等）では ImGui が
+    /// リンクされない）。
     virtual void DrawDebugUI();
 
     /// 更新中に呼んでも安全。保留リストに積み、次の生成フェーズで反映する。

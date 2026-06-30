@@ -26,6 +26,8 @@ public:
     virtual void Update(float dt);
     /// ImGui フレーム内で呼ばれる。既定で全 Component の DrawDebugUI を呼ぶ。
     /// サブクラスは追加の ImGui::* 呼び出しを書いて base を呼ぶ。
+    /// その ImGui コードは必ず #ifdef WITCH_DEBUG_UI で囲むこと
+    /// （OFF ビルド（release 等）では ImGui がリンクされない）。
     virtual void DrawDebugUI();
     /// 破棄直前に呼ばれる。
     virtual void OnDespawn() {}

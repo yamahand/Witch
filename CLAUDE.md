@@ -90,6 +90,8 @@ Witch/                          ← リポジトリのルート
 - インターフェースは `I` 接頭辞（`IRenderer` 等）。
 - 公開ヘッダは `Engine/Include/WitchEngine/`、実装と非公開ヘッダは `Engine/Source/`。
 - 1 ファイル 1 責務。巨大ファイルを作らない。
+- デバッグ UI で ImGui を呼ぶコード（`DrawDebugUI()` の override 等）は必ず
+  `#ifdef WITCH_DEBUG_UI` で囲む。OFF ビルド（release 等）では ImGui がリンクされない。
 
 ## エラー処理の方針
 - 例外機能は **有効のまま**にする（`/EH-` や `-fno-exceptions` を付けない）。

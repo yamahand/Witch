@@ -14,6 +14,8 @@ public:
     /// 毎フレーム GameObject::Update から呼ばれる。
     virtual void Update([[maybe_unused]] float dt) {}
     /// 毎フレーム、ImGui フレーム内で呼ばれる。デバッグ UI を描く。既定は何もしない。
+    /// override 側で ImGui を呼ぶ場合は必ず #ifdef WITCH_DEBUG_UI で囲むこと
+    /// （OFF ビルド（release 等）では ImGui がリンクされない）。
     virtual void DrawDebugUI() {}
     /// コンポーネント破棄直前に呼ばれる。
     virtual void OnDetach() {}
