@@ -172,7 +172,11 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::GetIO().IniFilename = nullptr;
-    ImGui_ImplWin32_Init(hwnd);
+    if (!ImGui_ImplWin32_Init(hwnd)) {
+        log::Error("ImGui_ImplWin32_Init failed.");
+        ImGui::DestroyContext();
+        return false;
+    }
 
     // ImGui 1.92 以降の DX12 バックエンドは動的テクスチャ（RendererHasTextures）に対応し、
     // フォントアトラスを含むテクスチャを RenderDrawData 内で自前アップロードする。これには
@@ -201,7 +205,13 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
            D3D12_GPU_DESCRIPTOR_HANDLE) {
             // 単一の予約スロットのため解放処理は不要。
         };
-    ImGui_ImplDX12_Init(&initInfo);
+    if (!ImGui_ImplDX12_Init(&initInfo)) {
+        log::Error("ImGui_ImplDX12_Init failed.");
+        // 既に成功した Win32 バックエンドも巻き戻す。
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+        return false;
+    }
 
     log::Info("D3D12Renderer initialized ({}x{}).", width, height);
     return true;
@@ -441,9 +451,9 @@ void D3D12Renderer::BeginDebugUI() {
     ImGui::NewFrame();
 }
 
-void D3D12Renderer::RenderDebugUI([[maybe_unused]] rhi::ICommandList*) {
+void D3D12Renderer::RenderDebugUI() {
     ImGui::Render();
-    // 単一フレームコマンドリスト方式のため、引数のラッパーではなく内部の cmdList_ を直接使う
+    // 単一フレームコマンドリスト方式のため、BeginFrame で開始した内部の cmdList_ に直接記録する
     // （EndFrame と同じ流儀）。
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList_.Get());
 }

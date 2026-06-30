@@ -45,8 +45,9 @@ public:
 
     /// デバッグ UI のフレームを開始する。PumpMessages の直後、BeginFrame の前に呼ぶ。
     virtual void BeginDebugUI() {}
-    /// デバッグ UI の描画コマンドをコマンドリストに記録する。FlushSprites の直後に呼ぶ。
-    virtual void RenderDebugUI(ICommandList* /*cmdList*/) {}
+    /// デバッグ UI の描画コマンドを記録する。FlushSprites の直後、EndFrame の前に呼ぶ。
+    /// 実装は BeginFrame で開始した内部のコマンドリストに記録する（引数で渡さない）。
+    virtual void RenderDebugUI() {}
 };
 
 } // namespace witch::rhi

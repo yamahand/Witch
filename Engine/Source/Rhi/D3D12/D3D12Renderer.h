@@ -40,7 +40,7 @@ public:
     void SubmitSprite(const rhi::SpriteDrawDesc& desc) override;
 
     void BeginDebugUI() override;
-    void RenderDebugUI(rhi::ICommandList* cmdList) override;
+    void RenderDebugUI() override;
 
     /// D3D12CommandList::FlushSprites から呼ばれる。
     /// スプライトバッチを頂点バッファに書き込んでドローコールを発行する。

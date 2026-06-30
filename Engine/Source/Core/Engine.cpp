@@ -82,7 +82,7 @@ void Engine::Run() {
                 auto* cmdList = renderer_->BeginFrame();
                 cmdList->Clear({kCornflowerBlue});
                 cmdList->FlushSprites();
-                renderer_->RenderDebugUI(cmdList);
+                renderer_->RenderDebugUI();
                 renderer_->EndFrame(cmdList);
             }
         }
