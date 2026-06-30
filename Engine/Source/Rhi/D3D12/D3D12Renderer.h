@@ -39,8 +39,10 @@ public:
     void DestroyTexture(rhi::TextureHandle handle) override;
     void SubmitSprite(const rhi::SpriteDrawDesc& desc) override;
 
+#ifdef WITCH_DEBUG_UI
     void BeginDebugUI() override;
     void RenderDebugUI() override;
+#endif
 
     /// D3D12CommandList::FlushSprites から呼ばれる。
     /// スプライトバッチを頂点バッファに書き込んでドローコールを発行する。
@@ -104,7 +106,9 @@ private:
     // ── Texture management ──────────────────────────────────────────────────────
     ComPtr<ID3D12DescriptorHeap>      srvHeap_;
     uint32_t                          srvDescSize_ = 0;
+#ifdef WITCH_DEBUG_UI
     bool                              imguiSrvAllocated_ = false;  // ImGui SRV スロットの多重払い出し検出用
+#endif
     struct TextureEntry {
         ComPtr<ID3D12Resource> resource;
         bool used = false;

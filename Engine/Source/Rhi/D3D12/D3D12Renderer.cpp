@@ -4,9 +4,11 @@
 #include "WitchEngine/Core/Logger.h"
 #include <cassert>
 #include <string>
+#ifdef WITCH_DEBUG_UI
 #include <imgui.h>
 #include <imgui_impl_dx12.h>
 #include <imgui_impl_win32.h>
+#endif
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -169,6 +171,7 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
         return false;
 
     // 13. Dear ImGui (Win32 + DX12 backend)
+#ifdef WITCH_DEBUG_UI
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::GetIO().IniFilename = nullptr;
@@ -220,6 +223,7 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
         ImGui::DestroyContext();
         return false;
     }
+#endif // WITCH_DEBUG_UI
 
     log::Info("D3D12Renderer initialized ({}x{}).", width, height);
     return true;
@@ -297,9 +301,11 @@ void D3D12Renderer::Shutdown() {
     // GPU がフレームリソース（ImGui フォントテクスチャ含む）を使い終わるのを待ってから解放する。
     WaitIdle();
 
+#ifdef WITCH_DEBUG_UI
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
+#endif
 
     // Unmap persistently mapped upload buffers before releasing.
     for (uint32_t i = 0; i < kBackBufferCount; ++i) {
@@ -453,6 +459,7 @@ void D3D12Renderer::DestroyTexture(rhi::TextureHandle handle) {
     }
 }
 
+#ifdef WITCH_DEBUG_UI
 void D3D12Renderer::BeginDebugUI() {
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -465,6 +472,7 @@ void D3D12Renderer::RenderDebugUI() {
     // （EndFrame と同じ流儀）。
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList_.Get());
 }
+#endif // WITCH_DEBUG_UI
 
 void D3D12Renderer::SubmitSprite(const rhi::SpriteDrawDesc& desc) {
     if (pendingSprites_.size() < kMaxSpritesPerFrame) {
