@@ -3,6 +3,7 @@
 #include "WitchEngine/Core/ResourceManager.h"
 #include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
+#include "Platform/Windows/Win32Input.h"
 #include "Rhi/D3D12/D3D12Renderer.h"
 #include "Core/Profiling.h"
 
@@ -41,6 +42,10 @@ void Engine::Init(int width, int height, const char* title) {
         log::Error("D3D12Renderer failed to initialize.");
     }
 
+    // 入力サービス。WndProc が Services::Instance().input 経由で具象へメッセージを流す。
+    input_ = std::make_unique<platform::Win32Input>();
+    Services::Instance().input = input_.get();
+
     resourceManager_ = std::make_unique<ResourceManager>();
     Services::Instance().resources = resourceManager_.get();
 
@@ -66,6 +71,10 @@ void Engine::Run() {
             }
 
             time_->Tick();
+
+            // 入力スナップショットを確定。Scene::Update より前に呼ぶことで、
+            // このフレームの WasPressed/WasReleased がシーンから一貫して見える。
+            if (input_) input_->Update();
 
             // 1) 入力を反映しデバッグ UI のフレームを開始（BeginFrame より前に呼べる）。
 #ifdef WITCH_DEBUG_UI
@@ -118,6 +127,9 @@ void Engine::Shutdown() {
     // Destroy services in reverse creation order.
     Services::Instance().resources = nullptr;
     resourceManager_.reset();
+
+    Services::Instance().input = nullptr;
+    input_.reset();
 
     if (renderer_) {
         renderer_->Shutdown();

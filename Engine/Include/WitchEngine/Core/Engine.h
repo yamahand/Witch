@@ -8,6 +8,7 @@
 namespace witch {
 
 class ResourceManager;
+class IInput;
 
 /// エンジン本体。サービスのライフタイムとメインループを管理するシングルトン。
 class Engine {
@@ -42,6 +43,7 @@ private:
 
     std::unique_ptr<Time>            time_;
     std::unique_ptr<rhi::IRenderer>  renderer_;
+    std::unique_ptr<IInput>          input_;
     std::unique_ptr<ResourceManager> resourceManager_;
     std::unique_ptr<Scene>           currentScene_;
     std::unique_ptr<Scene>           pendingScene_;
