@@ -21,6 +21,9 @@ if(WITCH_DEBUG_UI)
 endif()
 
 # ─── WitchEngine (STATIC) ────────────────────────────────────────────────────
+# ヘッダも target_sources に加えているのは機能上必須ではなく、Visual Studio の
+# ソリューションエクスプローラー（フィルター）にヘッダを表示させ、単独 IDE 編集を
+# 快適にするため（source_group(TREE ...) と対にして使う）。
 add_library(WitchEngine STATIC
     Engine/Source/Core/Engine.cpp
     Engine/Source/Core/Logger.cpp
@@ -30,6 +33,30 @@ add_library(WitchEngine STATIC
     Engine/Source/Scene/GameObject.cpp
     Engine/Source/Scene/Scene.cpp
     Engine/Source/Graphics2D/SpriteComponent.cpp
+
+    Engine/Source/Core/Profiling.h
+    Engine/Source/Platform/Memory.h
+    Engine/Source/Platform/PlatformFactory.h
+    Engine/Source/Platform/PlatformWindow.h
+
+    Engine/Include/WitchEngine/Core/Engine.h
+    Engine/Include/WitchEngine/Core/Logger.h
+    Engine/Include/WitchEngine/Core/ObjectRegistry.h
+    Engine/Include/WitchEngine/Core/ResourceManager.h
+    Engine/Include/WitchEngine/Core/Services.h
+    Engine/Include/WitchEngine/Core/Time.h
+    Engine/Include/WitchEngine/Graphics2D/Anchor.h
+    Engine/Include/WitchEngine/Graphics2D/Camera2D.h
+    Engine/Include/WitchEngine/Graphics2D/SpriteComponent.h
+    Engine/Include/WitchEngine/Input/IInput.h
+    Engine/Include/WitchEngine/Input/Key.h
+    Engine/Include/WitchEngine/Rhi/IRenderer.h
+    Engine/Include/WitchEngine/Rhi/RhiTypes.h
+    Engine/Include/WitchEngine/Scene/Component.h
+    Engine/Include/WitchEngine/Scene/DebugUI.h
+    Engine/Include/WitchEngine/Scene/GameObject.h
+    Engine/Include/WitchEngine/Scene/Scene.h
+    Engine/Include/WitchEngine/Scene/Transform.h
 )
 
 if(WIN32)
@@ -42,12 +69,21 @@ if(WIN32)
         Engine/Source/Platform/Windows/Memory.cpp
         Engine/Source/Rhi/D3D12/D3D12Renderer.cpp
         Engine/Source/Rhi/D3D12/D3D12Factory.cpp
+
+        Engine/Source/Platform/Windows/Win32Input.h
+        Engine/Source/Rhi/D3D12/D3D12CommandList.h
+        Engine/Source/Rhi/D3D12/D3D12Renderer.h
     )
     target_compile_definitions(WitchEngine PUBLIC UNICODE _UNICODE)
     target_link_libraries(WitchEngine PUBLIC user32 d3d12 dxgi d3dcompiler)
     # new/delete 差し替えは Memory.cpp 内で完結し API を外部公開しないため PRIVATE。
     target_link_libraries(WitchEngine PRIVATE mimalloc)
 endif()
+
+# Visual Studio のソリューションエクスプローラーで実ディレクトリ階層通りの
+# フィルターを作る（ヘッダも target_sources 済みなので Header Files 相当も分類される）。
+get_target_property(_WitchEngineSources WitchEngine SOURCES)
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${_WitchEngineSources})
 
 if(WITCH_DEBUG_UI)
     # ImGui はゲーム側が GameObject::DrawDebugUI() 内で直接使う設計のため、あえて PUBLIC で
@@ -90,11 +126,16 @@ target_include_directories(WitchEngine PRIVATE ${Stb_INCLUDE_DIR})
 add_executable(WitchGame
     Game/Source/Main.cpp
     Game/Source/Scenes/EmptyScene.cpp
+
+    Game/Source/Scenes/EmptyScene.h
 )
 
 target_include_directories(WitchGame PRIVATE Game/Source)
 
 target_link_libraries(WitchGame PRIVATE WitchEngine)
+
+get_target_property(_WitchGameSources WitchGame SOURCES)
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${_WitchGameSources})
 
 if(MSVC)
     target_compile_options(WitchGame PRIVATE /W4 /WX /utf-8)
