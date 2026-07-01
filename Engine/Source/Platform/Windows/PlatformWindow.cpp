@@ -8,6 +8,7 @@
 #include "WitchEngine/Input/IInput.h"
 #include "WitchEngine/Rhi/IRenderer.h"
 #ifdef WITCH_DEBUG_UI
+#include <imgui.h>
 #include <imgui_impl_win32.h>
 
 // imgui_impl_win32.h は <windows.h> 依存を避けるため、この前方宣言を #if 0 で握り潰している。
@@ -27,6 +28,16 @@ constexpr wchar_t kClassName[] = L"WitchWindowClass";
 IInput* ActiveInput() {
     return Services::Instance().input;
 }
+
+#ifdef WITCH_DEBUG_UI
+// ImGui がキーボード／マウスをキャプチャしているか。キャプチャ中はゲーム入力を無効化し、
+// 入力を ImGui に委ねる（テキスト入力欄にフォーカス中など）。
+bool ImGuiWantsKeyboard() { return ImGui::GetIO().WantCaptureKeyboard; }
+bool ImGuiWantsMouse()    { return ImGui::GetIO().WantCaptureMouse; }
+#else
+constexpr bool ImGuiWantsKeyboard() { return false; }
+constexpr bool ImGuiWantsMouse()    { return false; }
+#endif
 
 /// VK_* → 抽象キー Key。未対応コードは Key::Count を返し、呼び出し側が無視する。
 /// プラットフォーム固有の VK 変換はこの Windows TU に閉じ込め、IInput へは Key で渡す。
@@ -62,6 +73,18 @@ Key VkToKey(unsigned int vk) {
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 #ifdef WITCH_DEBUG_UI
+    // ImGui がキャプチャを取り始めた瞬間（false→true）に、ゲーム側の押下状態を一括クリアする。
+    // これがないと、キーを押下したまま ImGui がキャプチャを取り、その状態で WM_KEYUP が
+    // 下の ImGui ハンドラに飲まれると OnKeyChange(false) が来ず IsDown が stuck する。
+    {
+        static bool prevWantCapture = false;
+        const bool nowWantCapture = ImGuiWantsKeyboard() || ImGuiWantsMouse();
+        if (nowWantCapture && !prevWantCapture) {
+            if (auto* input = ActiveInput()) input->ClearAll();
+        }
+        prevWantCapture = nowWantCapture;
+    }
+
     if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp))
         return TRUE;
 #endif
@@ -81,7 +104,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // WM_SYSKEYDOWN/UP も拾い、Alt 等のシステムキーを入力に反映する。
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:
-        if (auto* input = ActiveInput())
+        if (auto* input = ActiveInput(); input && !ImGuiWantsKeyboard())
             input->OnKeyChange(VkToKey(static_cast<unsigned int>(wp)), true);
         // SYSKEY は DefWindowProc に渡してメニュー連携等を壊さない。
         if (msg == WM_SYSKEYDOWN)
@@ -89,7 +112,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_KEYUP:
     case WM_SYSKEYUP:
-        if (auto* input = ActiveInput())
+        if (auto* input = ActiveInput(); input && !ImGuiWantsKeyboard())
             input->OnKeyChange(VkToKey(static_cast<unsigned int>(wp)), false);
         if (msg == WM_SYSKEYUP)
             return DefWindowProcW(hwnd, msg, wp, lp);
@@ -101,32 +124,37 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // ボタンが押下のまま stuck するのを防ぐ。wp の MK_* で残ボタンを判定する。
     // サイドボタン（XBUTTON1/2）は Key 未定義だが、押下中の早期解放を防ぐため
     // 残ボタン判定には含める（将来 Mouse4/5 を Key に追加する際も整合する）。
+    //
+    // ImGui がマウスをキャプチャ中はゲーム受け口（OnKeyChange）をスキップし入力を
+    // ImGui に委ねる。SetCapture/ReleaseCapture は Win32 の capture 一貫性のため常に行う。
     case WM_LBUTTONDOWN:
-        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseLeft, true);
+        if (auto* input = ActiveInput(); input && !ImGuiWantsMouse()) input->OnKeyChange(Key::MouseLeft, true);
         SetCapture(hwnd);
         return 0;
     case WM_LBUTTONUP:
-        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseLeft, false);
+        if (auto* input = ActiveInput(); input && !ImGuiWantsMouse()) input->OnKeyChange(Key::MouseLeft, false);
         if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2))) ReleaseCapture();
         return 0;
     case WM_RBUTTONDOWN:
-        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseRight, true);
+        if (auto* input = ActiveInput(); input && !ImGuiWantsMouse()) input->OnKeyChange(Key::MouseRight, true);
         SetCapture(hwnd);
         return 0;
     case WM_RBUTTONUP:
-        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseRight, false);
+        if (auto* input = ActiveInput(); input && !ImGuiWantsMouse()) input->OnKeyChange(Key::MouseRight, false);
         if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2))) ReleaseCapture();
         return 0;
     case WM_MBUTTONDOWN:
-        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseMiddle, true);
+        if (auto* input = ActiveInput(); input && !ImGuiWantsMouse()) input->OnKeyChange(Key::MouseMiddle, true);
         SetCapture(hwnd);
         return 0;
     case WM_MBUTTONUP:
-        if (auto* input = ActiveInput()) input->OnKeyChange(Key::MouseMiddle, false);
+        if (auto* input = ActiveInput(); input && !ImGuiWantsMouse()) input->OnKeyChange(Key::MouseMiddle, false);
         if (!(wp & (MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2))) ReleaseCapture();
         return 0;
 
     // ── Mouse move / wheel ───────────────────────────────────────────────
+    // カーソル移動は常に反映（座標は ImGui キャプチャ中も追従させたい）。
+    // ホイールはキャプチャ中スキップして ImGui のスクロールに委ねる。
     case WM_MOUSEMOVE:
         if (auto* input = ActiveInput()) {
             // LOWORD/HIWORD は符号なし。負座標（マルチモニタ等）に備え short で受ける。
@@ -135,7 +163,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         return 0;
     case WM_MOUSEWHEEL:
-        if (auto* input = ActiveInput()) {
+        if (auto* input = ActiveInput(); input && !ImGuiWantsMouse()) {
             int raw = GET_WHEEL_DELTA_WPARAM(wp);
             input->OnMouseWheel(static_cast<float>(raw) / static_cast<float>(WHEEL_DELTA));
         }

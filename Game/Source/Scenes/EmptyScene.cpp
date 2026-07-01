@@ -10,9 +10,10 @@
 namespace witch {
 
 namespace {
-constexpr float kMoveSpeed   = 300.0f; // スプライト移動 ピクセル/秒（ワールド）
-constexpr float kCameraSpeed = 400.0f; // カメラ移動 ワールド単位/秒
-constexpr float kZoomSpeed   = 1.5f;   // ズーム変化 /秒
+constexpr float kMoveSpeed     = 300.0f; // スプライト移動 ピクセル/秒（ワールド）
+constexpr float kCameraSpeed   = 400.0f; // カメラ移動 ワールド単位/秒
+constexpr float kZoomSpeed     = 1.5f;   // ズーム変化 /秒（Q/E キー）
+constexpr float kWheelZoomStep = 0.1f;   // ホイール 1 ノッチあたりのズーム変化
 }
 
 void EmptyScene::OnEnter() {
@@ -77,7 +78,7 @@ void EmptyScene::Update(float dt) {
         if (input->IsDown(Key::Q)) Camera().SetZoom(Camera().Zoom() - kZoomSpeed * dt);
         // マウスホイールでもズーム。
         if (float wheel = input->MouseWheelDelta(); wheel != 0.0f)
-            Camera().SetZoom(Camera().Zoom() + wheel * 0.1f);
+            Camera().SetZoom(Camera().Zoom() + wheel * kWheelZoomStep);
     }
 
     if (frameCount_ % 60 == 1) {

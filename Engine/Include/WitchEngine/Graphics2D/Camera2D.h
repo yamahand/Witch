@@ -40,7 +40,11 @@ public:
     float ViewportHeight() const { return viewportHeight_; }
 
     /// ワールド座標 → スクリーン座標（ピクセル, 左上原点）。
-    /// カメラ中心がビューポート中央に写る。
+    /// ズームアンカーは常に「ビューポート中心」固定（注視点 (x_,y_) がビューポート中央に写り、
+    /// ズームはその中央を基準に拡縮する）。そのためカメラを動かしてからズームすると、
+    /// 注視点から離れたスプライトは中央へ向かって流れて見える。
+    /// マウスカーソル基準ズーム等が要る場合は、将来 SetZoom(zoom, anchorScreenX, anchorScreenY)
+    /// のようにアンカーを渡せる形へ拡張する（別 Issue で追跡）。
     float WorldToScreenX(float worldX) const {
         return (worldX - x_) * zoom_ + viewportWidth_ * 0.5f;
     }
