@@ -8,6 +8,7 @@ namespace witch {
 
 class Time;
 class ResourceManager;
+class IInput;
 
 /// エンジンが所有するサービスへの非所有ビュー。
 /// Engine が Init で各ポインタを設定し、Shutdown でクリアする。
@@ -16,6 +17,7 @@ struct Services {
     rhi::IRenderer*  renderer  = nullptr;
     Time*            time      = nullptr;
     ResourceManager* resources = nullptr;
+    IInput*          input     = nullptr;
 
     static Services& Instance() {
         static Services s;

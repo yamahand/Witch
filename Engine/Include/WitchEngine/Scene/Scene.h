@@ -1,4 +1,5 @@
 #pragma once
+#include "WitchEngine/Graphics2D/Camera2D.h"
 #include "WitchEngine/Scene/DebugUI.h"
 #include "WitchEngine/Scene/GameObject.h"
 #include <memory>
@@ -39,9 +40,15 @@ public:
     /// ObjectRegistry 経由でレベルファイルを実体化する（M6 実装予定）。
     void LoadLevel(std::string_view path);
 
+    /// このシーンのカメラ。スプライト描画のワールド→スクリーン変換に使う。
+    /// シーンごとに独立し、遷移でリセットされる。
+    Camera2D& Camera() { return camera_; }
+    const Camera2D& Camera() const { return camera_; }
+
 private:
     static ObjectId NextId();
 
+    Camera2D camera_;
     std::vector<std::unique_ptr<GameObject>> objects_;
     std::vector<std::unique_ptr<GameObject>> pendingSpawn_;
 };

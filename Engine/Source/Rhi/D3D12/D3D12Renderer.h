@@ -33,6 +33,8 @@ public:
     void EndFrame(rhi::ICommandList* cmdList) override;
     void OnResize(int width, int height) override;
     void Shutdown() override;
+    int Width() const override { return width_; }
+    int Height() const override { return height_; }
 
     std::expected<rhi::TextureHandle, std::string> CreateTexture(
         const uint8_t* pixels, int width, int height) override;
