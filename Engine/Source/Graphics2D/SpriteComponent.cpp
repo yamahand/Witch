@@ -1,7 +1,7 @@
 #include "WitchEngine/Graphics2D/SpriteComponent.h"
 #include "WitchEngine/Graphics2D/Camera2D.h"
+#include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Scene/GameObject.h"
-#include "WitchEngine/Scene/Scene.h"
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Rhi/IRenderer.h"
 
@@ -27,13 +27,13 @@ void SpriteComponent::Update([[maybe_unused]] float dt) {
     const float anchorWorldY = t.y + height_ * fy;
 
     // カメラ変換は CPU 側でここで適用する（RHI/HLSL はスクリーン座標のまま）。
-    // owner の所属シーンからカメラを引く。シーン未設定ならワールド座標を素通し。
+    // アクティブカメラを CameraManager サービスから引く。未設定ならワールド座標を素通し。
     float anchorScreenX = anchorWorldX;
     float anchorScreenY = anchorWorldY;
     float drawW = width_;
     float drawH = height_;
-    if (Scene* scene = Owner()->GetScene()) {
-        const Camera2D& cam = scene->Camera();
+    if (CameraManager* cameras = Services::Instance().cameras) {
+        const Camera2D& cam = cameras->Active();
         anchorScreenX = cam.WorldToScreenX(anchorWorldX);
         anchorScreenY = cam.WorldToScreenY(anchorWorldY);
         drawW = width_  * cam.Zoom();
