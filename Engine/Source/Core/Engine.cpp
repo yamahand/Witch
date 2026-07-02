@@ -28,7 +28,7 @@ void Engine::Init(int width, int height, const char* title) {
     platform::EnsureAllocatorActive();
 
     log::Info("Engine init start.");
-    log::Info("Engine version: %s", WITCH_ENGINE_VERSION_STRING);
+    log::Info("Engine version: {}", WITCH_ENGINE_VERSION_STRING);
 
     // Services are created in declaration order; destroyed in reverse during Shutdown.
     time_ = std::make_unique<Time>();
