@@ -36,9 +36,11 @@ void EmptyScene::OnEnter() {
     witchId_ = obj->Id(); // Update から弱参照で解決する。
 
     // カメラを Witch の中心あたりに向ける（スプライト左上が原点なので +64 で中心）。
-    Camera2D& camera = Services::Instance().cameras->Active();
-    camera.SetPosition(64.0f, 64.0f);
-    camera.SetZoom(1.0f);
+    if (auto* cameras = Services::Instance().cameras) {
+        Camera2D& camera = cameras->Active();
+        camera.SetPosition(64.0f, 64.0f);
+        camera.SetZoom(1.0f);
+    }
 }
 
 void EmptyScene::Update(float dt) {
