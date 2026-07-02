@@ -1,6 +1,8 @@
 #include "WitchEngine/Core/Engine.h"
+#include "WitchEngine/Core/GameLoop.h"
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/ResourceManager.h"
+#include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Input/IInput.h"
 #include "WitchEngine/Rhi/IRenderer.h"
 #include "Platform/Memory.h"
@@ -9,8 +11,6 @@
 #include "Core/Profiling.h"
 
 namespace witch {
-
-static constexpr rhi::Color kCornflowerBlue{0.392f, 0.584f, 0.929f, 1.0f};
 
 Engine& Engine::Get() {
     static Engine instance;
@@ -50,6 +50,13 @@ void Engine::Init(int width, int height, const char* title) {
     resourceManager_ = std::make_unique<ResourceManager>();
     Services::Instance().resources = resourceManager_.get();
 
+    // カメラ管理サービス。以前は Scene が Camera2D を直接持っていたが、Scene から独立させた。
+    cameraManager_ = std::make_unique<CameraManager>();
+    Services::Instance().cameras = cameraManager_.get();
+
+    // フレーム位相のオーケストレータ。全サービス生成後に、依存を注入して作る。
+    gameLoop_ = std::make_unique<GameLoop>(time_.get(), input_.get(), renderer_.get());
+
     initialized_ = true;
     log::Info("Engine init complete.");
 }
@@ -58,78 +65,30 @@ void Engine::Run() {
     running_ = true;
 
     while (running_) {
+        // シーン切り替えはフレーム先頭で適用してから当該シーンを回す。
+        // （シーン管理の分離は将来 SceneManager へ切り出す予定。）
+        // 遷移コスト（OnExit/OnEnter＋リソース読込）は GameLoop の "Frame" ゾーン外だが、
+        // 専用スコープで計測し Tracy タイムライン上に残す。
         {
-            WITCH_PROFILE_SCOPE_N("Frame");
-
+            WITCH_PROFILE_SCOPE_N("SceneChange");
             ApplyPendingSceneChange();
+        }
 
-            // 入力の世代を進める（previous_ = current_、wheel をリセット）。
-            // 必ず PumpMessages の「前」に呼ぶこと。これにより PumpMessages が反映する
-            // 今フレームのキー／ホイールが current_ に積まれ、Scene::Update での
-            // WasPressed/WasReleased（current vs previous）と MouseWheelDelta が正しく出る。
-            // 逆順にすると差分が即座に消えてエッジ検出が常に false になる。
-            if (input_) input_->Update();
-
-            {
-                WITCH_PROFILE_SCOPE_N("PumpMessages");
-                if (!platform::PumpMessages()) {
-                    running_ = false;
-                    break;
-                }
-            }
-
-            time_->Tick();
-
-            // カメラのビューポートを現在の描画先サイズに同期する。
-            // SpriteComponent のワールド→スクリーン変換（Scene::Update 内）より前に行う。
-            if (currentScene_ && renderer_) {
-                currentScene_->Camera().SetViewport(
-                    static_cast<float>(renderer_->Width()),
-                    static_cast<float>(renderer_->Height()));
-            }
-
-            // 1) 入力を反映しデバッグ UI のフレームを開始（BeginFrame より前に呼べる）。
-#ifdef WITCH_DEBUG_UI
-            if (renderer_) renderer_->BeginDebugUI();
-#endif
-
-            // 2) ロジック更新。描画器の有無に依存せず、重複なく 1 か所で行う。
-            {
-                WITCH_PROFILE_SCOPE_N("SceneUpdate");
-                if (currentScene_) currentScene_->Update(time_->DeltaTime());
-            }
-
-            // 3) ゲームのデバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
-            //    renderer_ が無いときは BeginDebugUI が呼ばれず ImGui フレームが
-            //    開始されないため、ゲーム側 ImGui 呼び出しを避けてスキップする。
-#ifdef WITCH_DEBUG_UI
-            if (renderer_ && currentScene_) {
-                WITCH_PROFILE_SCOPE_N("DebugUI");
-                currentScene_->DrawDebugUI();
-            }
-#endif
-
-            // 4) 描画（描画器がある場合のみ）。
-            if (renderer_) {
-                WITCH_PROFILE_SCOPE_N("Render");
-                auto* cmdList = renderer_->BeginFrame();
-                cmdList->Clear({kCornflowerBlue});
-                cmdList->FlushSprites();
-#ifdef WITCH_DEBUG_UI
-                renderer_->RenderDebugUI();
-#endif
-                renderer_->EndFrame(cmdList);
-            }
+        // 1 フレーム分の位相は GameLoop に委譲する。OS 終了メッセージで false。
+        if (!gameLoop_->Tick(currentScene_.get())) {
+            running_ = false;
         }
 
         WITCH_PROFILE_FRAME();
     }
-    WITCH_PROFILE_FRAME();
 
     log::Info("Engine run loop exited.");
 }
 
 void Engine::Shutdown() {
+    // GameLoop は最後に生成したので最初に破棄する（time_/input_/renderer_ を弱参照するため）。
+    gameLoop_.reset();
+
     if (currentScene_) {
         currentScene_->OnExit();
         currentScene_.reset();
@@ -137,6 +96,9 @@ void Engine::Shutdown() {
     pendingScene_.reset();
 
     // Destroy services in reverse creation order.
+    Services::Instance().cameras = nullptr;
+    cameraManager_.reset();
+
     Services::Instance().resources = nullptr;
     resourceManager_.reset();
 

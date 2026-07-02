@@ -4,6 +4,7 @@
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Core/ResourceManager.h"
 #include "WitchEngine/Graphics2D/Camera2D.h"
+#include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Graphics2D/SpriteComponent.h"
 #include "WitchEngine/Input/IInput.h"
 
@@ -35,8 +36,11 @@ void EmptyScene::OnEnter() {
     witchId_ = obj->Id(); // Update から弱参照で解決する。
 
     // カメラを Witch の中心あたりに向ける（スプライト左上が原点なので +64 で中心）。
-    Camera().SetPosition(64.0f, 64.0f);
-    Camera().SetZoom(1.0f);
+    if (auto* cameras = Services::Instance().cameras) {
+        Camera2D& camera = cameras->Active();
+        camera.SetPosition(64.0f, 64.0f);
+        camera.SetZoom(1.0f);
+    }
 }
 
 void EmptyScene::Update(float dt) {
@@ -66,19 +70,22 @@ void EmptyScene::Update(float dt) {
         }
 
         // WASD でカメラを移動、Q/E でズーム（カメラ／座標系の動作確認）。
-        float cdx = 0.0f;
-        float cdy = 0.0f;
-        if (input->IsDown(Key::A)) cdx -= 1.0f;
-        if (input->IsDown(Key::D)) cdx += 1.0f;
-        if (input->IsDown(Key::W)) cdy -= 1.0f;
-        if (input->IsDown(Key::S)) cdy += 1.0f;
-        Camera().Move(cdx * kCameraSpeed * dt, cdy * kCameraSpeed * dt);
+        if (auto* cameras = Services::Instance().cameras) {
+            Camera2D& camera = cameras->Active();
+            float cdx = 0.0f;
+            float cdy = 0.0f;
+            if (input->IsDown(Key::A)) cdx -= 1.0f;
+            if (input->IsDown(Key::D)) cdx += 1.0f;
+            if (input->IsDown(Key::W)) cdy -= 1.0f;
+            if (input->IsDown(Key::S)) cdy += 1.0f;
+            camera.Move(cdx * kCameraSpeed * dt, cdy * kCameraSpeed * dt);
 
-        if (input->IsDown(Key::E)) Camera().SetZoom(Camera().Zoom() + kZoomSpeed * dt);
-        if (input->IsDown(Key::Q)) Camera().SetZoom(Camera().Zoom() - kZoomSpeed * dt);
-        // マウスホイールでもズーム。
-        if (float wheel = input->MouseWheelDelta(); wheel != 0.0f)
-            Camera().SetZoom(Camera().Zoom() + wheel * kWheelZoomStep);
+            if (input->IsDown(Key::E)) camera.SetZoom(camera.Zoom() + kZoomSpeed * dt);
+            if (input->IsDown(Key::Q)) camera.SetZoom(camera.Zoom() - kZoomSpeed * dt);
+            // マウスホイールでもズーム。
+            if (float wheel = input->MouseWheelDelta(); wheel != 0.0f)
+                camera.SetZoom(camera.Zoom() + wheel * kWheelZoomStep);
+        }
     }
 
     if (frameCount_ % 60 == 1) {

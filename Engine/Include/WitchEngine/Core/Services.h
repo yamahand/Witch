@@ -9,6 +9,7 @@ namespace witch {
 class Time;
 class ResourceManager;
 class IInput;
+class CameraManager;
 
 /// エンジンが所有するサービスへの非所有ビュー。
 /// Engine が Init で各ポインタを設定し、Shutdown でクリアする。
@@ -18,6 +19,7 @@ struct Services {
     Time*            time      = nullptr;
     ResourceManager* resources = nullptr;
     IInput*          input     = nullptr;
+    CameraManager*   cameras   = nullptr;
 
     static Services& Instance() {
         static Services s;
