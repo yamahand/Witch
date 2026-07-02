@@ -18,9 +18,6 @@ class Application {
         /// アプリケーションの終了処理。Engine::Shutdown() の前に呼ばれる。
         virtual void OnShutdown() = 0;
 
-        /// アプリケーションのメインループ。Engine::Run() の中で呼ばれる。
-        virtual void OnUpdate() = 0;
-
         /// アプリケーションの名前を返す。
         virtual const char* GetGameName() const = 0;
 

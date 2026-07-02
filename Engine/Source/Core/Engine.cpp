@@ -5,6 +5,7 @@
 #include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Input/IInput.h"
 #include "WitchEngine/Rhi/IRenderer.h"
+#include "WitchEngine/Core/Version.h"
 #include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
 #include "Platform/PlatformFactory.h"
@@ -27,6 +28,7 @@ void Engine::Init(int width, int height, const char* title) {
     platform::EnsureAllocatorActive();
 
     log::Info("Engine init start.");
+    log::Info("Engine version: %s", WITCH_ENGINE_VERSION_STRING);
 
     // Services are created in declaration order; destroyed in reverse during Shutdown.
     time_ = std::make_unique<Time>();

@@ -1,5 +1,6 @@
 #include "WitchEngine/Core/Application.h"
 #include "WitchEngine/Core/Engine.h"
+#include "WitchGame/Version.h"
 #include "Scenes/EmptyScene.h"
 
 class WitchGame : public witch::Application {
@@ -17,16 +18,12 @@ class WitchGame : public witch::Application {
             // 終了処理
         }
 
-        void OnUpdate() override {
-            // メインループ処理
-        }
-
         const char* GetGameName() const override {
             return "Witch";
         }
 
         const char* GetGameVersion() const override {
-            return "0.0.1";
+            return WITCH_GAME_VERSION_STRING;
         }
 
         void GetWindowSize(int& width, int& height) const override {
