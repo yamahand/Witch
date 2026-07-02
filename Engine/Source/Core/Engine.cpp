@@ -67,7 +67,12 @@ void Engine::Run() {
     while (running_) {
         // シーン切り替えはフレーム先頭で適用してから当該シーンを回す。
         // （シーン管理の分離は将来 SceneManager へ切り出す予定。）
-        ApplyPendingSceneChange();
+        // 遷移コスト（OnExit/OnEnter＋リソース読込）は GameLoop の "Frame" ゾーン外だが、
+        // 専用スコープで計測し Tracy タイムライン上に残す。
+        {
+            WITCH_PROFILE_SCOPE_N("SceneChange");
+            ApplyPendingSceneChange();
+        }
 
         // 1 フレーム分の位相は GameLoop に委譲する。OS 終了メッセージで false。
         if (!gameLoop_->Tick(currentScene_.get())) {
