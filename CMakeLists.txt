@@ -26,6 +26,7 @@ endif()
 # 快適にするため（source_group(TREE ...) と対にして使う）。
 add_library(WitchEngine STATIC
     Engine/Source/Core/Engine.cpp
+    Engine/Source/Core/Application.cpp
     Engine/Source/Core/GameLoop.cpp
     Engine/Source/Core/Logger.cpp
     Engine/Source/Core/ObjectRegistry.cpp
@@ -42,6 +43,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Platform/PlatformWindow.h
 
     Engine/Include/WitchEngine/Core/Engine.h
+    Engine/Include/WitchEngine/Core/Application.h
     Engine/Include/WitchEngine/Core/GameLoop.h
     Engine/Include/WitchEngine/Core/Logger.h
     Engine/Include/WitchEngine/Core/ObjectRegistry.h
@@ -114,6 +116,7 @@ endif()
 
 target_include_directories(WitchEngine
     PUBLIC  Engine/Include
+    PRIVATE Engine/Include/WitchEngine
     PRIVATE Engine/Source
 )
 
