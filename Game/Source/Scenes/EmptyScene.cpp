@@ -70,20 +70,22 @@ void EmptyScene::Update(float dt) {
         }
 
         // WASD でカメラを移動、Q/E でズーム（カメラ／座標系の動作確認）。
-        Camera2D& camera = Services::Instance().cameras->Active();
-        float cdx = 0.0f;
-        float cdy = 0.0f;
-        if (input->IsDown(Key::A)) cdx -= 1.0f;
-        if (input->IsDown(Key::D)) cdx += 1.0f;
-        if (input->IsDown(Key::W)) cdy -= 1.0f;
-        if (input->IsDown(Key::S)) cdy += 1.0f;
-        camera.Move(cdx * kCameraSpeed * dt, cdy * kCameraSpeed * dt);
+        if (auto* cameras = Services::Instance().cameras) {
+            Camera2D& camera = cameras->Active();
+            float cdx = 0.0f;
+            float cdy = 0.0f;
+            if (input->IsDown(Key::A)) cdx -= 1.0f;
+            if (input->IsDown(Key::D)) cdx += 1.0f;
+            if (input->IsDown(Key::W)) cdy -= 1.0f;
+            if (input->IsDown(Key::S)) cdy += 1.0f;
+            camera.Move(cdx * kCameraSpeed * dt, cdy * kCameraSpeed * dt);
 
-        if (input->IsDown(Key::E)) camera.SetZoom(camera.Zoom() + kZoomSpeed * dt);
-        if (input->IsDown(Key::Q)) camera.SetZoom(camera.Zoom() - kZoomSpeed * dt);
-        // マウスホイールでもズーム。
-        if (float wheel = input->MouseWheelDelta(); wheel != 0.0f)
-            camera.SetZoom(camera.Zoom() + wheel * kWheelZoomStep);
+            if (input->IsDown(Key::E)) camera.SetZoom(camera.Zoom() + kZoomSpeed * dt);
+            if (input->IsDown(Key::Q)) camera.SetZoom(camera.Zoom() - kZoomSpeed * dt);
+            // マウスホイールでもズーム。
+            if (float wheel = input->MouseWheelDelta(); wheel != 0.0f)
+                camera.SetZoom(camera.Zoom() + wheel * kWheelZoomStep);
+        }
     }
 
     if (frameCount_ % 60 == 1) {

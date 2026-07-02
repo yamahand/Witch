@@ -30,10 +30,17 @@ IInput* ActiveInput() {
 }
 
 #ifdef WITCH_DEBUG_UI
+// ImGui コンテキストが生成済みか。ウィンドウは renderer->Init（＝ImGui::CreateContext）より
+// 先に作られ、CreateWindowExW/ShowWindow/UpdateWindow が同期的に WndProc へメッセージを
+// 配送する。その間 ImGui は未初期化なので、コンテキスト有無を先に確認してから GetIO() に
+// 触れないと GImGui==nullptr で assert する。GetCurrentContext は非 assert のゲッター。
+bool ImGuiReady() { return ImGui::GetCurrentContext() != nullptr; }
+
 // ImGui がキーボード／マウスをキャプチャしているか。キャプチャ中はゲーム入力を無効化し、
 // 入力を ImGui に委ねる（テキスト入力欄にフォーカス中など）。
-bool ImGuiWantsKeyboard() { return ImGui::GetIO().WantCaptureKeyboard; }
-bool ImGuiWantsMouse()    { return ImGui::GetIO().WantCaptureMouse; }
+// 未初期化時は false（＝ゲーム入力を通す）へ安全に倒す。
+bool ImGuiWantsKeyboard() { return ImGuiReady() && ImGui::GetIO().WantCaptureKeyboard; }
+bool ImGuiWantsMouse()    { return ImGuiReady() && ImGui::GetIO().WantCaptureMouse; }
 #else
 constexpr bool ImGuiWantsKeyboard() { return false; }
 constexpr bool ImGuiWantsMouse()    { return false; }
@@ -85,7 +92,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         prevWantCapture = nowWantCapture;
     }
 
-    if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp))
+    // コンテキスト未生成（起動時のウィンドウ生成〜renderer->Init の間）は ImGui へ渡さない。
+    if (ImGuiReady() && ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp))
         return TRUE;
 #endif
 
