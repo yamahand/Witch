@@ -6,6 +6,22 @@ project(Witch
     LANGUAGES CXX C
 )
 
+# ─── WitchEngine version ─────────────────────────────────────────────────────
+set(WITCH_ENGINE_VERSION_MAJOR 0)
+set(WITCH_ENGINE_VERSION_MINOR 1)
+set(WITCH_ENGINE_VERSION_PATCH 0)
+set(WITCH_ENGINE_VERSION "${WITCH_ENGINE_VERSION_MAJOR}.${WITCH_ENGINE_VERSION_MINOR}.${WITCH_ENGINE_VERSION_PATCH}")
+
+set(WITCH_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${WITCH_GENERATED_INCLUDE_DIR}/WitchEngine/Core")
+file(MAKE_DIRECTORY "${WITCH_GENERATED_INCLUDE_DIR}/WitchGame")
+
+configure_file(
+    Engine/Include/WitchEngine/Core/Version.h.in
+    ${WITCH_GENERATED_INCLUDE_DIR}/WitchEngine/Core/Version.h
+    @ONLY
+)
+
 # ─── Profiling option ────────────────────────────────────────────────────────
 # Tracy プロファイラの有効化。明示的に ON にしたビルドだけで計測する
 # （RelWithDebInfo のパフォーマンス計測に Tracy のオーバーヘッドが紛れ込むのを避ける）。
@@ -26,6 +42,7 @@ endif()
 # 快適にするため（source_group(TREE ...) と対にして使う）。
 add_library(WitchEngine STATIC
     Engine/Source/Core/Engine.cpp
+    Engine/Source/Core/Application.cpp
     Engine/Source/Core/GameLoop.cpp
     Engine/Source/Core/Logger.cpp
     Engine/Source/Core/ObjectRegistry.cpp
@@ -42,6 +59,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Platform/PlatformWindow.h
 
     Engine/Include/WitchEngine/Core/Engine.h
+    Engine/Include/WitchEngine/Core/Application.h
     Engine/Include/WitchEngine/Core/GameLoop.h
     Engine/Include/WitchEngine/Core/Logger.h
     Engine/Include/WitchEngine/Core/ObjectRegistry.h
@@ -113,7 +131,9 @@ if(WITCH_PROFILING)
 endif()
 
 target_include_directories(WitchEngine
-    PUBLIC  Engine/Include
+    PUBLIC
+        Engine/Include
+        ${WITCH_GENERATED_INCLUDE_DIR}
     PRIVATE Engine/Source
 )
 
@@ -134,7 +154,23 @@ add_executable(WitchGame
     Game/Source/Scenes/EmptyScene.h
 )
 
-target_include_directories(WitchGame PRIVATE Game/Source)
+# ─── WitchGame version ─────────────────────────────────────────────────────
+set(WITCH_GAME_VERSION_MAJOR 0)
+set(WITCH_GAME_VERSION_MINOR 1)
+set(WITCH_GAME_VERSION_PATCH 0)
+set(WITCH_GAME_VERSION "${WITCH_GAME_VERSION_MAJOR}.${WITCH_GAME_VERSION_MINOR}.${WITCH_GAME_VERSION_PATCH}")
+
+configure_file(
+    Game/Source/Version.h.in
+    ${WITCH_GENERATED_INCLUDE_DIR}/WitchGame/Version.h
+    @ONLY
+)
+
+target_include_directories(WitchGame
+    PRIVATE
+        Game/Source
+        ${WITCH_GENERATED_INCLUDE_DIR}
+)
 
 target_link_libraries(WitchGame PRIVATE WitchEngine)
 

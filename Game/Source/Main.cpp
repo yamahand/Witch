@@ -1,13 +1,42 @@
+#include "WitchEngine/Core/Application.h"
 #include "WitchEngine/Core/Engine.h"
+#include "WitchGame/Version.h"
 #include "Scenes/EmptyScene.h"
 
-int main() {
-    witch::Engine& engine = witch::Engine::Get();
+namespace witch {
+class WitchGame : public witch::Application {
+public:
+    void OnInit() override {
+        // 初期化処理
+    }
 
-    engine.Init(1280, 720, "Witch");
-    engine.ChangeScene<witch::EmptyScene>();
-    engine.Run();
-    engine.Shutdown();
+    void OnStart() override {
+        // 初期シーンの切り替え
+        witch::Engine::Get().ChangeScene<witch::EmptyScene>();
+    }
+
+    void OnShutdown() override {
+        // 終了処理
+    }
+
+    const char* GetGameName() const override {
+        return "Witch";
+    }
+
+    const char* GetGameVersion() const override {
+        return WITCH_GAME_VERSION_STRING;
+    }
+
+    void GetWindowSize(int& width, int& height) const override {
+        width = 1280;
+        height = 720;
+    }
+};
+}
+
+int main() {
+    witch::WitchGame game;
+    game.Run();
 
     return 0;
 }
