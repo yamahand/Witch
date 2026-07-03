@@ -30,7 +30,10 @@ void SpriteComponent::ClearSourceRect() {
 
 uint32_t SpriteComponent::SortKey() const {
     // int16_t を 0x8000 バイアスで昇順の uint16_t にしてから bits 8..23 に置く。
-    return static_cast<uint32_t>(static_cast<uint16_t>(layer_ + 0x8000)) << 8;
+    // bit 24 は空間ビット: Screen (HUD) は常に World 全体の手前。
+    const uint32_t spaceBit = space_ == SpriteSpace::Screen ? (1u << 24) : 0u;
+    return spaceBit
+         | (static_cast<uint32_t>(static_cast<uint16_t>(layer_ + 0x8000)) << 8);
 }
 
 void SpriteComponent::Update([[maybe_unused]] float dt) {
@@ -50,16 +53,19 @@ void SpriteComponent::Update([[maybe_unused]] float dt) {
 
     // カメラ変換は CPU 側でここで適用する（RHI/HLSL はスクリーン座標のまま）。
     // アクティブカメラを CameraManager サービスから引く。未設定ならワールド座標を素通し。
+    // Screen 空間 (HUD) は transform を仮想スクリーン座標として直接使い、カメラを見ない。
     float anchorScreenX = anchorWorldX;
     float anchorScreenY = anchorWorldY;
     float drawW = width_;
     float drawH = height_;
-    if (CameraManager* cameras = Services::Instance().cameras) {
-        const Camera2D& cam = cameras->Active();
-        anchorScreenX = cam.WorldToScreenX(anchorWorldX);
-        anchorScreenY = cam.WorldToScreenY(anchorWorldY);
-        drawW = width_  * cam.Zoom();
-        drawH = height_ * cam.Zoom();
+    if (space_ == SpriteSpace::World) {
+        if (CameraManager* cameras = Services::Instance().cameras) {
+            const Camera2D& cam = cameras->Active();
+            anchorScreenX = cam.WorldToScreenX(anchorWorldX);
+            anchorScreenY = cam.WorldToScreenY(anchorWorldY);
+            drawW = width_  * cam.Zoom();
+            drawH = height_ * cam.Zoom();
+        }
     }
 
     // flip は UV スワップだけで実現する（ソース矩形指定とも独立に合成できる）。
