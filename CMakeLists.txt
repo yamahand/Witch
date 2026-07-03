@@ -60,6 +60,7 @@ add_library(WitchEngine STATIC
 
     Engine/Include/WitchEngine/Core/Engine.h
     Engine/Include/WitchEngine/Core/Application.h
+    Engine/Include/WitchEngine/Core/FixedString.h
     Engine/Include/WitchEngine/Core/GameLoop.h
     Engine/Include/WitchEngine/Core/Logger.h
     Engine/Include/WitchEngine/Core/ObjectRegistry.h

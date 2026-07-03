@@ -1,6 +1,6 @@
 #include "WitchEngine/Core/Application.h"
 #include "WitchEngine/Core/Engine.h"
-#include "WitchEngine/Core/Logger.h"
+#include "WitchEngine/Core/FixedString.h"
 
 #include <string>
 
@@ -12,7 +12,8 @@ void Application::Run() {
     auto name = GetGameName();
     auto version = GetGameVersion();
     // name + version をタイトルバーに表示する
-    std::string title = std::string(name) + " " + std::string(version);
+    FixedString256 title;
+    title.AppendFormat("{} {}", name, version);
     engine.Init(width, height, title.c_str());
     OnInit();
     OnStart();
