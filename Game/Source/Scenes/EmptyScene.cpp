@@ -32,7 +32,8 @@ void EmptyScene::OnEnter() {
     auto* obj = Spawn<GameObject>();
     obj->transform.x = 0.0f;
     obj->transform.y = 0.0f;
-    obj->AddComponent<SpriteComponent>(spriteTexture_, 128.0f, 128.0f);
+    // TODO(M5): SpriteComponent が TextureInfo を直接受けるようになったら .handle を外す。
+    obj->AddComponent<SpriteComponent>(spriteTexture_.handle, 128.0f, 128.0f);
     witchId_ = obj->Id(); // Update から弱参照で解決する。
 
     // カメラを Witch の中心あたりに向ける（スプライト左上が原点なので +64 で中心）。

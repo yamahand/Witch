@@ -1,7 +1,7 @@
 #pragma once
 #include "WitchEngine/Scene/Scene.h"
 #include "WitchEngine/Scene/GameObject.h"
-#include "WitchEngine/Rhi/RhiTypes.h"
+#include "WitchEngine/Core/TextureInfo.h"
 #include <cstdint>
 
 namespace witch {
@@ -14,7 +14,7 @@ public:
 
 private:
     uint64_t frameCount_ = 0;
-    rhi::TextureHandle spriteTexture_;
+    TextureInfo spriteTexture_;
     ObjectId witchId_ = kInvalidId; // 矢印キーで動かすスプライト（弱参照）。
 };
 

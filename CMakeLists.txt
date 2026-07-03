@@ -66,6 +66,7 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Core/ObjectRegistry.h
     Engine/Include/WitchEngine/Core/ResourceManager.h
     Engine/Include/WitchEngine/Core/Services.h
+    Engine/Include/WitchEngine/Core/TextureInfo.h
     Engine/Include/WitchEngine/Core/Time.h
     Engine/Include/WitchEngine/Graphics2D/Anchor.h
     Engine/Include/WitchEngine/Graphics2D/Camera2D.h
