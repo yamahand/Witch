@@ -12,6 +12,8 @@ namespace witch {
 // バッファ溢れは開発中の不整合として assert で検出する（黙って切り詰めない）。
 template<std::size_t N>
 class FixedString {
+    template<std::size_t M>
+    friend class FixedString;
 public:
     FixedString() = default;
 
@@ -44,16 +46,17 @@ public:
     void Format(std::format_string<Args...> fmt, Args&&... args) {
         auto result = std::format_to_n(buffer_, N - 1, fmt, std::forward<Args>(args)...);
         assert(result.size <= static_cast<std::ptrdiff_t>(N - 1));
-        size_ = static_cast<std::size_t>(result.size);
+        size_ = std::min(static_cast<std::size_t>(result.size), N - 1);
         buffer_[size_] = '\0';
     }
 
     /// フォーマット付きで文字列を追加する。バッファが溢れる場合は assert で検出する。
     template<typename... Args>
     void AppendFormat(std::format_string<Args...> fmt, Args&&... args) {
-        auto result = std::format_to_n(buffer_ + size_, N - 1 - size_, fmt, std::forward<Args>(args)...);
-        assert(result.size <= static_cast<std::ptrdiff_t>(N - 1 - size_));
-        size_ += static_cast<std::size_t>(result.size);
+        std::size_t remaining = N - 1 - size_;
+        auto result = std::format_to_n(buffer_ + size_, remaining, fmt, std::forward<Args>(args)...);
+        assert(result.size <= static_cast<std::ptrdiff_t>(remaining));
+        size_ += std::min(static_cast<std::size_t>(result.size), remaining);
         buffer_[size_] = '\0';
     }
 
