@@ -19,8 +19,12 @@ struct AnimationClip {
 };
 
 /// 兄弟 SpriteComponent のソース矩形を時間で切り替えるコンポーネント。
-/// 契約: SpriteComponent を先に AddComponent しておくこと
-/// （OnAttach で GetComponent するため。不在なら警告して不活性になる）。
+/// SpriteComponent は OnAttach または最初の Update で遅延解決するため、
+/// AddComponent の順序はどちらでも動く。ただし GameObject::Update は追加順に
+/// コンポーネントを呼ぶため、**AnimationComponent を先に追加すると**コマ更新が
+/// 同一フレームの描画（後続の SpriteComponent::Update の提出）に反映される。
+/// Sprite を先にすると反映は 1 フレーム遅れる（実害はほぼないが揃えておくのが吉）。
+/// SpriteComponent が最後まで見つからない場合は警告して不活性になる。
 class AnimationComponent : public Component {
 public:
     explicit AnimationComponent(AnimationClip clip);
@@ -49,12 +53,16 @@ private:
     /// 現在コマのセル番号からソース矩形を計算して SpriteComponent に反映する。
     void ApplyFrame();
 
+    /// sprite_ 未解決時に Owner から解決を試みる。見つかれば現在コマを反映する。
+    bool ResolveSprite();
+
     AnimationClip clip_;
     SpriteComponent* sprite_ = nullptr;
     float time_       = 0.0f;
     int   frameIndex_ = 0;
     bool  playing_    = true;
     bool  finished_   = false;
+    bool  warnedNoSprite_ = false;
 };
 
 } // namespace witch

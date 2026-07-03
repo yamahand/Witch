@@ -65,14 +65,15 @@ void EmptyScene::OnEnter() {
     staticSprite_->SetColor({0.7f, 0.7f, 1.0f, 1.0f}); // 薄青で識別
 
     // TestSheet アニメーション（赤→緑→青→黄 4fps ループ）。
-    // 契約どおり SpriteComponent を先に AddComponent する。
+    // AnimationComponent を先に追加すると、コマ更新が同一フレームの描画に反映される
+    // （後続の SpriteComponent::Update が更新済みソース矩形で提出するため）。
     auto* animObj = Spawn<GameObject>();
     animObj->transform.x = 250.0f;
     animObj->transform.y = 0.0f;
-    animObj->AddComponent<SpriteComponent>(testSheet_, 64.0f, 64.0f);
     anim_ = animObj->AddComponent<AnimationComponent>(
         AnimationClip{.frameWidth = 32, .frameHeight = 32, .columns = 4,
                       .frames = {0, 1, 2, 3}, .fps = 4.0f, .loop = true});
+    animObj->AddComponent<SpriteComponent>(testSheet_, 64.0f, 64.0f);
 
     // HUD スプライト（Screen 空間 = 仮想座標直指定、カメラ非追従）。
     // シーン領域の左上 (16,16) に TestSheet の 0 コマ目を貼る。

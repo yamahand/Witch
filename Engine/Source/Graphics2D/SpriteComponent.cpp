@@ -2,6 +2,7 @@
 #include "WitchEngine/Graphics2D/Camera2D.h"
 #include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Scene/GameObject.h"
+#include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Rhi/IRenderer.h"
 #ifdef WITCH_DEBUG_UI
@@ -16,6 +17,15 @@ SpriteComponent::SpriteComponent(const TextureInfo& texture, float width, float 
 
 void SpriteComponent::SetSourceRect(int x, int y, int width, int height) {
     if (texture_.width <= 0 || texture_.height <= 0) return;
+    // 範囲外はサンプラーのクランプで無音のまま見た目が壊れ、原因を追いにくい
+    // （AnimationClip の設定ミス等）。警告して設定ミスに早く気づけるようにする。
+    // UV 自体は要求どおり設定する（回復可能な失敗であり、見た目で分かるため）。
+    if (x < 0 || y < 0 || width <= 0 || height <= 0 ||
+        x + width > texture_.width || y + height > texture_.height) {
+        log::Warn("SpriteComponent::SetSourceRect: rect ({},{} {}x{}) is outside "
+                  "texture {}x{}",
+                  x, y, width, height, texture_.width, texture_.height);
+    }
     const float tw = static_cast<float>(texture_.width);
     const float th = static_cast<float>(texture_.height);
     u0_ = static_cast<float>(x) / tw;
