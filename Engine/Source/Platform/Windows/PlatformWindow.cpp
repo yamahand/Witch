@@ -247,4 +247,15 @@ bool PumpMessages() {
     return true;
 }
 
+void ShowErrorDialog(const char* title, const char* message) {
+    auto toWide = [](const char* utf8) {
+        int len = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, nullptr, 0);
+        std::wstring wide(len, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, utf8, -1, wide.data(), len);
+        return wide;
+    };
+    MessageBoxW(nullptr, toWide(message).c_str(), toWide(title).c_str(),
+                MB_OK | MB_ICONERROR);
+}
+
 } // namespace witch::platform

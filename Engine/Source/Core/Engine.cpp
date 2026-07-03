@@ -18,10 +18,10 @@ Engine& Engine::Get() {
     return instance;
 }
 
-void Engine::Init(int width, int height, const char* title) {
+std::expected<void, std::string> Engine::Init(int width, int height, const char* title) {
     if (initialized_) {
         log::Warn("Engine::Init called more than once.");
-        return;
+        return {};
     }
 
     // アロケータ差し替えが有効か最初に検証する（他サービス生成前）。
@@ -35,15 +35,22 @@ void Engine::Init(int width, int height, const char* title) {
     time_->Start();
     Services::Instance().time = time_.get();
 
+    // 失敗時はその場で返す。ここまでに生成したサービスの後始末は呼び出し側が
+    // Shutdown() で行う（Shutdown は未生成メンバを安全にスキップする）。
+    // 以前はレンダラ失敗をログだけで握りつぶして headless で走り続けていた。
     void* hwnd = platform::CreateMainWindow({width, height, title});
+    if (!hwnd) {
+        return std::unexpected(std::string("Failed to create the main window."));
+    }
 
     auto renderer = platform::CreatePlatformRenderer();
-    if (renderer->Init(hwnd, width, height)) {
-        renderer_ = std::move(renderer);
-        Services::Instance().renderer = renderer_.get();
-    } else {
-        log::Error("Renderer failed to initialize.");
+    if (!renderer->Init(hwnd, width, height)) {
+        return std::unexpected(std::string(
+            "Failed to initialize the renderer (Direct3D 12).\n"
+            "Please make sure your GPU and driver support D3D12."));
     }
+    renderer_ = std::move(renderer);
+    Services::Instance().renderer = renderer_.get();
 
     // 入力サービス。WndProc が Services::Instance().input 経由で具象へメッセージを流す。
     input_ = platform::CreatePlatformInput();
@@ -57,10 +64,12 @@ void Engine::Init(int width, int height, const char* title) {
     Services::Instance().cameras = cameraManager_.get();
 
     // フレーム位相のオーケストレータ。全サービス生成後に、依存を注入して作る。
+    // Init が成功して返る以上、time_/input_/renderer_ は必ず有効。
     gameLoop_ = std::make_unique<GameLoop>(time_.get(), input_.get(), renderer_.get());
 
     initialized_ = true;
     log::Info("Engine init complete.");
+    return {};
 }
 
 void Engine::Run() {

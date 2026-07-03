@@ -7,13 +7,19 @@
 #include "WitchEngine/Scene/Scene.h"
 #include "Platform/PlatformWindow.h"
 #include "Core/Profiling.h"
+#include <cassert>
 
 namespace witch {
 
 static constexpr rhi::Color kCornflowerBlue{0.392f, 0.584f, 0.929f, 1.0f};
 
 GameLoop::GameLoop(Time* time, IInput* input, rhi::IRenderer* renderer)
-    : time_(time), input_(input), renderer_(renderer) {}
+    : time_(time), input_(input), renderer_(renderer) {
+    // Engine::Init が成功した場合のみ生成されるため、依存は常に有効。
+    // （以前はレンダラ初期化失敗でも headless で走り続ける設計だったが、
+    //  Init が失敗を返すようになったので null 分岐は廃止した。）
+    assert(time_ && input_ && renderer_);
+}
 
 bool GameLoop::Tick(Scene* currentScene) {
     WITCH_PROFILE_SCOPE_N("Frame");
@@ -23,7 +29,7 @@ bool GameLoop::Tick(Scene* currentScene) {
     // 今フレームのキー／ホイールが current_ に積まれ、Scene::Update での
     // WasPressed/WasReleased（current vs previous）と MouseWheelDelta が正しく出る。
     // 逆順にすると差分が即座に消えてエッジ検出が常に false になる。
-    if (input_) input_->Update();
+    input_->Update();
 
     {
         WITCH_PROFILE_SCOPE_N("PumpMessages");
@@ -37,36 +43,32 @@ bool GameLoop::Tick(Scene* currentScene) {
     // カメラのビューポートを仮想解像度（無効時はウィンドウ実サイズ）に同期する。
     // これにより「画面に見えるワールド範囲」がウィンドウサイズと切り離される。
     // SpriteComponent のワールド→スクリーン変換（Scene::Update 内）より前に行う。
-    if (renderer_) {
-        if (CameraManager* cameras = Services::Instance().cameras) {
-            cameras->SetViewport(static_cast<float>(renderer_->VirtualWidth()),
-                                 static_cast<float>(renderer_->VirtualHeight()));
-        }
+    if (CameraManager* cameras = Services::Instance().cameras) {
+        cameras->SetViewport(static_cast<float>(renderer_->VirtualWidth()),
+                             static_cast<float>(renderer_->VirtualHeight()));
     }
 
     // 1) 入力を反映しデバッグ UI のフレームを開始（BeginFrame より前に呼べる）。
 #ifdef WITCH_DEBUG_UI
-    if (renderer_) renderer_->BeginDebugUI();
+    renderer_->BeginDebugUI();
 #endif
 
-    // 2) ロジック更新。描画器の有無に依存せず、重複なく 1 か所で行う。
+    // 2) ロジック更新。
     {
         WITCH_PROFILE_SCOPE_N("SceneUpdate");
         if (currentScene) currentScene->Update(time_->DeltaTime());
     }
 
     // 3) ゲームのデバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
-    //    renderer_ が無いときは BeginDebugUI が呼ばれず ImGui フレームが
-    //    開始されないため、ゲーム側 ImGui 呼び出しを避けてスキップする。
 #ifdef WITCH_DEBUG_UI
-    if (renderer_ && currentScene) {
+    if (currentScene) {
         WITCH_PROFILE_SCOPE_N("DebugUI");
         currentScene->DrawDebugUI();
     }
 #endif
 
-    // 4) 描画（描画器がある場合のみ）。
-    if (renderer_) {
+    // 4) 描画。
+    {
         WITCH_PROFILE_SCOPE_N("Render");
         auto* cmdList = renderer_->BeginFrame();
         cmdList->Clear({kCornflowerBlue});
