@@ -99,7 +99,9 @@ private:
     uint8_t*                          cbMapped_[kBackBufferCount]{};
 
     /// フレーム毎動的頂点バッファ（永続マップ）。
-    struct SpriteVertex { float x, y, u, v; };
+    /// カラーは頂点持ち: ルート定数だと per-sprite 状態がコマンドに焼き付き、
+    /// 将来の同一テクスチャバッチングを塞ぐため。
+    struct SpriteVertex { float x, y, u, v; float r, g, b, a; };
     static constexpr uint32_t kVBSize =
         kMaxSpritesPerFrame * 4 * sizeof(SpriteVertex);
     ComPtr<ID3D12Resource>            vbUpload_[kBackBufferCount];

@@ -493,12 +493,13 @@ void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
     auto* vbData = reinterpret_cast<SpriteVertex*>(vbMapped_[frameIndex_]);
     for (uint32_t i = 0; i < static_cast<uint32_t>(pendingSprites_.size()); ++i) {
         const auto& s = pendingSprites_[i];
+        const auto& c = s.color;
         float l = s.x,          r = s.x + s.width;
         float t = s.y,          b = s.y + s.height;
-        vbData[i * 4 + 0] = {l, t, s.u0, s.v0};  // top-left
-        vbData[i * 4 + 1] = {r, t, s.u1, s.v0};  // top-right
-        vbData[i * 4 + 2] = {l, b, s.u0, s.v1};  // bottom-left
-        vbData[i * 4 + 3] = {r, b, s.u1, s.v1};  // bottom-right
+        vbData[i * 4 + 0] = {l, t, s.u0, s.v0, c.r, c.g, c.b, c.a};  // top-left
+        vbData[i * 4 + 1] = {r, t, s.u1, s.v0, c.r, c.g, c.b, c.a};  // top-right
+        vbData[i * 4 + 2] = {l, b, s.u0, s.v1, c.r, c.g, c.b, c.a};  // bottom-left
+        vbData[i * 4 + 3] = {r, b, s.u1, s.v1, c.r, c.g, c.b, c.a};  // bottom-right
     }
 
     // Write screen size constant.
@@ -649,13 +650,15 @@ bool D3D12Renderer::InitSpritePipeline() {
          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,  8,
          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
     };
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
     psoDesc.pRootSignature        = spriteRootSig_.Get();
     psoDesc.VS                    = {vsBlob->GetBufferPointer(), vsBlob->GetBufferSize()};
     psoDesc.PS                    = {psBlob->GetBufferPointer(), psBlob->GetBufferSize()};
-    psoDesc.InputLayout           = {inputElems, 2};
+    psoDesc.InputLayout           = {inputElems, 3};
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets      = 1;
     psoDesc.RTVFormats[0]         = DXGI_FORMAT_R8G8B8A8_UNORM;
