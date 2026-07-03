@@ -27,6 +27,9 @@ struct SpriteDrawDesc {
     float rotation = 0.0f;
     /// 回転中心。矩形内の正規化座標（0,0=左上, 0.5,0.5=中心, 1,1=右下）。
     float pivotX = 0.5f, pivotY = 0.5f;
+    /// 描画順キー。小さいほど奥（先に描く）。同値は提出順を維持（安定ソート）。
+    /// RHI は値を解釈しない。レイヤー等への意味付けは上位層（SpriteComponent）が行う。
+    uint32_t sortKey = 0;
 };
 
 } // namespace witch::rhi

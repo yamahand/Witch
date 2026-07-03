@@ -2,6 +2,7 @@
 #include <windows.h>
 #include "Rhi/D3D12/D3D12Renderer.h"
 #include "WitchEngine/Core/Logger.h"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <string>
@@ -489,6 +490,13 @@ void D3D12Renderer::SubmitSprite(const rhi::SpriteDrawDesc& desc) {
 
 void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
     if (pendingSprites_.empty()) return;
+
+    // Sort by sortKey before vertex generation. stable_sort keeps submission
+    // order for equal keys, so default-key sprites draw exactly as before.
+    std::stable_sort(pendingSprites_.begin(), pendingSprites_.end(),
+                     [](const rhi::SpriteDrawDesc& a, const rhi::SpriteDrawDesc& b) {
+                         return a.sortKey < b.sortKey;
+                     });
 
     // Write quad vertices for each sprite into the current frame's upload VB.
     auto* vbData = reinterpret_cast<SpriteVertex*>(vbMapped_[frameIndex_]);
