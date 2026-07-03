@@ -3,6 +3,7 @@
 #include "Rhi/D3D12/D3D12Renderer.h"
 #include "WitchEngine/Core/Logger.h"
 #include <cassert>
+#include <cmath>
 #include <string>
 #ifdef WITCH_DEBUG_UI
 #include <imgui.h>
@@ -496,10 +497,30 @@ void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
         const auto& c = s.color;
         float l = s.x,          r = s.x + s.width;
         float t = s.y,          b = s.y + s.height;
-        vbData[i * 4 + 0] = {l, t, s.u0, s.v0, c.r, c.g, c.b, c.a};  // top-left
-        vbData[i * 4 + 1] = {r, t, s.u1, s.v0, c.r, c.g, c.b, c.a};  // top-right
-        vbData[i * 4 + 2] = {l, b, s.u0, s.v1, c.r, c.g, c.b, c.a};  // bottom-left
-        vbData[i * 4 + 3] = {r, b, s.u1, s.v1, c.r, c.g, c.b, c.a};  // bottom-right
+        if (s.rotation == 0.0f) {
+            // Fast path: axis-aligned rect (the overwhelmingly common case).
+            vbData[i * 4 + 0] = {l, t, s.u0, s.v0, c.r, c.g, c.b, c.a};  // top-left
+            vbData[i * 4 + 1] = {r, t, s.u1, s.v0, c.r, c.g, c.b, c.a};  // top-right
+            vbData[i * 4 + 2] = {l, b, s.u0, s.v1, c.r, c.g, c.b, c.a};  // bottom-left
+            vbData[i * 4 + 3] = {r, b, s.u1, s.v1, c.r, c.g, c.b, c.a};  // bottom-right
+        } else {
+            // Rotate the 4 corners around the pivot point.
+            // Screen is y-down; this matrix keeps CCW-positive on screen
+            // (rot = +π/2 turns "right of pivot" into "above pivot").
+            const float px = s.x + s.width  * s.pivotX;
+            const float py = s.y + s.height * s.pivotY;
+            const float cs = std::cos(s.rotation);
+            const float sn = std::sin(s.rotation);
+            auto rot = [&](float x, float y, float u, float v) -> SpriteVertex {
+                const float dx = x - px, dy = y - py;
+                return {px + cs * dx + sn * dy, py - sn * dx + cs * dy,
+                        u, v, c.r, c.g, c.b, c.a};
+            };
+            vbData[i * 4 + 0] = rot(l, t, s.u0, s.v0);  // top-left
+            vbData[i * 4 + 1] = rot(r, t, s.u1, s.v0);  // top-right
+            vbData[i * 4 + 2] = rot(l, b, s.u0, s.v1);  // bottom-left
+            vbData[i * 4 + 3] = rot(r, b, s.u1, s.v1);  // bottom-right
+        }
     }
 
     // Write screen size constant.

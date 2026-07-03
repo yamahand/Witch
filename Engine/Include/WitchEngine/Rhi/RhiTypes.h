@@ -23,6 +23,10 @@ struct SpriteDrawDesc {
     float u0 = 0, v0 = 0, u1 = 1, v1 = 1;
     /// テクセルに乗算されるカラー（tint + alpha）。既定は白 = 無変調。
     Color color = {1.0f, 1.0f, 1.0f, 1.0f};
+    /// 回転角（ラジアン）。画面上で反時計回りが正。0 なら無回転の高速パス。
+    float rotation = 0.0f;
+    /// 回転中心。矩形内の正規化座標（0,0=左上, 0.5,0.5=中心, 1,1=右下）。
+    float pivotX = 0.5f, pivotY = 0.5f;
 };
 
 } // namespace witch::rhi
