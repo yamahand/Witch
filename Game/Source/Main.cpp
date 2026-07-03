@@ -1,13 +1,19 @@
 #include "WitchEngine/Core/Application.h"
 #include "WitchEngine/Core/Engine.h"
+#include "WitchEngine/Core/Services.h"
+#include "WitchEngine/Rhi/IRenderer.h"
 #include "WitchGame/Version.h"
+#include "GameConfig.h"
 #include "Scenes/EmptyScene.h"
 
 namespace witch {
 class WitchGame : public witch::Application {
 public:
     void OnInit() override {
-        // 初期化処理
+        // 基準視界を固定する。ウィンドウサイズによらず同じワールド範囲が見える。
+        if (auto* renderer = Services::Instance().renderer) {
+            renderer->SetVirtualResolution(kDesignWidth, kDesignHeight);
+        }
     }
 
     void OnStart() override {

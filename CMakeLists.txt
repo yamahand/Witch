@@ -153,6 +153,7 @@ add_executable(WitchGame
     Game/Source/Main.cpp
     Game/Source/Scenes/EmptyScene.cpp
 
+    Game/Source/GameConfig.h
     Game/Source/Scenes/EmptyScene.h
 )
 

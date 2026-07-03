@@ -7,6 +7,7 @@
 #include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Graphics2D/SpriteComponent.h"
 #include "WitchEngine/Input/IInput.h"
+#include "WitchEngine/Rhi/IRenderer.h"
 
 namespace witch {
 
@@ -88,11 +89,23 @@ void EmptyScene::Update(float dt) {
         }
     }
 
-    if (frameCount_ % 60 == 1) {
-        log::Info("EmptyScene frame {} (dt={:.4f}s) mouse=({:.0f},{:.0f})",
-                  frameCount_, dt,
-                  input ? input->MouseX() : 0.0f,
-                  input ? input->MouseY() : 0.0f);
+    if (frameCount_ % 60 == 1 && input) {
+        // マウス座標の 3 系統: ウィンドウ実ピクセル → 仮想解像度 → ワールド。
+        // IInput はウィンドウ座標のまま。仮想・ワールドへの変換はゲーム側で明示する。
+        const float mx = input->MouseX();
+        const float my = input->MouseY();
+        float vx = mx, vy = my, wx = mx, wy = my;
+        if (auto* renderer = Services::Instance().renderer) {
+            vx = renderer->WindowToVirtualX(mx);
+            vy = renderer->WindowToVirtualY(my);
+        }
+        if (auto* cameras = Services::Instance().cameras) {
+            wx = cameras->Active().ScreenToWorldX(vx);
+            wy = cameras->Active().ScreenToWorldY(vy);
+        }
+        log::Info("EmptyScene frame {} (dt={:.4f}s) mouse win=({:.0f},{:.0f}) "
+                  "virt=({:.0f},{:.0f}) world=({:.0f},{:.0f})",
+                  frameCount_, dt, mx, my, vx, vy, wx, wy);
     }
     Scene::Update(dt);
 }

@@ -43,8 +43,7 @@ std::wstring ExeRelativePath(const wchar_t* rel) {
 // ── D3D12CommandList ─────────────────────────────────────────────────────────
 
 void D3D12CommandList::Clear(const rhi::ClearDesc& desc) {
-    float color[4] = {desc.color.r, desc.color.g, desc.color.b, desc.color.a};
-    raw->ClearRenderTargetView(rtv, color, 0, nullptr);
+    renderer->DoClear(raw, rtv, desc);
 }
 
 void D3D12CommandList::FlushSprites() {
@@ -488,6 +487,54 @@ void D3D12Renderer::SubmitSprite(const rhi::SpriteDrawDesc& desc) {
     }
 }
 
+D3D12Renderer::Letterbox D3D12Renderer::ComputeLetterbox() const {
+    Letterbox lb;
+    if (virtualWidth_ <= 0 || virtualHeight_ <= 0 || width_ <= 0 || height_ <= 0) {
+        // 仮想解像度無効 or ウィンドウ最小化: 等倍全面。
+        lb.innerW = width_;
+        lb.innerH = height_;
+        return lb;
+    }
+    const float scaleX = static_cast<float>(width_)  / static_cast<float>(virtualWidth_);
+    const float scaleY = static_cast<float>(height_) / static_cast<float>(virtualHeight_);
+    lb.scale   = scaleX < scaleY ? scaleX : scaleY;
+    lb.innerW  = static_cast<int>(virtualWidth_  * lb.scale + 0.5f);
+    lb.innerH  = static_cast<int>(virtualHeight_ * lb.scale + 0.5f);
+    lb.offsetX = (width_  - lb.innerW) / 2;
+    lb.offsetY = (height_ - lb.innerH) / 2;
+    return lb;
+}
+
+float D3D12Renderer::WindowToVirtualX(float x) const {
+    const Letterbox lb = ComputeLetterbox();
+    if (virtualWidth_ <= 0 || lb.scale <= 0.0f) return x;
+    return (x - static_cast<float>(lb.offsetX)) / lb.scale;
+}
+
+float D3D12Renderer::WindowToVirtualY(float y) const {
+    const Letterbox lb = ComputeLetterbox();
+    if (virtualHeight_ <= 0 || lb.scale <= 0.0f) return y;
+    return (y - static_cast<float>(lb.offsetY)) / lb.scale;
+}
+
+void D3D12Renderer::DoClear(ID3D12GraphicsCommandList* cl,
+                            D3D12_CPU_DESCRIPTOR_HANDLE rtv,
+                            const rhi::ClearDesc& desc) {
+    float color[4] = {desc.color.r, desc.color.g, desc.color.b, desc.color.a};
+    if (virtualWidth_ <= 0 || virtualHeight_ <= 0) {
+        cl->ClearRenderTargetView(rtv, color, 0, nullptr);
+        return;
+    }
+    // レターボックス: 全面を黒帯色でクリアし、内側矩形だけシーン色でクリアする。
+    // rect は RT ピクセル座標（仮想座標ではない）。
+    const Letterbox lb = ComputeLetterbox();
+    constexpr float kBarColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    cl->ClearRenderTargetView(rtv, kBarColor, 0, nullptr);
+    D3D12_RECT inner{(LONG)lb.offsetX, (LONG)lb.offsetY,
+                     (LONG)(lb.offsetX + lb.innerW), (LONG)(lb.offsetY + lb.innerH)};
+    cl->ClearRenderTargetView(rtv, color, 1, &inner);
+}
+
 void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
     if (pendingSprites_.empty()) return;
 
@@ -532,16 +579,22 @@ void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
     }
 
     // Write screen size constant.
+    // 仮想解像度有効時は CB に仮想サイズを書き、ビューポートをレターボックス
+    // 内側矩形に絞る。VS の スクリーン→NDC 変換がそのまま仮想→内側矩形の
+    // 写像になるため、シェーダ変更なしで一様スケールが成立する。
+    const Letterbox lb = ComputeLetterbox();
     struct ScreenCB { float w, h, pad[2]; };
     *reinterpret_cast<ScreenCB*>(cbMapped_[frameIndex_]) =
-        {(float)width_, (float)height_, 0.0f, 0.0f};
+        {(float)VirtualWidth(), (float)VirtualHeight(), 0.0f, 0.0f};
 
     // Set up pipeline state.
     cl->SetPipelineState(spritePSO_.Get());
     cl->SetGraphicsRootSignature(spriteRootSig_.Get());
 
-    D3D12_VIEWPORT vp{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
-    D3D12_RECT scissor{0, 0, (LONG)width_, (LONG)height_};
+    D3D12_VIEWPORT vp{(float)lb.offsetX, (float)lb.offsetY,
+                      (float)lb.innerW, (float)lb.innerH, 0.0f, 1.0f};
+    D3D12_RECT scissor{(LONG)lb.offsetX, (LONG)lb.offsetY,
+                       (LONG)(lb.offsetX + lb.innerW), (LONG)(lb.offsetY + lb.innerH)};
     cl->RSSetViewports(1, &vp);
     cl->RSSetScissorRects(1, &scissor);
 

@@ -38,6 +38,21 @@ public:
     virtual int Width() const = 0;
     virtual int Height() const = 0;
 
+    // ── 仮想解像度（固定視界）─────────────────────────────────────────────
+    // SubmitSprite に渡す座標系を「仮想解像度」に固定し、ウィンドウへは一様
+    // スケール + 中央寄せ（レターボックス）で写像する。描画自体はネイティブ
+    // 解像度のまま行う（低解像度 RT は作らない）。
+
+    /// 仮想解像度を設定する。(0,0) で無効 = 従来どおりウィンドウ実サイズ座標。
+    virtual void SetVirtualResolution(int width, int height) = 0;
+    /// 仮想解像度が有効ならその値、無効なら Width()/Height() を返す。
+    /// カメラのビューポートはこちらに同期する。
+    virtual int VirtualWidth() const = 0;
+    virtual int VirtualHeight() const = 0;
+    /// ウィンドウクライアント座標 → 仮想座標（マウス変換用）。無効時は恒等写像。
+    virtual float WindowToVirtualX(float x) const = 0;
+    virtual float WindowToVirtualY(float y) const = 0;
+
     /// @param pixels RGBA 4バイト/ピクセルのピクセルデータ。
     /// @return DestroyTexture が呼ばれるまで有効なハンドル。失敗時はエラーメッセージ。
     virtual std::expected<TextureHandle, std::string> CreateTexture(

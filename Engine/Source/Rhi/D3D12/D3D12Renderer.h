@@ -36,6 +36,19 @@ public:
     int Width() const override { return width_; }
     int Height() const override { return height_; }
 
+    void SetVirtualResolution(int width, int height) override {
+        virtualWidth_  = width;
+        virtualHeight_ = height;
+    }
+    int VirtualWidth() const override {
+        return virtualWidth_ > 0 ? virtualWidth_ : width_;
+    }
+    int VirtualHeight() const override {
+        return virtualHeight_ > 0 ? virtualHeight_ : height_;
+    }
+    float WindowToVirtualX(float x) const override;
+    float WindowToVirtualY(float y) const override;
+
     std::expected<rhi::TextureHandle, std::string> CreateTexture(
         const uint8_t* pixels, int width, int height) override;
     void DestroyTexture(rhi::TextureHandle handle) override;
@@ -50,7 +63,23 @@ public:
     /// スプライトバッチを頂点バッファに書き込んでドローコールを発行する。
     void DoFlushSprites(ID3D12GraphicsCommandList* cl);
 
+    /// D3D12CommandList::Clear から呼ばれる。
+    /// 仮想解像度有効時は全面黒 → レターボックス内側のみ指定色の 2 段クリア。
+    void DoClear(ID3D12GraphicsCommandList* cl, D3D12_CPU_DESCRIPTOR_HANDLE rtv,
+                 const rhi::ClearDesc& desc);
+
 private:
+    /// 仮想解像度→ウィンドウの一様スケール写像。毎フレーム計算する（状態を持たない）。
+    struct Letterbox {
+        float scale   = 1.0f;  ///< 仮想 1px がウィンドウ何 px になるか
+        int   offsetX = 0;     ///< 内側矩形の左上（ウィンドウピクセル）
+        int   offsetY = 0;
+        int   innerW  = 0;     ///< 内側矩形サイズ（ウィンドウピクセル）
+        int   innerH  = 0;
+    };
+    /// 仮想解像度無効・ウィンドウ最小化時は等倍全面を返す。
+    Letterbox ComputeLetterbox() const;
+
     void CreateBackBufferRTVs();
     /// 指定フレームインデックスの GPU 処理完了をフェンスで待つ。
     void WaitForFrame(uint32_t frameIdx);
@@ -86,6 +115,8 @@ private:
     uint32_t                          frameIndex_   = 0;
     int                               width_        = 0;
     int                               height_       = 0;
+    int                               virtualWidth_  = 0;  ///< 0 = 仮想解像度無効
+    int                               virtualHeight_ = 0;
 
     D3D12CommandList                  cmdListWrapper_;
 

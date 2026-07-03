@@ -34,12 +34,13 @@ bool GameLoop::Tick(Scene* currentScene) {
 
     time_->Tick();
 
-    // カメラのビューポートを現在の描画先サイズに同期する。
+    // カメラのビューポートを仮想解像度（無効時はウィンドウ実サイズ）に同期する。
+    // これにより「画面に見えるワールド範囲」がウィンドウサイズと切り離される。
     // SpriteComponent のワールド→スクリーン変換（Scene::Update 内）より前に行う。
     if (renderer_) {
         if (CameraManager* cameras = Services::Instance().cameras) {
-            cameras->SetViewport(static_cast<float>(renderer_->Width()),
-                                 static_cast<float>(renderer_->Height()));
+            cameras->SetViewport(static_cast<float>(renderer_->VirtualWidth()),
+                                 static_cast<float>(renderer_->VirtualHeight()));
         }
     }
 
