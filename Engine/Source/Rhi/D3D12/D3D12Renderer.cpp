@@ -2,7 +2,9 @@
 #include <windows.h>
 #include "Rhi/D3D12/D3D12Renderer.h"
 #include "WitchEngine/Core/Logger.h"
+#include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <string>
 #ifdef WITCH_DEBUG_UI
 #include <imgui.h>
@@ -41,8 +43,7 @@ std::wstring ExeRelativePath(const wchar_t* rel) {
 // ── D3D12CommandList ─────────────────────────────────────────────────────────
 
 void D3D12CommandList::Clear(const rhi::ClearDesc& desc) {
-    float color[4] = {desc.color.r, desc.color.g, desc.color.b, desc.color.a};
-    raw->ClearRenderTargetView(rtv, color, 0, nullptr);
+    renderer->DoClear(raw, rtv, desc);
 }
 
 void D3D12CommandList::FlushSprites() {
@@ -486,32 +487,114 @@ void D3D12Renderer::SubmitSprite(const rhi::SpriteDrawDesc& desc) {
     }
 }
 
+D3D12Renderer::Letterbox D3D12Renderer::ComputeLetterbox() const {
+    Letterbox lb;
+    if (virtualWidth_ <= 0 || virtualHeight_ <= 0 || width_ <= 0 || height_ <= 0) {
+        // 仮想解像度無効 or ウィンドウ最小化: 等倍全面。
+        lb.innerW = width_;
+        lb.innerH = height_;
+        return lb;
+    }
+    const float scaleX = static_cast<float>(width_)  / static_cast<float>(virtualWidth_);
+    const float scaleY = static_cast<float>(height_) / static_cast<float>(virtualHeight_);
+    lb.scale   = scaleX < scaleY ? scaleX : scaleY;
+    lb.innerW  = static_cast<int>(virtualWidth_  * lb.scale + 0.5f);
+    lb.innerH  = static_cast<int>(virtualHeight_ * lb.scale + 0.5f);
+    lb.offsetX = (width_  - lb.innerW) / 2;
+    lb.offsetY = (height_ - lb.innerH) / 2;
+    return lb;
+}
+
+float D3D12Renderer::WindowToVirtualX(float x) const {
+    const Letterbox lb = ComputeLetterbox();
+    if (virtualWidth_ <= 0 || lb.scale <= 0.0f) return x;
+    return (x - static_cast<float>(lb.offsetX)) / lb.scale;
+}
+
+float D3D12Renderer::WindowToVirtualY(float y) const {
+    const Letterbox lb = ComputeLetterbox();
+    if (virtualHeight_ <= 0 || lb.scale <= 0.0f) return y;
+    return (y - static_cast<float>(lb.offsetY)) / lb.scale;
+}
+
+void D3D12Renderer::DoClear(ID3D12GraphicsCommandList* cl,
+                            D3D12_CPU_DESCRIPTOR_HANDLE rtv,
+                            const rhi::ClearDesc& desc) {
+    float color[4] = {desc.color.r, desc.color.g, desc.color.b, desc.color.a};
+    if (virtualWidth_ <= 0 || virtualHeight_ <= 0) {
+        cl->ClearRenderTargetView(rtv, color, 0, nullptr);
+        return;
+    }
+    // レターボックス: 全面を黒帯色でクリアし、内側矩形だけシーン色でクリアする。
+    // rect は RT ピクセル座標（仮想座標ではない）。
+    const Letterbox lb = ComputeLetterbox();
+    constexpr float kBarColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    cl->ClearRenderTargetView(rtv, kBarColor, 0, nullptr);
+    D3D12_RECT inner{(LONG)lb.offsetX, (LONG)lb.offsetY,
+                     (LONG)(lb.offsetX + lb.innerW), (LONG)(lb.offsetY + lb.innerH)};
+    cl->ClearRenderTargetView(rtv, color, 1, &inner);
+}
+
 void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
     if (pendingSprites_.empty()) return;
+
+    // Sort by sortKey before vertex generation. stable_sort keeps submission
+    // order for equal keys, so default-key sprites draw exactly as before.
+    std::stable_sort(pendingSprites_.begin(), pendingSprites_.end(),
+                     [](const rhi::SpriteDrawDesc& a, const rhi::SpriteDrawDesc& b) {
+                         return a.sortKey < b.sortKey;
+                     });
 
     // Write quad vertices for each sprite into the current frame's upload VB.
     auto* vbData = reinterpret_cast<SpriteVertex*>(vbMapped_[frameIndex_]);
     for (uint32_t i = 0; i < static_cast<uint32_t>(pendingSprites_.size()); ++i) {
         const auto& s = pendingSprites_[i];
+        const auto& c = s.color;
         float l = s.x,          r = s.x + s.width;
         float t = s.y,          b = s.y + s.height;
-        vbData[i * 4 + 0] = {l, t, s.u0, s.v0};  // top-left
-        vbData[i * 4 + 1] = {r, t, s.u1, s.v0};  // top-right
-        vbData[i * 4 + 2] = {l, b, s.u0, s.v1};  // bottom-left
-        vbData[i * 4 + 3] = {r, b, s.u1, s.v1};  // bottom-right
+        if (s.rotation == 0.0f) {
+            // Fast path: axis-aligned rect (the overwhelmingly common case).
+            vbData[i * 4 + 0] = {l, t, s.u0, s.v0, c.r, c.g, c.b, c.a};  // top-left
+            vbData[i * 4 + 1] = {r, t, s.u1, s.v0, c.r, c.g, c.b, c.a};  // top-right
+            vbData[i * 4 + 2] = {l, b, s.u0, s.v1, c.r, c.g, c.b, c.a};  // bottom-left
+            vbData[i * 4 + 3] = {r, b, s.u1, s.v1, c.r, c.g, c.b, c.a};  // bottom-right
+        } else {
+            // Rotate the 4 corners around the pivot point.
+            // Screen is y-down; this matrix keeps CCW-positive on screen
+            // (rot = +π/2 turns "right of pivot" into "above pivot").
+            const float px = s.x + s.width  * s.pivotX;
+            const float py = s.y + s.height * s.pivotY;
+            const float cs = std::cos(s.rotation);
+            const float sn = std::sin(s.rotation);
+            auto rot = [&](float x, float y, float u, float v) -> SpriteVertex {
+                const float dx = x - px, dy = y - py;
+                return {px + cs * dx + sn * dy, py - sn * dx + cs * dy,
+                        u, v, c.r, c.g, c.b, c.a};
+            };
+            vbData[i * 4 + 0] = rot(l, t, s.u0, s.v0);  // top-left
+            vbData[i * 4 + 1] = rot(r, t, s.u1, s.v0);  // top-right
+            vbData[i * 4 + 2] = rot(l, b, s.u0, s.v1);  // bottom-left
+            vbData[i * 4 + 3] = rot(r, b, s.u1, s.v1);  // bottom-right
+        }
     }
 
     // Write screen size constant.
+    // 仮想解像度有効時は CB に仮想サイズを書き、ビューポートをレターボックス
+    // 内側矩形に絞る。VS の スクリーン→NDC 変換がそのまま仮想→内側矩形の
+    // 写像になるため、シェーダ変更なしで一様スケールが成立する。
+    const Letterbox lb = ComputeLetterbox();
     struct ScreenCB { float w, h, pad[2]; };
     *reinterpret_cast<ScreenCB*>(cbMapped_[frameIndex_]) =
-        {(float)width_, (float)height_, 0.0f, 0.0f};
+        {(float)VirtualWidth(), (float)VirtualHeight(), 0.0f, 0.0f};
 
     // Set up pipeline state.
     cl->SetPipelineState(spritePSO_.Get());
     cl->SetGraphicsRootSignature(spriteRootSig_.Get());
 
-    D3D12_VIEWPORT vp{0.0f, 0.0f, (float)width_, (float)height_, 0.0f, 1.0f};
-    D3D12_RECT scissor{0, 0, (LONG)width_, (LONG)height_};
+    D3D12_VIEWPORT vp{(float)lb.offsetX, (float)lb.offsetY,
+                      (float)lb.innerW, (float)lb.innerH, 0.0f, 1.0f};
+    D3D12_RECT scissor{(LONG)lb.offsetX, (LONG)lb.offsetY,
+                       (LONG)(lb.offsetX + lb.innerW), (LONG)(lb.offsetY + lb.innerH)};
     cl->RSSetViewports(1, &vp);
     cl->RSSetScissorRects(1, &scissor);
 
@@ -649,13 +732,15 @@ bool D3D12Renderer::InitSpritePipeline() {
          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,  8,
          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
     };
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
     psoDesc.pRootSignature        = spriteRootSig_.Get();
     psoDesc.VS                    = {vsBlob->GetBufferPointer(), vsBlob->GetBufferSize()};
     psoDesc.PS                    = {psBlob->GetBufferPointer(), psBlob->GetBufferSize()};
-    psoDesc.InputLayout           = {inputElems, 2};
+    psoDesc.InputLayout           = {inputElems, 3};
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets      = 1;
     psoDesc.RTVFormats[0]         = DXGI_FORMAT_R8G8B8A8_UNORM;

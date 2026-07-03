@@ -8,7 +8,7 @@
 
 namespace witch {
 
-std::expected<rhi::TextureHandle, std::string>
+std::expected<TextureInfo, std::string>
 ResourceManager::LoadTexture(std::string_view path) {
     std::string key(path);
 
@@ -33,8 +33,9 @@ ResourceManager::LoadTexture(std::string_view path) {
     if (!result) return std::unexpected(result.error());
 
     log::Info("Texture loaded: {} ({}x{})", path, w, h);
-    textureCache_[key] = *result;
-    return *result;
+    TextureInfo info{*result, w, h};
+    textureCache_[key] = info;
+    return info;
 }
 
 } // namespace witch

@@ -50,6 +50,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Core/Time.cpp
     Engine/Source/Scene/GameObject.cpp
     Engine/Source/Scene/Scene.cpp
+    Engine/Source/Graphics2D/AnimationComponent.cpp
     Engine/Source/Graphics2D/CameraManager.cpp
     Engine/Source/Graphics2D/SpriteComponent.cpp
 
@@ -66,8 +67,10 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Core/ObjectRegistry.h
     Engine/Include/WitchEngine/Core/ResourceManager.h
     Engine/Include/WitchEngine/Core/Services.h
+    Engine/Include/WitchEngine/Core/TextureInfo.h
     Engine/Include/WitchEngine/Core/Time.h
     Engine/Include/WitchEngine/Graphics2D/Anchor.h
+    Engine/Include/WitchEngine/Graphics2D/AnimationComponent.h
     Engine/Include/WitchEngine/Graphics2D/Camera2D.h
     Engine/Include/WitchEngine/Graphics2D/CameraManager.h
     Engine/Include/WitchEngine/Graphics2D/SpriteComponent.h
@@ -152,6 +155,7 @@ add_executable(WitchGame
     Game/Source/Main.cpp
     Game/Source/Scenes/EmptyScene.cpp
 
+    Game/Source/GameConfig.h
     Game/Source/Scenes/EmptyScene.h
 )
 

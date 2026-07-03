@@ -1,5 +1,5 @@
 #pragma once
-#include "WitchEngine/Rhi/RhiTypes.h"
+#include "WitchEngine/Core/TextureInfo.h"
 #include <expected>
 #include <string>
 #include <string_view>
@@ -10,14 +10,14 @@ namespace witch {
 /// テクスチャキャッシュを管理するサービス。Services 経由で取得する。
 class ResourceManager {
 public:
-    /// パスに対応するテクスチャハンドルを返す。
+    /// パスに対応するテクスチャ情報（ハンドル + ピクセルサイズ）を返す。
     /// 初回アクセス時は stb_image でロードして IRenderer::CreateTexture に渡し、以降はキャッシュから返す。
     /// @param path アセットルートからの相対パス
     /// @return 失敗時はエラーメッセージを返す
-    std::expected<rhi::TextureHandle, std::string> LoadTexture(std::string_view path);
+    std::expected<TextureInfo, std::string> LoadTexture(std::string_view path);
 
 private:
-    std::unordered_map<std::string, rhi::TextureHandle> textureCache_;
+    std::unordered_map<std::string, TextureInfo> textureCache_;
 };
 
 } // namespace witch
