@@ -7,7 +7,9 @@ class Application {
 public:
     virtual ~Application() = default;
 
-    void Run();
+    /// エンジンを初期化してメインループを回す。
+    /// @return プロセス終了コード。初期化失敗時はエラーダイアログを表示して 1 を返す。
+    int Run();
 
     /// アプリケーションの初期化処理。Engine::Init() の後に呼ばれる。
     virtual void OnInit() = 0;

@@ -42,7 +42,5 @@ public:
 
 int main() {
     witch::WitchGame game;
-    game.Run();
-
-    return 0;
+    return game.Run();
 }

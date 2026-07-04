@@ -299,13 +299,22 @@ void D3D12Renderer::OnResize(int width, int height) {
 }
 
 void D3D12Renderer::Shutdown() {
+    // Init 失敗後にも呼ばれる（Engine が失敗パスで後始末する）ため、
+    // 部分初期化状態を許容する: 未生成のものはスキップして生成済みだけ解放する。
+
     // GPU がフレームリソース（ImGui フォントテクスチャ含む）を使い終わるのを待ってから解放する。
-    WaitIdle();
+    if (fence_ && fenceEvent_) {
+        WaitIdle();
+    }
 
 #ifdef WITCH_DEBUG_UI
-    ImGui_ImplDX12_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
+    // Init が ImGui まで到達しなかった / 失敗して巻き戻した場合はコンテキストが無い。
+    // （Init 内の各失敗パスはバックエンドとコンテキストを対で巻き戻す）
+    if (ImGui::GetCurrentContext()) {
+        ImGui_ImplDX12_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+    }
 #endif
 
     // Unmap persistently mapped upload buffers before releasing.

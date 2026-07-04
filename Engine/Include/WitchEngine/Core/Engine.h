@@ -3,7 +3,9 @@
 #include "WitchEngine/Core/Time.h"
 #include "WitchEngine/Rhi/IRenderer.h"
 #include "WitchEngine/Scene/Scene.h"
+#include <expected>
 #include <memory>
+#include <string>
 
 namespace witch {
 
@@ -18,7 +20,10 @@ public:
     static Engine& Get();
 
     /// ウィンドウとサービスを生成し、初期シーンを準備する。
-    void Init(int width = 1280, int height = 720, const char* title = "Witch");
+    /// 失敗時（ウィンドウ生成失敗・レンダラ初期化失敗）はエラーメッセージを返す。
+    /// 失敗後も Shutdown() は安全に呼べる（生成済みのものだけ逆順破棄される）。
+    std::expected<void, std::string> Init(int width = 1280, int height = 720,
+                                          const char* title = "Witch");
     /// メインループ。Shutdown() が呼ばれるまでフレームを回し続ける。
     void Run();
     /// サービスを生成の逆順で破棄する。

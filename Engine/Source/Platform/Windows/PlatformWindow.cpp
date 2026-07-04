@@ -193,6 +193,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
 }
 
+/// UTF-8 → UTF-16。ウィンドウタイトルやダイアログ文字列を Win32 API に渡す用。
+std::wstring Utf8ToWide(const char* utf8) {
+    int len = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, nullptr, 0);
+    std::wstring wide(len, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, utf8, -1, wide.data(), len);
+    return wide;
+}
+
 } // namespace
 
 void* CreateMainWindow(const WindowParams& params) {
@@ -210,10 +218,7 @@ void* CreateMainWindow(const WindowParams& params) {
     RECT rc = {0, 0, params.width, params.height};
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
-    // Convert title from UTF-8 to UTF-16.
-    int len = MultiByteToWideChar(CP_UTF8, 0, params.title, -1, nullptr, 0);
-    std::wstring title(len, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, params.title, -1, title.data(), len);
+    std::wstring title = Utf8ToWide(params.title);
 
     HWND hwnd = CreateWindowExW(
         0,
@@ -245,6 +250,11 @@ bool PumpMessages() {
         DispatchMessageW(&msg);
     }
     return true;
+}
+
+void ShowErrorDialog(const char* title, const char* message) {
+    MessageBoxW(nullptr, Utf8ToWide(message).c_str(), Utf8ToWide(title).c_str(),
+                MB_OK | MB_ICONERROR);
 }
 
 } // namespace witch::platform

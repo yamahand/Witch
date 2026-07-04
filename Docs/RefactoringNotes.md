@@ -8,25 +8,19 @@ RemainingWork.md の機能追加を進める前後で直しておきたい箇所
 
 ## 今すぐ直してよいもの（小さく、放置すると事故る）
 
-### 1. Engine::Init が失敗を握りつぶす
-[Engine.cpp:39](../Engine/Source/Core/Engine.cpp) — Renderer の Init 失敗時に
-ログを出すだけで続行し、以降は `if (renderer_)` の headless モードで走り続ける。
-[Main.cpp](../Game/Source/Main.cpp) も戻り値を確認していない。
-プレイヤー環境で D3D12 初期化に失敗したら「無音・真っ暗のプロセスが残る」になる。
+### 1. Engine::Init が失敗を握りつぶす — ✅ 対応済み（2026-07-03）
+`Engine::Init` が `std::expected<void, std::string>` を返すようになり、
+ウィンドウ生成失敗・レンダラ初期化失敗をエラーとして返す。
+`Application::Run` が失敗時に `platform::ShowErrorDialog`（MessageBox）で表示して
+終了コード 1 を返す（Main は `return game.Run()`）。
+GameLoop の `if (renderer_)` null 分岐は「Init 成功時のみ生成される」前提で撤去し、
+コンストラクタの assert に置き換えた（headless 実行が必要になったらその時に戻す）。
 
-- `Engine::Init` を `bool`（or `std::expected<void, std::string>`）を返す形にし、
-  Main で失敗時にエラー表示（MessageBox）して終了する。
-- GameLoop 内に散らばる `if (renderer_)` 分岐も「renderer は必ずある」前提に
-  簡略化できる（headless 実行を将来サポートしたくなったらその時に戻す）。
-
-### 2. dt のスパイク対策がない
-[Time.cpp](../Engine/Source/Core/Time.cpp) — `DeltaTime()` は無制限。
-ウィンドウのドラッグ移動・ブレークポイント停止で dt が数秒になり、
-`transform.x += v * dt` 系の移動が吹き飛ぶ。今の EmptyScene でも再現するはず。
-
-- 暫定: `Time::Tick` で dt を上限クランプ（例: 0.1s）。
-- 本命: 物理導入（M7）前に固定タイムステップ化（RemainingWork.md §3）。
-  クランプは固定ステップ導入後もスパイラル防止として残る。
+### 2. dt のスパイク対策がない — ✅ 対応済み（本ノート作成時点で実装済みだった）
+[Time.cpp](../Engine/Source/Core/Time.cpp) の `Tick` が `kMaxDelta = 0.25f` で
+クランプ済み（ノート作成時に Time.h だけ見て実装を見落としていた）。
+本命の固定タイムステップ化（RemainingWork.md §3, M6 予定）は引き続き残作業。
+クランプは固定ステップ導入後もスパイラル防止として残す。
 
 ## 描画拡張（M5）の前に直すもの
 

@@ -17,4 +17,9 @@ void* CreateMainWindow(const WindowParams& params);
 /// @return 終了メッセージ（WM_QUIT 等）を受けたら false を返す。
 bool PumpMessages();
 
+/// エラーダイアログを表示する（起動失敗などユーザーに必ず伝えるべき致命的エラー用）。
+/// ログと違い、コンソールやデバッガが無いプレイヤー環境でも見える。
+/// @param title/message UTF-8
+void ShowErrorDialog(const char* title, const char* message);
+
 } // namespace witch::platform
