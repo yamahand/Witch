@@ -185,8 +185,9 @@ std::expected<void, std::string> Vfs::Write(std::string_view vfsPath, const void
     }
 
     std::unique_lock lock(GetStripeLock(*normalized));
-    if (!writeDirSource_->WriteFile(*normalized, data, size)) {
-        return std::unexpected(std::format("failed to write file: {}", *normalized));
+    auto written = writeDirSource_->WriteFile(*normalized, data, size);
+    if (!written) {
+        return std::unexpected(std::format("failed to write file: {} ({})", *normalized, written.error()));
     }
     return {};
 }

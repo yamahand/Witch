@@ -70,6 +70,11 @@ std::string GetExtension(std::string_view path) {
     if (lastSep != std::string_view::npos && pos < lastSep) {
         return {};
     }
+    // ".gitignore" のようにファイル名の先頭がドットの場合（隠しファイル）は拡張子なし扱いにする。
+    size_t nameStart = (lastSep != std::string_view::npos) ? lastSep + 1 : 0;
+    if (pos == nameStart) {
+        return {};
+    }
 
     std::string ext(path.substr(pos));
     std::transform(ext.begin(), ext.end(), ext.begin(),

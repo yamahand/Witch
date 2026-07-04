@@ -3,6 +3,7 @@
 #include "WitchEngine/Vfs/VfsPathUtil.h"
 #include "WitchEngine/Core/Logger.h"
 
+#include <format>
 #include <fstream>
 
 namespace witch::vfs {
@@ -110,10 +111,12 @@ std::vector<std::string> DiskSource::ListFiles(std::string_view normalizedDir) c
     return result;
 }
 
-bool DiskSource::WriteFile(std::string_view normalizedPath, const void* data,
+std::expected<void, std::string> DiskSource::WriteFile(std::string_view normalizedPath, const void* data,
                            size_t size) {
     auto resolved = SafeResolve(normalizedPath);
-    if (!resolved) return false;
+    if (!resolved) {
+        return std::unexpected(std::format("invalid path: {}", normalizedPath));
+    }
 
     const auto& targetPath = *resolved;
 
@@ -128,23 +131,27 @@ bool DiskSource::WriteFile(std::string_view normalizedPath, const void* data,
         }
         if (!existingAncestor.empty()) {
             auto realAncestor = std::filesystem::canonical(existingAncestor, ec);
-            if (ec) return false;
+            if (ec) return std::unexpected(std::format("canonical failed: {}", ec.message()));
             auto realRootForAncestor = std::filesystem::canonical(root_, ec);
-            if (ec) return false;
+            if (ec) return std::unexpected(std::format("canonical failed: {}", ec.message()));
             auto ancestorRel = realAncestor.lexically_relative(realRootForAncestor);
-            if (ancestorRel.empty() || *ancestorRel.begin() == "..") return false;
+            if (ancestorRel.empty() || *ancestorRel.begin() == "..") {
+                return std::unexpected(std::string("parent directory escapes root via symlink"));
+            }
         }
 
         std::filesystem::create_directories(targetPath.parent_path(), ec);
-        if (ec) return false;
+        if (ec) return std::unexpected(std::format("create_directories failed: {}", ec.message()));
 
-        // Symlink protection: verify parent directory is still under root
+        // シンボリックリンク対策: 作成後の親ディレクトリが依然として root_ 配下にあることを確認する。
         auto realParent = std::filesystem::canonical(targetPath.parent_path(), ec);
-        if (ec) return false;
+        if (ec) return std::unexpected(std::format("canonical failed: {}", ec.message()));
         auto realRoot = std::filesystem::canonical(root_, ec);
-        if (ec) return false;
+        if (ec) return std::unexpected(std::format("canonical failed: {}", ec.message()));
         auto parentRel = realParent.lexically_relative(realRoot);
-        if (parentRel.empty() || *parentRel.begin() == "..") return false;
+        if (parentRel.empty() || *parentRel.begin() == "..") {
+            return std::unexpected(std::string("parent directory escapes root via symlink"));
+        }
     }
 
     // .tmp に書いてからアトミックに rename することでファイル破損を防ぐ。
@@ -152,13 +159,15 @@ bool DiskSource::WriteFile(std::string_view normalizedPath, const void* data,
 
     {
         std::ofstream ofs(tmpPath, std::ios::binary | std::ios::trunc);
-        if (!ofs.is_open()) return false;
+        if (!ofs.is_open()) {
+            return std::unexpected(std::format("failed to open tmp file: {}", tmpPath.string()));
+        }
         if (size > 0) {
             ofs.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
         }
         if (!ofs.good()) {
             std::filesystem::remove(tmpPath, ec);
-            return false;
+            return std::unexpected(std::format("failed to write tmp file: {}", tmpPath.string()));
         }
     }
 
@@ -172,7 +181,7 @@ bool DiskSource::WriteFile(std::string_view normalizedPath, const void* data,
         std::filesystem::rename(targetPath, oldPath, ec);
         if (ec) {
             std::filesystem::remove(tmpPath, ec);
-            return false;
+            return std::unexpected(std::format("failed to rename target to .old: {}", ec.message()));
         }
 
         std::filesystem::rename(tmpPath, targetPath, ec);
@@ -185,7 +194,7 @@ bool DiskSource::WriteFile(std::string_view normalizedPath, const void* data,
             } else {
                 std::filesystem::remove(tmpPath, restoreEc);
             }
-            return false;
+            return std::unexpected(std::format("failed to rename tmp to target: {}", ec.message()));
         }
 
         std::filesystem::remove(oldPath, ec);
@@ -193,11 +202,11 @@ bool DiskSource::WriteFile(std::string_view normalizedPath, const void* data,
         std::filesystem::rename(tmpPath, targetPath, ec);
         if (ec) {
             std::filesystem::remove(tmpPath, ec);
-            return false;
+            return std::unexpected(std::format("failed to rename tmp to target: {}", ec.message()));
         }
     }
 
-    return true;
+    return {};
 }
 
 }  // namespace witch::vfs

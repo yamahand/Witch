@@ -2,8 +2,10 @@
 
 #include "WitchEngine/Vfs/IFileSource.h"
 
+#include <expected>
 #include <filesystem>
 #include <optional>
+#include <string>
 
 namespace witch::vfs {
 
@@ -22,7 +24,7 @@ public:
                   std::vector<uint8_t>& out) const override;
     std::vector<std::string> ListFiles(std::string_view normalizedDir) const override;
 
-    bool WriteFile(std::string_view normalizedPath, const void* data, size_t size);
+    std::expected<void, std::string> WriteFile(std::string_view normalizedPath, const void* data, size_t size);
 
 private:
     // 正規化済みパスを root_ 配下の絶対パスに変換する。
