@@ -11,8 +11,9 @@ namespace witch {
 class ResourceManager {
 public:
     /// パスに対応するテクスチャ情報（ハンドル + ピクセルサイズ）を返す。
-    /// 初回アクセス時は stb_image でロードして IRenderer::CreateTexture に渡し、以降はキャッシュから返す。
-    /// @param path アセットルートからの相対パス
+    /// 初回アクセス時は VFS 経由でバイト列を読み stb_image でデコードして
+    /// IRenderer::CreateTexture に渡し、以降はキャッシュから返す。
+    /// @param path VFS マウントルートからの相対パス（Services::Instance().vfs 経由で解決）
     /// @return 失敗時はエラーメッセージを返す
     std::expected<TextureInfo, std::string> LoadTexture(std::string_view path);
 

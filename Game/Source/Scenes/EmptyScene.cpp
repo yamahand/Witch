@@ -35,14 +35,14 @@ void EmptyScene::OnEnter() {
 
     auto* resources = Services::Instance().resources;
 
-    auto witchTex = resources->LoadTexture("Assets/Witch.png");
+    auto witchTex = resources->LoadTexture("Witch.png");
     if (!witchTex) {
         log::Error("Failed to load sprite: {}", witchTex.error());
         return;
     }
     spriteTexture_ = *witchTex;
 
-    auto sheetTex = resources->LoadTexture("Assets/TestSheet.png");
+    auto sheetTex = resources->LoadTexture("TestSheet.png");
     if (!sheetTex) {
         log::Error("Failed to load test sheet: {}", sheetTex.error());
         return;

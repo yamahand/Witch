@@ -5,11 +5,14 @@
 #include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Input/IInput.h"
 #include "WitchEngine/Rhi/IRenderer.h"
+#include "WitchEngine/Vfs/Vfs.h"
 #include "WitchEngine/Core/Version.h"
 #include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
 #include "Platform/PlatformFactory.h"
+#include "Platform/PlatformPaths.h"
 #include "Core/Profiling.h"
+#include <format>
 
 namespace witch {
 
@@ -31,6 +34,19 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     log::Info("Engine version: {}", WITCH_ENGINE_VERSION_STRING);
 
     // Services are created in declaration order; destroyed in reverse during Shutdown.
+
+    // VFS: 実行ファイル直下の Assets ディレクトリをマウントする。
+    // WitchGame の CMake POST_BUILD が Game/Assets を $<TARGET_FILE_DIR>/Assets へコピー済み。
+    vfs_ = std::make_unique<vfs::Vfs>();
+    auto assetsDir = platform::GetExecutableDir() / "Assets";
+    if (auto mounted = vfs_->MountDisk(assetsDir); !mounted) {
+        return std::unexpected(std::format(
+            "Failed to mount Assets directory: {} ({})",
+            assetsDir.string(), mounted.error()));
+    }
+    vfs_->Seal();
+    Services::Instance().vfs = vfs_.get();
+
     time_ = std::make_unique<Time>();
     time_->Start();
     Services::Instance().time = time_.get();
@@ -129,6 +145,10 @@ void Engine::Shutdown() {
     Services::Instance().time = nullptr;
     time_.reset();
     log::Info("Time destroyed.");
+
+    Services::Instance().vfs = nullptr;
+    vfs_.reset();
+    log::Info("Vfs destroyed.");
 
     log::Info("Engine shutdown complete.");
 }

@@ -7,6 +7,10 @@
 #include <memory>
 #include <string>
 
+namespace witch::vfs {
+class Vfs;
+} // namespace witch::vfs
+
 namespace witch {
 
 class ResourceManager;
@@ -48,6 +52,7 @@ private:
     /// pendingScene_ を currentScene_ に昇格させる。フレーム先頭で呼ぶ。
     void ApplyPendingSceneChange();
 
+    std::unique_ptr<vfs::Vfs>        vfs_;
     std::unique_ptr<Time>            time_;
     std::unique_ptr<rhi::IRenderer>  renderer_;
     std::unique_ptr<IInput>          input_;

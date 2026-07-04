@@ -4,6 +4,10 @@ namespace witch::rhi {
 class IRenderer;
 } // namespace witch::rhi
 
+namespace witch::vfs {
+class Vfs;
+} // namespace witch::vfs
+
 namespace witch {
 
 class Time;
@@ -20,6 +24,7 @@ struct Services {
     ResourceManager* resources = nullptr;
     IInput*          input     = nullptr;
     CameraManager*   cameras   = nullptr;
+    vfs::Vfs*        vfs       = nullptr;
 
     static Services& Instance() {
         static Services s;

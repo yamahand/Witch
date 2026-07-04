@@ -53,11 +53,15 @@ add_library(WitchEngine STATIC
     Engine/Source/Graphics2D/AnimationComponent.cpp
     Engine/Source/Graphics2D/CameraManager.cpp
     Engine/Source/Graphics2D/SpriteComponent.cpp
+    Engine/Source/Vfs/Vfs.cpp
+    Engine/Source/Vfs/DiskSource.cpp
+    Engine/Source/Vfs/VfsPathUtil.cpp
 
     Engine/Source/Core/Profiling.h
     Engine/Source/Platform/Memory.h
     Engine/Source/Platform/PlatformFactory.h
     Engine/Source/Platform/PlatformWindow.h
+    Engine/Source/Platform/PlatformPaths.h
 
     Engine/Include/WitchEngine/Core/Engine.h
     Engine/Include/WitchEngine/Core/Application.h
@@ -83,6 +87,11 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Scene/GameObject.h
     Engine/Include/WitchEngine/Scene/Scene.h
     Engine/Include/WitchEngine/Scene/Transform.h
+    Engine/Include/WitchEngine/Vfs/Vfs.h
+    Engine/Include/WitchEngine/Vfs/IFileSource.h
+    Engine/Include/WitchEngine/Vfs/FileData.h
+    Engine/Include/WitchEngine/Vfs/DiskSource.h
+    Engine/Include/WitchEngine/Vfs/VfsPathUtil.h
 )
 
 if(WIN32)
@@ -93,6 +102,7 @@ if(WIN32)
         Engine/Source/Platform/Windows/Win32Input.cpp
         Engine/Source/Platform/Windows/Win32InputFactory.cpp
         Engine/Source/Platform/Windows/Memory.cpp
+        Engine/Source/Platform/Windows/PlatformPaths.cpp
         Engine/Source/Rhi/D3D12/D3D12Renderer.cpp
         Engine/Source/Rhi/D3D12/D3D12Factory.cpp
 
