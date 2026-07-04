@@ -62,12 +62,12 @@ std::string GetExtension(std::string_view path) {
     }
     auto slash = path.rfind('/');
     auto backslash = path.rfind('\\');
-    size_t last_sep = std::string_view::npos;
-    if (slash != std::string_view::npos) last_sep = slash;
-    if (backslash != std::string_view::npos && (last_sep == std::string_view::npos || backslash > last_sep)) {
-        last_sep = backslash;
+    size_t lastSep = std::string_view::npos;
+    if (slash != std::string_view::npos) lastSep = slash;
+    if (backslash != std::string_view::npos && (lastSep == std::string_view::npos || backslash > lastSep)) {
+        lastSep = backslash;
     }
-    if (last_sep != std::string_view::npos && pos < last_sep) {
+    if (lastSep != std::string_view::npos && pos < lastSep) {
         return {};
     }
 

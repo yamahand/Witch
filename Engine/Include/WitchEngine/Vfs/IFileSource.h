@@ -13,12 +13,12 @@ class IFileSource {
 public:
     virtual ~IFileSource() = default;
 
-    [[nodiscard]] virtual bool Exists(std::string_view normalized_path) const = 0;
-    [[nodiscard]] virtual bool ReadFile(std::string_view normalized_path,
+    [[nodiscard]] virtual bool Exists(std::string_view normalizedPath) const = 0;
+    [[nodiscard]] virtual bool ReadFile(std::string_view normalizedPath,
                                         std::vector<uint8_t>& out) const = 0;
-    // normalized_dir 直下のファイルのみ返す（サブディレクトリを再帰しない）。
+    // normalizedDir 直下のファイルのみ返す（サブディレクトリを再帰しない）。
     [[nodiscard]] virtual std::vector<std::string> ListFiles(
-                                        std::string_view normalized_dir) const = 0;
+                                        std::string_view normalizedDir) const = 0;
 };
 
 }  // namespace witch::vfs

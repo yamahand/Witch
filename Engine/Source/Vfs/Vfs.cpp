@@ -13,14 +13,14 @@ namespace witch::vfs {
 Vfs::Vfs() = default;
 Vfs::~Vfs() = default;
 
-std::expected<void, std::string> Vfs::MountDisk(const std::filesystem::path& real_path) {
+std::expected<void, std::string> Vfs::MountDisk(const std::filesystem::path& realPath) {
     if (sealed_) {
         log::Warn("VFS: MountDisk called after Seal");
         return std::unexpected(std::string("VFS is sealed"));
     }
 
     std::error_code ec;
-    auto canonical = std::filesystem::weakly_canonical(real_path, ec);
+    auto canonical = std::filesystem::weakly_canonical(realPath, ec);
     if (ec) return std::unexpected(std::format("weakly_canonical failed: {}", ec.message()));
 
     if (!std::filesystem::is_directory(canonical, ec)) {
@@ -60,16 +60,16 @@ void Vfs::UnmountAll() {
     write_dir_source_.reset();
 }
 
-std::expected<void, std::string> Vfs::SetWriteDir(const std::filesystem::path& real_path) {
+std::expected<void, std::string> Vfs::SetWriteDir(const std::filesystem::path& realPath) {
     if (sealed_) {
         log::Warn("VFS: SetWriteDir called after Seal");
         return std::unexpected(std::string("VFS is sealed"));
     }
 
     std::error_code ec;
-    std::filesystem::create_directories(real_path, ec);
+    std::filesystem::create_directories(realPath, ec);
 
-    auto canonical = std::filesystem::weakly_canonical(real_path, ec);
+    auto canonical = std::filesystem::weakly_canonical(realPath, ec);
     if (ec) return std::unexpected(std::format("weakly_canonical failed: {}", ec.message()));
 
     write_dir_source_ = std::make_unique<DiskSource>(canonical);
@@ -85,16 +85,16 @@ bool Vfs::IsSealed() const {
 }
 
 // パスごとに専用のミューテックスを持つとメモリが爆発するため、ストライプで近似する。
-std::shared_mutex& Vfs::GetStripeLock(std::string_view normalized_path) const {
-    auto lock_key = detail::NormalizePathForLock(normalized_path);
-    size_t h = std::hash<std::string>{}(lock_key.value_or(""));
+std::shared_mutex& Vfs::GetStripeLock(std::string_view normalizedPath) const {
+    auto lockKey = detail::NormalizePathForLock(normalizedPath);
+    size_t h = std::hash<std::string>{}(lockKey.value_or(""));
     return stripe_locks_[h % kStripeCount];
 }
 
-std::expected<FileData, std::string> Vfs::Read(std::string_view vfs_path) const {
-    auto normalized = detail::NormalizePath(vfs_path);
+std::expected<FileData, std::string> Vfs::Read(std::string_view vfsPath) const {
+    auto normalized = detail::NormalizePath(vfsPath);
     if (!normalized || normalized->empty()) {
-        return std::unexpected(std::format("invalid path: {}", vfs_path));
+        return std::unexpected(std::format("invalid path: {}", vfsPath));
     }
 
     std::shared_lock lock(GetStripeLock(*normalized));
@@ -115,8 +115,8 @@ std::expected<FileData, std::string> Vfs::Read(std::string_view vfs_path) const 
     return std::unexpected(std::format("file not found: {}", *normalized));
 }
 
-bool Vfs::Exists(std::string_view vfs_path) const {
-    auto normalized = detail::NormalizePath(vfs_path);
+bool Vfs::Exists(std::string_view vfsPath) const {
+    auto normalized = detail::NormalizePath(vfsPath);
     if (!normalized || normalized->empty()) return false;
 
     std::shared_lock lock(GetStripeLock(*normalized));
@@ -134,42 +134,44 @@ bool Vfs::Exists(std::string_view vfs_path) const {
     return false;
 }
 
-std::vector<std::string> Vfs::ListFiles(std::string_view vfs_dir) const {
-    auto normalized = detail::NormalizePath(vfs_dir);
+std::vector<std::string> Vfs::ListFiles(std::string_view vfsDir) const {
+    auto normalized = detail::NormalizePath(vfsDir);
     if (!normalized) return {};
+
+    std::shared_lock lock(GetStripeLock(*normalized));
 
     std::unordered_set<std::string> seen;
     std::vector<std::string> result;
 
-    auto add_files = [&](const std::vector<std::string>& files) {
+    auto addFiles = [&](const std::vector<std::string>& files) {
         for (const auto& f : files) {
-            auto lock_key = detail::NormalizePathForLock(f);
-            if (lock_key && seen.insert(*lock_key).second) {
+            auto lockKey = detail::NormalizePathForLock(f);
+            if (lockKey && seen.insert(*lockKey).second) {
                 result.push_back(f);
             }
         }
     };
 
     if (write_dir_source_) {
-        add_files(write_dir_source_->ListFiles(*normalized));
+        addFiles(write_dir_source_->ListFiles(*normalized));
     }
 
     for (auto it = mounts_.rbegin(); it != mounts_.rend(); ++it) {
-        add_files(it->source->ListFiles(*normalized));
+        addFiles(it->source->ListFiles(*normalized));
     }
 
     std::sort(result.begin(), result.end());
     return result;
 }
 
-std::expected<void, std::string> Vfs::Write(std::string_view vfs_path, const void* data, size_t size) {
+std::expected<void, std::string> Vfs::Write(std::string_view vfsPath, const void* data, size_t size) {
     if (!write_dir_source_) {
         return std::unexpected(std::string("no write directory configured"));
     }
 
-    auto normalized = detail::NormalizePath(vfs_path);
+    auto normalized = detail::NormalizePath(vfsPath);
     if (!normalized || normalized->empty()) {
-        return std::unexpected(std::format("invalid path: {}", vfs_path));
+        return std::unexpected(std::format("invalid path: {}", vfsPath));
     }
 
     std::unique_lock lock(GetStripeLock(*normalized));
@@ -179,8 +181,8 @@ std::expected<void, std::string> Vfs::Write(std::string_view vfs_path, const voi
     return {};
 }
 
-std::expected<void, std::string> Vfs::Write(std::string_view vfs_path, std::span<const uint8_t> data) {
-    return Write(vfs_path, data.data(), data.size());
+std::expected<void, std::string> Vfs::Write(std::string_view vfsPath, std::span<const uint8_t> data) {
+    return Write(vfsPath, data.data(), data.size());
 }
 
 std::string Vfs::Extension(std::string_view path) {

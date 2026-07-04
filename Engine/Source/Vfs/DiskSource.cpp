@@ -7,19 +7,19 @@
 
 namespace witch::vfs {
 
-DiskSource::DiskSource(std::filesystem::path root_path) {
+DiskSource::DiskSource(std::filesystem::path rootPath) {
     std::error_code ec;
-    root_ = std::filesystem::weakly_canonical(std::move(root_path), ec);
-    if (ec) root_ = std::move(root_path);
+    root_ = std::filesystem::weakly_canonical(rootPath, ec);
+    if (ec) root_ = std::move(rootPath);
 }
 
 std::optional<std::filesystem::path> DiskSource::SafeResolve(
-    std::string_view normalized_path) const {
-    if (normalized_path.empty()) {
+    std::string_view normalizedPath) const {
+    if (normalizedPath.empty()) {
         return std::nullopt;
     }
 
-    auto resolved = (root_ / std::filesystem::path(std::string(normalized_path)))
+    auto resolved = (root_ / std::filesystem::path(std::string(normalizedPath)))
                         .lexically_normal();
 
     // ".." によるディレクトリトラバーサルを字句レベルで弾く。
@@ -31,31 +31,31 @@ std::optional<std::filesystem::path> DiskSource::SafeResolve(
     // シンボリックリンクで root_ 外に飛ばせないよう、canonical パスでも確認する。
     std::error_code ec;
     if (std::filesystem::exists(resolved, ec)) {
-        auto real_resolved = std::filesystem::canonical(resolved, ec);
+        auto realResolved = std::filesystem::canonical(resolved, ec);
         if (ec) return std::nullopt;
-        auto real_root = std::filesystem::canonical(root_, ec);
+        auto realRoot = std::filesystem::canonical(root_, ec);
         if (ec) return std::nullopt;
 
-        auto real_rel = real_resolved.lexically_relative(real_root);
-        if (real_rel.empty() || *real_rel.begin() == "..") {
+        auto realRel = realResolved.lexically_relative(realRoot);
+        if (realRel.empty() || *realRel.begin() == "..") {
             return std::nullopt;
         }
-        return real_resolved;
+        return realResolved;
     }
 
     return resolved;
 }
 
-bool DiskSource::Exists(std::string_view normalized_path) const {
-    auto resolved = SafeResolve(normalized_path);
+bool DiskSource::Exists(std::string_view normalizedPath) const {
+    auto resolved = SafeResolve(normalizedPath);
     if (!resolved) return false;
     std::error_code ec;
     return std::filesystem::exists(*resolved, ec);
 }
 
-bool DiskSource::ReadFile(std::string_view normalized_path,
+bool DiskSource::ReadFile(std::string_view normalizedPath,
                           std::vector<uint8_t>& out) const {
-    auto resolved = SafeResolve(normalized_path);
+    auto resolved = SafeResolve(normalizedPath);
     if (!resolved) return false;
 
     std::ifstream ifs(*resolved, std::ios::binary | std::ios::ate);
@@ -80,19 +80,20 @@ bool DiskSource::ReadFile(std::string_view normalized_path,
     return true;
 }
 
-std::vector<std::string> DiskSource::ListFiles(std::string_view normalized_dir) const {
-    auto dir_path = normalized_dir.empty()
-                        ? root_
-                        : SafeResolve(normalized_dir).value_or(std::filesystem::path{});
-    std::error_code dir_ec;
-    if (dir_path.empty() || !std::filesystem::is_directory(dir_path, dir_ec)) {
+std::vector<std::string> DiskSource::ListFiles(std::string_view normalizedDir) const {
+    auto dirPath = normalizedDir.empty()
+                       ? root_
+                       : SafeResolve(normalizedDir).value_or(std::filesystem::path{});
+    std::error_code dirEc;
+    if (dirPath.empty() || !std::filesystem::is_directory(dirPath, dirEc)) {
         return {};
     }
 
     std::vector<std::string> result;
     std::error_code ec;
-    for (const auto& entry : std::filesystem::directory_iterator(dir_path, ec)) {
-        if (entry.is_regular_file()) {
+    for (const auto& entry : std::filesystem::directory_iterator(dirPath, ec)) {
+        std::error_code entryEc;
+        if (entry.is_regular_file(entryEc)) {
             auto rel = std::filesystem::relative(entry.path(), root_, ec);
             if (!ec) {
                 auto normalized = detail::NormalizePath(rel.generic_string());
@@ -105,73 +106,89 @@ std::vector<std::string> DiskSource::ListFiles(std::string_view normalized_dir) 
     return result;
 }
 
-bool DiskSource::WriteFile(std::string_view normalized_path, const void* data,
+bool DiskSource::WriteFile(std::string_view normalizedPath, const void* data,
                            size_t size) {
-    auto resolved = SafeResolve(normalized_path);
+    auto resolved = SafeResolve(normalizedPath);
     if (!resolved) return false;
 
-    const auto& target_path = *resolved;
+    const auto& targetPath = *resolved;
 
     std::error_code ec;
-    if (target_path.has_parent_path()) {
-        std::filesystem::create_directories(target_path.parent_path(), ec);
+    if (targetPath.has_parent_path()) {
+        // create_directories より前に、既存の祖先ディレクトリが root_ 配下であることを確認する
+        // （symlink で root_ 外を指す中間ディレクトリを辿って外部にディレクトリを作られるのを防ぐ）。
+        std::filesystem::path existingAncestor = targetPath.parent_path();
+        std::error_code existsEc;
+        while (!existingAncestor.empty() && !std::filesystem::exists(existingAncestor, existsEc)) {
+            existingAncestor = existingAncestor.parent_path();
+        }
+        if (!existingAncestor.empty()) {
+            auto realAncestor = std::filesystem::canonical(existingAncestor, ec);
+            if (ec) return false;
+            auto realRootForAncestor = std::filesystem::canonical(root_, ec);
+            if (ec) return false;
+            auto ancestorRel = realAncestor.lexically_relative(realRootForAncestor);
+            if (ancestorRel.empty() || *ancestorRel.begin() == "..") return false;
+        }
+
+        std::filesystem::create_directories(targetPath.parent_path(), ec);
         if (ec) return false;
 
         // Symlink protection: verify parent directory is still under root
-        auto real_parent = std::filesystem::canonical(target_path.parent_path(), ec);
+        auto realParent = std::filesystem::canonical(targetPath.parent_path(), ec);
         if (ec) return false;
-        auto real_root = std::filesystem::canonical(root_, ec);
+        auto realRoot = std::filesystem::canonical(root_, ec);
         if (ec) return false;
-        auto parent_rel = real_parent.lexically_relative(real_root);
-        if (parent_rel.empty() || *parent_rel.begin() == "..") return false;
+        auto parentRel = realParent.lexically_relative(realRoot);
+        if (parentRel.empty() || *parentRel.begin() == "..") return false;
     }
 
     // .tmp に書いてからアトミックに rename することでファイル破損を防ぐ。
-    auto tmp_path = target_path; tmp_path += ".tmp";
+    auto tmpPath = targetPath; tmpPath += ".tmp";
 
     {
-        std::ofstream ofs(tmp_path, std::ios::binary | std::ios::trunc);
+        std::ofstream ofs(tmpPath, std::ios::binary | std::ios::trunc);
         if (!ofs.is_open()) return false;
         if (size > 0) {
             ofs.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
         }
         if (!ofs.good()) {
-            std::filesystem::remove(tmp_path, ec);
+            std::filesystem::remove(tmpPath, ec);
             return false;
         }
     }
 
-    if (std::filesystem::exists(target_path, ec)) {
-        auto old_path = target_path; old_path += ".old";
+    if (std::filesystem::exists(targetPath, ec)) {
+        auto oldPath = targetPath; oldPath += ".old";
 
-        if (std::filesystem::exists(old_path, ec)) {
-            std::filesystem::remove(old_path, ec);
+        if (std::filesystem::exists(oldPath, ec)) {
+            std::filesystem::remove(oldPath, ec);
         }
 
-        std::filesystem::rename(target_path, old_path, ec);
+        std::filesystem::rename(targetPath, oldPath, ec);
         if (ec) {
-            std::filesystem::remove(tmp_path, ec);
+            std::filesystem::remove(tmpPath, ec);
             return false;
         }
 
-        std::filesystem::rename(tmp_path, target_path, ec);
+        std::filesystem::rename(tmpPath, targetPath, ec);
         if (ec) {
             log::Error("VFS WriteFile: failed to rename tmp to target, attempting rollback");
-            std::error_code restore_ec;
-            std::filesystem::rename(old_path, target_path, restore_ec);
-            if (restore_ec) {
+            std::error_code restoreEc;
+            std::filesystem::rename(oldPath, targetPath, restoreEc);
+            if (restoreEc) {
                 log::Error("VFS WriteFile: rollback failed, .old and .tmp files preserved");
             } else {
-                std::filesystem::remove(tmp_path, restore_ec);
+                std::filesystem::remove(tmpPath, restoreEc);
             }
             return false;
         }
 
-        std::filesystem::remove(old_path, ec);
+        std::filesystem::remove(oldPath, ec);
     } else {
-        std::filesystem::rename(tmp_path, target_path, ec);
+        std::filesystem::rename(tmpPath, targetPath, ec);
         if (ec) {
-            std::filesystem::remove(tmp_path, ec);
+            std::filesystem::remove(tmpPath, ec);
             return false;
         }
     }

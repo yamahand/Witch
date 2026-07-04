@@ -15,7 +15,10 @@ std::filesystem::path GetExecutableDir() {
     }
     if (len == 0) {
         log::Error("GetExecutableDir: GetModuleFileNameW failed");
-        return std::filesystem::current_path();
+        std::error_code ec;
+        auto fallback = std::filesystem::current_path(ec);
+        if (ec) return {};
+        return fallback;
     }
     buf.resize(len);
     return std::filesystem::path(buf).parent_path();
