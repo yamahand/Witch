@@ -65,7 +65,11 @@ bool DiskSource::ReadFile(std::string_view normalizedPath,
     if (size < 0) return false;
 
     constexpr auto kMaxFileSize = static_cast<std::streamoff>(256 * 1024 * 1024);
-    if (size > kMaxFileSize) return false;
+    if (size > kMaxFileSize) {
+        log::Error("VFS ReadFile: file exceeds max size ({} bytes): {}",
+                   static_cast<int64_t>(size), normalizedPath);
+        return false;
+    }
 
     ifs.seekg(0, std::ios::beg);
 

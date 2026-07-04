@@ -23,6 +23,9 @@ std::expected<void, std::string> Vfs::MountDisk(const std::filesystem::path& rea
     auto canonical = std::filesystem::weakly_canonical(realPath, ec);
     if (ec) return std::unexpected(std::format("weakly_canonical failed: {}", ec.message()));
 
+    if (!std::filesystem::exists(canonical, ec)) {
+        return std::unexpected(std::format("path does not exist: {}", canonical.string()));
+    }
     if (!std::filesystem::is_directory(canonical, ec)) {
         return std::unexpected(std::format("not a directory: {}", canonical.string()));
     }
