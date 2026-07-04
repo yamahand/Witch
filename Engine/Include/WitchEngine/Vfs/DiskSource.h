@@ -9,7 +9,10 @@ namespace witch::vfs {
 
 // ディスク上の実ディレクトリをルートとするファイルソース。
 // SafeResolve でパストラバーサル・シンボリックリンク脱出を防ぐ。
-// WriteFile は .tmp に書いてから rename するアトミック書き込みを行う。
+// WriteFile は新規ファイルの場合 .tmp に書いてから rename する（アトミック）。
+// 既存ファイルの上書きは target->.old, tmp->target の 2 段階 rename になるため、
+// 途中でクラッシュ／電源断が起きると target が一時的に失われた状態になり得る
+// （.old と .tmp は残るため手動復旧は可能。エラー時はロールバックを試みる）。
 class DiskSource : public IFileSource {
 public:
     explicit DiskSource(std::filesystem::path rootPath);

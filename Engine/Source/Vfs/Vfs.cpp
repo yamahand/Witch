@@ -43,7 +43,7 @@ std::expected<void, std::string> Vfs::Unmount(const std::filesystem::path& path)
     if (ec) return std::unexpected(std::format("weakly_canonical failed: {}", ec.message()));
 
     for (auto it = mounts_.rbegin(); it != mounts_.rend(); ++it) {
-        if (it->canonical_path == target) {
+        if (it->canonicalPath == target) {
             mounts_.erase(std::next(it).base());
             return {};
         }
@@ -57,7 +57,7 @@ void Vfs::UnmountAll() {
         return;
     }
     mounts_.clear();
-    write_dir_source_.reset();
+    writeDirSource_.reset();
 }
 
 std::expected<void, std::string> Vfs::SetWriteDir(const std::filesystem::path& realPath) {
@@ -68,11 +68,12 @@ std::expected<void, std::string> Vfs::SetWriteDir(const std::filesystem::path& r
 
     std::error_code ec;
     std::filesystem::create_directories(realPath, ec);
+    if (ec) return std::unexpected(std::format("create_directories failed: {}", ec.message()));
 
     auto canonical = std::filesystem::weakly_canonical(realPath, ec);
     if (ec) return std::unexpected(std::format("weakly_canonical failed: {}", ec.message()));
 
-    write_dir_source_ = std::make_unique<DiskSource>(canonical);
+    writeDirSource_ = std::make_unique<DiskSource>(canonical);
     return {};
 }
 
@@ -88,7 +89,7 @@ bool Vfs::IsSealed() const {
 std::shared_mutex& Vfs::GetStripeLock(std::string_view normalizedPath) const {
     auto lockKey = detail::NormalizePathForLock(normalizedPath);
     size_t h = std::hash<std::string>{}(lockKey.value_or(""));
-    return stripe_locks_[h % kStripeCount];
+    return stripeLocks_[h % kStripeCount];
 }
 
 std::expected<FileData, std::string> Vfs::Read(std::string_view vfsPath) const {
@@ -101,12 +102,18 @@ std::expected<FileData, std::string> Vfs::Read(std::string_view vfsPath) const {
 
     std::vector<uint8_t> raw;
 
+    // IFileSource::ReadFile は失敗時に out をクリアする契約が無いため、
+    // 呼び出し前に毎回クリアして前回の試行の残骸に依存しないようにする。
     // 書き込みディレクトリを最優先で参照し、次にマウント逆順（後マウントが優先）で探す。
-    if (write_dir_source_ && write_dir_source_->ReadFile(*normalized, raw)) {
-        return FileData{std::move(raw)};
+    if (writeDirSource_) {
+        raw.clear();
+        if (writeDirSource_->ReadFile(*normalized, raw)) {
+            return FileData{std::move(raw)};
+        }
     }
 
     for (auto it = mounts_.rbegin(); it != mounts_.rend(); ++it) {
+        raw.clear();
         if (it->source->ReadFile(*normalized, raw)) {
             return FileData{std::move(raw)};
         }
@@ -121,7 +128,7 @@ bool Vfs::Exists(std::string_view vfsPath) const {
 
     std::shared_lock lock(GetStripeLock(*normalized));
 
-    if (write_dir_source_ && write_dir_source_->Exists(*normalized)) {
+    if (writeDirSource_ && writeDirSource_->Exists(*normalized)) {
         return true;
     }
 
@@ -152,8 +159,8 @@ std::vector<std::string> Vfs::ListFiles(std::string_view vfsDir) const {
         }
     };
 
-    if (write_dir_source_) {
-        addFiles(write_dir_source_->ListFiles(*normalized));
+    if (writeDirSource_) {
+        addFiles(writeDirSource_->ListFiles(*normalized));
     }
 
     for (auto it = mounts_.rbegin(); it != mounts_.rend(); ++it) {
@@ -165,7 +172,7 @@ std::vector<std::string> Vfs::ListFiles(std::string_view vfsDir) const {
 }
 
 std::expected<void, std::string> Vfs::Write(std::string_view vfsPath, const void* data, size_t size) {
-    if (!write_dir_source_) {
+    if (!writeDirSource_) {
         return std::unexpected(std::string("no write directory configured"));
     }
 
@@ -175,7 +182,7 @@ std::expected<void, std::string> Vfs::Write(std::string_view vfsPath, const void
     }
 
     std::unique_lock lock(GetStripeLock(*normalized));
-    if (!write_dir_source_->WriteFile(*normalized, data, size)) {
+    if (!writeDirSource_->WriteFile(*normalized, data, size)) {
         return std::unexpected(std::format("failed to write file: {}", *normalized));
     }
     return {};

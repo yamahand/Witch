@@ -53,16 +53,16 @@ public:
 
 private:
     struct MountEntry {
-        std::filesystem::path canonical_path;
+        std::filesystem::path canonicalPath;
         std::unique_ptr<IFileSource> source;
     };
 
     std::vector<MountEntry> mounts_;
-    std::unique_ptr<DiskSource> write_dir_source_;
+    std::unique_ptr<DiskSource> writeDirSource_;
     bool sealed_ = false;
 
     static constexpr size_t kStripeCount = 256;
-    mutable std::array<std::shared_mutex, kStripeCount> stripe_locks_;
+    mutable std::array<std::shared_mutex, kStripeCount> stripeLocks_;
 
     // GetStripeLock は Read/Exists/Write/ListFiles からのみ呼ばれ、それらは事前に不正/空パスを
     // 弾いているため、lockKey が nullopt になることは実質無い（到達時は "" にフォールバック）。
