@@ -45,6 +45,9 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
 
     auto renderer = platform::CreatePlatformRenderer();
     if (!renderer->Init(hwnd, width, height)) {
+        // Init が途中まで確保したもの（Win32 イベントハンドル等）を返す前に解放する。
+        // Shutdown は部分初期化状態でも安全（実装側で null ガード済み）。
+        renderer->Shutdown();
         return std::unexpected(std::string(
             "Failed to initialize the renderer (Direct3D 12).\n"
             "Please make sure your GPU and driver support D3D12."));

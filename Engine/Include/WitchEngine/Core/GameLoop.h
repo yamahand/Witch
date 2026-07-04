@@ -19,9 +19,13 @@ class Scene;
 /// カメラのビューポート同期は CameraManager サービス（Services 経由）に対して行う。
 class GameLoop {
 public:
+    /// いずれの依存も**非 null 前提**（コンストラクタで assert）。GameLoop は
+    /// Engine::Init が成功した場合にのみ生成されるため、この前提は常に成立する。
+    /// ヘッドレス実行（renderer なし）は現在サポートしない。必要になったら
+    /// null 分岐を戻すのではなく専用の実装を検討すること。
     /// @param time     フレーム時間サービス（非所有、Engine が所有）。
     /// @param input    入力サービス（非所有、Engine が所有）。
-    /// @param renderer 描画サービス（非所有、null 可＝ヘッドレス相当）。
+    /// @param renderer 描画サービス（非所有、Engine が所有）。
     GameLoop(Time* time, IInput* input, rhi::IRenderer* renderer);
 
     /// 1 フレーム進める。Engine::Run の while 本体はこれを呼ぶだけにする。
