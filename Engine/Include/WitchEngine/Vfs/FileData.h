@@ -17,6 +17,7 @@ struct FileData {
 
     // テキストデータとして文字列ビューを返す（ヌル終端なし）。
     [[nodiscard]] std::string_view AsStringView() const {
+        if (bytes.empty()) return {};
         return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
     }
 };
