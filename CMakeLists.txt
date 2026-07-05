@@ -62,6 +62,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Platform/PlatformFactory.h
     Engine/Source/Platform/PlatformWindow.h
     Engine/Source/Platform/PlatformPaths.h
+    Engine/Source/Vfs/VfsPathUtil.h
 
     Engine/Include/WitchEngine/Core/Engine.h
     Engine/Include/WitchEngine/Core/Application.h
@@ -91,7 +92,6 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Vfs/IFileSource.h
     Engine/Include/WitchEngine/Vfs/FileData.h
     Engine/Include/WitchEngine/Vfs/DiskSource.h
-    Engine/Include/WitchEngine/Vfs/VfsPathUtil.h
 )
 
 if(WIN32)

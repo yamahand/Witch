@@ -1,6 +1,6 @@
 #include "WitchEngine/Vfs/DiskSource.h"
 
-#include "WitchEngine/Vfs/VfsPathUtil.h"
+#include "Vfs/VfsPathUtil.h"
 #include "WitchEngine/Core/Logger.h"
 
 #include <format>
@@ -180,8 +180,10 @@ std::expected<void, std::string> DiskSource::WriteFile(std::string_view normaliz
 
         std::filesystem::rename(targetPath, oldPath, ec);
         if (ec) {
-            std::filesystem::remove(tmpPath, ec);
-            return std::unexpected(std::format("failed to rename target to .old: {}", ec.message()));
+            auto message = std::format("failed to rename target to .old: {}", ec.message());
+            std::error_code cleanupEc;
+            std::filesystem::remove(tmpPath, cleanupEc);
+            return std::unexpected(std::move(message));
         }
 
         std::filesystem::rename(tmpPath, targetPath, ec);
@@ -201,8 +203,10 @@ std::expected<void, std::string> DiskSource::WriteFile(std::string_view normaliz
     } else {
         std::filesystem::rename(tmpPath, targetPath, ec);
         if (ec) {
-            std::filesystem::remove(tmpPath, ec);
-            return std::unexpected(std::format("failed to rename tmp to target: {}", ec.message()));
+            auto message = std::format("failed to rename tmp to target: {}", ec.message());
+            std::error_code cleanupEc;
+            std::filesystem::remove(tmpPath, cleanupEc);
+            return std::unexpected(std::move(message));
         }
     }
 

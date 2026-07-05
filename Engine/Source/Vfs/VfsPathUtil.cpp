@@ -1,4 +1,4 @@
-#include "WitchEngine/Vfs/VfsPathUtil.h"
+#include "Vfs/VfsPathUtil.h"
 
 #include <algorithm>
 #include <cctype>

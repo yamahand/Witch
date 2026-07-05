@@ -1,6 +1,6 @@
 #include "WitchEngine/Vfs/Vfs.h"
 
-#include "WitchEngine/Vfs/VfsPathUtil.h"
+#include "Vfs/VfsPathUtil.h"
 #include "WitchEngine/Core/Logger.h"
 
 #include <algorithm>
