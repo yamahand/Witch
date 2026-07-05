@@ -38,8 +38,7 @@ public:
     // 書き込み先ディレクトリを設定する（存在しない場合は自動作成）。
     std::expected<void, std::string> SetWriteDir(const std::filesystem::path& realPath);
 
-    // マウント構成を確定する。以降の Mount/Unmount/SetWriteDir 呼び出しは警告で無視される。
-    void Seal();
+    // マウント構成を確定する。以降の MountDisk/Unmount/SetWriteDir は警告を出した上で失敗を返す。
     [[nodiscard]] bool IsSealed() const;
 
     [[nodiscard]] std::expected<FileData, std::string> Read(std::string_view vfsPath) const;
