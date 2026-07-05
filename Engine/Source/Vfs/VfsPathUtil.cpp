@@ -17,8 +17,11 @@ std::optional<std::string> NormalizePath(std::string_view path) {
         result.push_back(c == '\\' ? '/' : c);
     }
 
-    while (!result.empty() && result.front() == '/') {
-        result.erase(result.begin());
+    auto firstNonSlash = result.find_first_not_of('/');
+    if (firstNonSlash == std::string::npos) {
+        result.clear();
+    } else if (firstNonSlash > 0) {
+        result.erase(0, firstNonSlash);
     }
 
     std::vector<std::string> segments;
