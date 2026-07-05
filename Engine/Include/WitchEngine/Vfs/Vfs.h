@@ -23,7 +23,11 @@ namespace witch::vfs {
 //
 // マウント構成 API（MountDisk/Unmount/UnmountAll/SetWriteDir/Seal）はシングルスレッドの
 // 初期化フェーズでのみ呼び出すこと（内部状態をロック無しで変更するため）。
-// Seal() 後は構成が確定し、Read/Exists/Write/ListFiles はスレッドセーフ。
+// Seal() 後の Read/Exists/Write は、同一パス（大文字小文字無視）ごとにストライプロックで
+// 排他され、同じファイルへの読み書き競合を防ぐ。ただしロックはパス文字列単位のため、
+// ListFiles(dir) とその配下ファイルへの Write は別ロックになり同期しない
+// （列挙結果は WriteFile のアトミック rename により壊れたファイルを指さず、
+//  中間ファイル .tmp/.old も ListFiles 側で除外するため実害はない）。
 class Vfs {
 public:
     Vfs();

@@ -96,15 +96,28 @@ std::vector<std::string> DiskSource::ListFiles(std::string_view normalizedDir) c
 
     std::vector<std::string> result;
     std::error_code ec;
-    for (const auto& entry : std::filesystem::directory_iterator(dirPath, ec)) {
+    auto it = std::filesystem::directory_iterator(dirPath, ec);
+    if (ec) return {};
+    const std::filesystem::directory_iterator end;
+    // range-for は内部で非 ec 版の operator++ を呼び、走査中の OS エラー（同時削除・権限変更等）
+    // で例外を送出し得る。明示的に increment(ec) を使い、例外を ListFiles の外へ漏らさない。
+    for (; it != end; it.increment(ec)) {
+        if (ec) break;  // 走査中エラーは打ち切り、それまでの結果を返す
+        const auto& entry = *it;
         std::error_code entryEc;
-        if (entry.is_regular_file(entryEc)) {
-            auto rel = std::filesystem::relative(entry.path(), root_, ec);
-            if (!ec) {
-                auto normalized = detail::NormalizePath(rel.generic_string());
-                if (normalized) {
-                    result.push_back(std::move(*normalized));
-                }
+        if (!entry.is_regular_file(entryEc)) continue;
+
+        // WriteFile が生成する中間ファイル（.tmp / .old）は列挙に含めない。
+        // クラッシュや別スレッド Write との競合で残り得るため、呼び出し元へは見せない。
+        auto ext = entry.path().extension();
+        if (ext == ".tmp" || ext == ".old") continue;
+
+        std::error_code relEc;
+        auto rel = std::filesystem::relative(entry.path(), root_, relEc);
+        if (!relEc) {
+            auto normalized = detail::NormalizePath(rel.generic_string());
+            if (normalized) {
+                result.push_back(std::move(*normalized));
             }
         }
     }

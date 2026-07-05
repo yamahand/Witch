@@ -122,7 +122,10 @@ std::expected<FileData, std::string> Vfs::Read(std::string_view vfsPath) const {
         }
     }
 
-    return std::unexpected(std::format("file not found: {}", *normalized));
+    // 全マウントで ReadFile が false。理由は「未検出」だけでなくサイズ超過・読み取りエラーも
+    // あり得る（IFileSource::ReadFile は bool のため区別を返せない）。断定せず詳細はログに委ねる。
+    return std::unexpected(std::format(
+        "file not readable (not found, size limit, or read error): {}", *normalized));
 }
 
 bool Vfs::Exists(std::string_view vfsPath) const {
