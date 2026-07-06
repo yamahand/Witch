@@ -10,8 +10,12 @@ class SpriteComponent;
 
 /// AsepriteSheet のコマを兄弟 SpriteComponent に時間で反映するコンポーネント。
 /// コマごとの duration・タグ・ループ方向（forward / reverse / pingpong）に対応する。
-/// AnimationComponent と同じく兄弟解決は遅延を許すが、**AsepriteComponent を先に
-/// 追加すると**コマ更新が同一フレームの描画に反映される（ヘッダの注記参照）。
+/// 兄弟解決は遅延を許す: AddComponent は OnAttach を push の前に呼ぶため、
+/// AsepriteComponent を先に追加すると OnAttach 時点では SpriteComponent がまだ無く、
+/// 解決は最初の Update の ResolveSprite まで遅れる。それでも **AsepriteComponent を
+/// 先に追加すると**コマ更新が同一フレームの描画に反映されるのは、追加順が更新順で
+/// あり、先に走る AsepriteComponent::Update がソース矩形を確定してから後続の
+/// SpriteComponent::Update が提出するため。逆順だと反映が 1 フレーム遅れる。
 /// シート差し替え時は SpriteComponent のテクスチャも張り替える。
 class AsepriteComponent : public Component {
 public:
@@ -51,7 +55,9 @@ private:
     /// 現在コマのソース矩形を SpriteComponent に反映する。
     void ApplyFrame();
     /// sprite_ 未解決時に Owner から解決を試みる。見つかればテクスチャと現在コマを反映。
-    bool ResolveSprite();
+    /// @param warnIfMissing 見つからない場合に一度だけ警告する。OnAttach 時点では
+    ///                      SpriteComponent が後から追加される正常ケースがあるため false。
+    bool ResolveSprite(bool warnIfMissing = true);
 
     std::shared_ptr<const AsepriteSheet> sheet_;
     SpriteComponent* sprite_ = nullptr;

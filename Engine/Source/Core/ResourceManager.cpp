@@ -89,7 +89,7 @@ ResourceManager::LoadAseprite(std::string_view path) {
               path, sheet->frames.size(), sheet->frameWidth, sheet->frameHeight,
               sheet->tags.size(), parsed->atlasWidth, parsed->atlasHeight);
     asepriteCache_[key] = sheet;
-    return std::shared_ptr<const AsepriteSheet>(sheet);
+    return sheet;  // shared_ptr<AsepriteSheet> → shared_ptr<const AsepriteSheet> は暗黙変換
 }
 
 } // namespace witch

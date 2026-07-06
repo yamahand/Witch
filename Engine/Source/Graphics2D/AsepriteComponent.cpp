@@ -15,7 +15,7 @@ AsepriteComponent::AsepriteComponent(std::shared_ptr<const AsepriteSheet> sheet)
                    AsepriteLoopDir::Forward, 0);
 }
 
-bool AsepriteComponent::ResolveSprite() {
+bool AsepriteComponent::ResolveSprite(bool warnIfMissing) {
     if (sprite_) return true;
     sprite_ = Owner()->GetComponent<SpriteComponent>();
     if (sprite_) {
@@ -24,7 +24,7 @@ bool AsepriteComponent::ResolveSprite() {
         ApplyFrame();
         return true;
     }
-    if (!warnedNoSprite_) {
+    if (warnIfMissing && !warnedNoSprite_) {
         log::Warn("AsepriteComponent: owner has no SpriteComponent; staying inert.");
         warnedNoSprite_ = true;
     }
@@ -32,12 +32,9 @@ bool AsepriteComponent::ResolveSprite() {
 }
 
 void AsepriteComponent::OnAttach() {
-    if (!sprite_)
-        sprite_ = Owner()->GetComponent<SpriteComponent>();
-    if (sprite_) {
-        if (sheet_) sprite_->SetTexture(sheet_->texture);
-        ApplyFrame();
-    }
+    // まだ SpriteComponent が後から追加される正常ケースがあるため、ここでは
+    // 見つからなくても警告しない（最初の Update の ResolveSprite で再挑戦する）。
+    ResolveSprite(/*warnIfMissing=*/false);
 }
 
 void AsepriteComponent::Update(float dt) {

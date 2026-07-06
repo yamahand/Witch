@@ -98,7 +98,9 @@ void EmptyScene::OnEnter() {
         auto* unityObj = Spawn<GameObject>();
         unityObj->transform.x = 250.0f;
         unityObj->transform.y = 150.0f;
-        // AsepriteComponent を先に追加してコマ更新を同一フレームの描画に反映する。
+        // AsepriteComponent を先に追加する: 追加順が更新順なので、先に走る
+        // AsepriteComponent::Update がソース矩形を確定してから SpriteComponent::Update が
+        // 提出し、コマ更新が同一フレームの描画に反映される（逆順だと 1 フレーム遅れる）。
         unityAnim_ = unityObj->AddComponent<AsepriteComponent>(unitySheets_[0].sheet);
         // 描画サイズは 72x72 の 2 倍。80x80 のシートへ切り替えても同サイズで描く（デモ用）。
         unityObj->AddComponent<SpriteComponent>(unitySheets_[0].sheet->texture, 144.0f, 144.0f);
