@@ -45,6 +45,13 @@ add_library(WitchEngine STATIC
     Engine/Source/Core/Application.cpp
     Engine/Source/Core/GameLoop.cpp
     Engine/Source/Core/Logger.cpp
+    Engine/Source/Core/Log/TextBuffer.cpp
+    Engine/Source/Core/Log/PlainTextFormatter.cpp
+    Engine/Source/Core/Log/DetailedTextFormatter.cpp
+    Engine/Source/Core/Log/ViewerSink.cpp
+    Engine/Source/Core/Log/ConsoleSink.cpp
+    Engine/Source/Core/Log/DebugOutputSink.cpp
+    Engine/Source/Core/Log/FileSink.cpp
     Engine/Source/Core/ObjectRegistry.cpp
     Engine/Source/Core/ResourceManager.cpp
     Engine/Source/Core/Time.cpp
@@ -61,6 +68,9 @@ add_library(WitchEngine STATIC
     Engine/Source/Vfs/VfsPathUtil.cpp
 
     Engine/Source/Core/Profiling.h
+    Engine/Source/Core/Log/LogRecord.h
+    Engine/Source/Core/Log/TextBuffer.h
+    Engine/Source/Core/Log/TimestampFormat.h
     Engine/Source/Platform/Memory.h
     Engine/Source/Platform/PlatformFactory.h
     Engine/Source/Platform/PlatformWindow.h
@@ -73,6 +83,20 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Core/FixedString.h
     Engine/Include/WitchEngine/Core/GameLoop.h
     Engine/Include/WitchEngine/Core/Logger.h
+    Engine/Include/WitchEngine/Core/Log/LogLevel.h
+    Engine/Include/WitchEngine/Core/Log/Category.h
+    Engine/Include/WitchEngine/Core/Log/LogView.h
+    Engine/Include/WitchEngine/Core/Log/ILogSink.h
+    Engine/Include/WitchEngine/Core/Log/ILogFilter.h
+    Engine/Include/WitchEngine/Core/Log/ILogFormatter.h
+    Engine/Include/WitchEngine/Core/Log/LevelFilter.h
+    Engine/Include/WitchEngine/Core/Log/CategoryFilter.h
+    Engine/Include/WitchEngine/Core/Log/PlainTextFormatter.h
+    Engine/Include/WitchEngine/Core/Log/DetailedTextFormatter.h
+    Engine/Include/WitchEngine/Core/Log/ViewerSink.h
+    Engine/Include/WitchEngine/Core/Log/ConsoleSink.h
+    Engine/Include/WitchEngine/Core/Log/DebugOutputSink.h
+    Engine/Include/WitchEngine/Core/Log/FileSink.h
     Engine/Include/WitchEngine/Core/ObjectRegistry.h
     Engine/Include/WitchEngine/Core/ResourceManager.h
     Engine/Include/WitchEngine/Core/Services.h
