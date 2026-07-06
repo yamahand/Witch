@@ -24,7 +24,8 @@ public:
 
     /// スポーン直後に呼ばれる。サブクラスはここに初期化処理を書く。
     virtual void OnSpawn() {}
-    /// 毎フレーム全コンポーネントを更新する。サブクラスは追加処理を書いて base を呼ぶ。
+    /// 毎フレーム Update フェーズの先頭で呼ばれるオブジェクト単位のフック。既定は空。
+    /// Component の更新はここでは行わない（Scene の ComponentScheduler がフェーズ順に回す）。
     virtual void Update(float dt);
 #ifdef WITCH_DEBUG_UI
     /// ImGui フレーム内で呼ばれる。既定で全 Component の DrawDebugUI を呼ぶ。
@@ -56,9 +57,17 @@ public:
 private:
     friend class Scene;
 
+    /// AddComponent から呼ぶ非テンプレートヘルパ。spawned_ が立っている（= 生成反映済み）
+    /// 場合のみ Scene の ComponentScheduler へ登録する。未スポーン時（コンストラクタや
+    /// OnSpawn 中の AddComponent）は Scene の生成反映ステージが components_ を一括登録
+    /// するため、ここでは登録しない（二重登録の防止）。実装は GameObject.cpp
+    /// （テンプレートヘッダに Scene.h への依存を持ち込まないため）。
+    void RegisterComponent(Component* component);
+
     ObjectId id_ = kInvalidId;
     Scene* scene_ = nullptr;
     bool pendingDestroy_ = false;
+    bool spawned_ = false;  ///< Scene の生成反映ステージ通過済みか（Scene が立てる）。
     std::vector<std::unique_ptr<Component>> components_;
 };
 
@@ -73,6 +82,7 @@ T* GameObject::AddComponent(Args&&... args) {
     comp->OnAttach();
     T* ptr = comp.get();
     components_.push_back(std::move(comp));
+    RegisterComponent(ptr);
     return ptr;
 }
 

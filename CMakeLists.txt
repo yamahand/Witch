@@ -48,6 +48,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Core/ObjectRegistry.cpp
     Engine/Source/Core/ResourceManager.cpp
     Engine/Source/Core/Time.cpp
+    Engine/Source/Scene/ComponentScheduler.cpp
     Engine/Source/Scene/GameObject.cpp
     Engine/Source/Scene/Scene.cpp
     Engine/Source/Graphics2D/AnimationComponent.cpp
@@ -89,10 +90,12 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Rhi/IRenderer.h
     Engine/Include/WitchEngine/Rhi/RhiTypes.h
     Engine/Include/WitchEngine/Scene/Component.h
+    Engine/Include/WitchEngine/Scene/ComponentScheduler.h
     Engine/Include/WitchEngine/Scene/DebugUI.h
     Engine/Include/WitchEngine/Scene/GameObject.h
     Engine/Include/WitchEngine/Scene/Scene.h
     Engine/Include/WitchEngine/Scene/Transform.h
+    Engine/Include/WitchEngine/Scene/UpdatePhase.h
     Engine/Include/WitchEngine/Vfs/Vfs.h
     Engine/Include/WitchEngine/Vfs/IFileSource.h
     Engine/Include/WitchEngine/Vfs/FileData.h
