@@ -58,7 +58,9 @@ public:
     void SetColor(const rhi::Color& color) { color_ = color; }
     const rhi::Color& GetColor() const { return color_; }
 
-    /// 描画レイヤー。大きいほど手前。同レイヤーは提出順（= Update 順）を維持。
+    /// 描画レイヤー。大きいほど手前。同一フェーズ内の GameObject 間の実行順は
+    /// 未規定（ComponentScheduler.h の並列化契約）のため、同レイヤー内の前後関係を
+    /// 提出順に依存してはならない。前後関係が必要な場合は必ず異なる Layer を使うこと。
     void SetLayer(int16_t layer) { layer_ = layer; }
     int16_t Layer() const { return layer_; }
 

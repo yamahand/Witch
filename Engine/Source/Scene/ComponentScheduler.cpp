@@ -8,7 +8,11 @@ namespace witch {
 
 namespace {
 size_t PhaseIndex(UpdatePhase phase) {
-    return static_cast<size_t>(phase);
+    size_t index = static_cast<size_t>(phase);
+    // Component::Phase() の実装ミス（UpdatePhase::Count や不正なキャスト値）を
+    // 配列外アクセスより前に検出する。
+    assert(index < kUpdatePhaseCount && "invalid UpdatePhase");
+    return index;
 }
 } // namespace
 

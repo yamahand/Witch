@@ -35,6 +35,9 @@ public:
     /// 反映を実行直前に行うため、フェーズ X の最中に AddComponent された Component も
     /// 同一フレームの X より後のフェーズで走る（Update 中に足した Sprite が
     /// 同フレームの Render で提出され、1 フレーム消える現象を防ぐ）。
+    /// ただし PreUpdate はそのフレームで最初に実行されるフェーズのため対象外:
+    /// GameObject::Update フックや Update 以降で Phase()==PreUpdate な Component を
+    /// 追加しても、その Component は次フレームの PreUpdate まで実行されない。
     void RunPhase(UpdatePhase phase, float dt);
 
 private:
