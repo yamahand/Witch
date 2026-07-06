@@ -35,6 +35,11 @@ public:
     void SetAnchor(Anchor anchor) { anchor_ = anchor; }
     Anchor GetAnchor() const { return anchor_; }
 
+    /// テクスチャを差し替える（AsepriteComponent のシート切替等）。
+    /// UV は変更しないため、必要なら続けて SetSourceRect / ClearSourceRect を呼ぶ。
+    void SetTexture(const TextureInfo& texture) { texture_ = texture; }
+    const TextureInfo& GetTexture() const { return texture_; }
+
     /// スプライトシート上のコマを px 矩形で指定する（左上原点）。
     /// テクスチャ実サイズで正規化して UV に変換する。
     void SetSourceRect(int x, int y, int width, int height);

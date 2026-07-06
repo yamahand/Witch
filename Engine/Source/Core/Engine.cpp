@@ -12,6 +12,7 @@
 #include "Platform/PlatformFactory.h"
 #include "Platform/PlatformPaths.h"
 #include "Core/Profiling.h"
+#include <filesystem>
 #include <format>
 
 namespace witch {
@@ -44,6 +45,19 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
             "Failed to mount Assets directory: {} ({})",
             assetsDir.string(), mounted.error()));
     }
+
+    // 開発ビルドのみ: リポジトリ直下の Content/ をマウントし、コピー無しで直接読む。
+    // WITCH_MOUNT_DEV_CONTENT は CMake オプション（既定 OFF、debug 系プリセットで ON）。
+    // 配布ビルドは Content の同梱方法が決まるまでこのマウントを持たない。
+    // Content/ が未追加の環境（リポジトリにまだコミットされていない等）でも起動できるよう、
+    // マウント失敗は警告に留めて続行する（Content 依存アセットの読込は後で失敗するだけ）。
+#ifdef WITCH_MOUNT_DEV_CONTENT
+    const auto contentDir = std::filesystem::path(WITCH_REPO_ROOT) / "Content";
+    if (auto mounted = vfs_->MountDisk(contentDir); !mounted) {
+        log::Warn("Failed to mount Content directory: {} ({}). Continuing without it.",
+                  contentDir.string(), mounted.error());
+    }
+#endif
     vfs_->Seal();
     Services::Instance().vfs = vfs_.get();
 

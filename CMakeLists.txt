@@ -51,6 +51,8 @@ add_library(WitchEngine STATIC
     Engine/Source/Scene/GameObject.cpp
     Engine/Source/Scene/Scene.cpp
     Engine/Source/Graphics2D/AnimationComponent.cpp
+    Engine/Source/Graphics2D/AsepriteComponent.cpp
+    Engine/Source/Graphics2D/AsepriteLoader.cpp
     Engine/Source/Graphics2D/CameraManager.cpp
     Engine/Source/Graphics2D/SpriteComponent.cpp
     Engine/Source/Vfs/Vfs.cpp
@@ -62,6 +64,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Platform/PlatformFactory.h
     Engine/Source/Platform/PlatformWindow.h
     Engine/Source/Platform/PlatformPaths.h
+    Engine/Source/Graphics2D/AsepriteLoader.h
     Engine/Source/Vfs/VfsPathUtil.h
 
     Engine/Include/WitchEngine/Core/Engine.h
@@ -76,6 +79,8 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Core/Time.h
     Engine/Include/WitchEngine/Graphics2D/Anchor.h
     Engine/Include/WitchEngine/Graphics2D/AnimationComponent.h
+    Engine/Include/WitchEngine/Graphics2D/AsepriteComponent.h
+    Engine/Include/WitchEngine/Graphics2D/AsepriteSheet.h
     Engine/Include/WitchEngine/Graphics2D/Camera2D.h
     Engine/Include/WitchEngine/Graphics2D/CameraManager.h
     Engine/Include/WitchEngine/Graphics2D/SpriteComponent.h
@@ -93,6 +98,18 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Vfs/FileData.h
     Engine/Include/WitchEngine/Vfs/DiskSource.h
 )
+
+# 開発時のみ、リポジトリ直下の Content/ を実行時に直接マウントする（Engine.cpp 参照）。
+# 既定 OFF。debug 系プリセット（CMakePresets.json）が ON にする。配布ビルドでは
+# ソースツリーの絶対パスに依存しないよう必ず OFF にする。
+option(WITCH_MOUNT_DEV_CONTENT "Mount repository-root Content/ at runtime (development builds)" OFF)
+if(WITCH_MOUNT_DEV_CONTENT)
+    file(TO_CMAKE_PATH "${CMAKE_SOURCE_DIR}" WITCH_REPO_ROOT_PATH)
+    target_compile_definitions(WitchEngine PRIVATE
+        WITCH_MOUNT_DEV_CONTENT
+        WITCH_REPO_ROOT="${WITCH_REPO_ROOT_PATH}"
+    )
+endif()
 
 if(WIN32)
     find_package(mimalloc CONFIG REQUIRED)

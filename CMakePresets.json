@@ -24,6 +24,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "WITCH_DEBUG_UI": "ON",
+        "WITCH_MOUNT_DEV_CONTENT": "ON",
         "VCPKG_MANIFEST_FEATURES": "debug-ui"
       }
     },
@@ -73,6 +74,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "WITCH_DEBUG_UI": "ON",
+        "WITCH_MOUNT_DEV_CONTENT": "ON",
         "VCPKG_MANIFEST_FEATURES": "debug-ui"
       }
     },
