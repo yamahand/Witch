@@ -111,6 +111,12 @@ struct Cel {
     std::vector<uint8_t> rgba;  // 変換済み RGBA（w*h*4）
 };
 
+// サイズ上限。U16 由来の値（最大 65535）をそのまま信用すると、破損した /
+// 悪意ある .ase でアトラス確保やセル展開が数百 GB 級になり、vector::assign が
+// throw してエンジンの no-throw 方針を破る。上限超過は expected のエラーで返す。
+constexpr int kMaxCanvasDim = 8192;    ///< キャンバス・セルの 1 辺の px 上限
+constexpr int kMaxAtlasDim  = 16384;   ///< アトラスの 1 辺の px 上限（D3D12 のテクスチャ上限）
+
 constexpr uint16_t kFileMagic  = 0xA5E0;
 constexpr uint16_t kFrameMagic = 0xF1FA;
 
@@ -187,6 +193,9 @@ std::expected<ParseResult, std::string> ParseAse(std::span<const uint8_t> bytes,
 
     if (!r.ok() || frameCount <= 0 || canvasW <= 0 || canvasH <= 0)
         return std::unexpected(std::format("{}: broken header", sourceName));
+    if (canvasW > kMaxCanvasDim || canvasH > kMaxCanvasDim)
+        return std::unexpected(std::format(
+            "{}: canvas too large ({}x{}, limit {})", sourceName, canvasW, canvasH, kMaxCanvasDim));
     if (colorDepth != 32 && colorDepth != 16 && colorDepth != 8)
         return std::unexpected(std::format("{}: unsupported color depth {}", sourceName, colorDepth));
 
@@ -302,6 +311,13 @@ std::expected<ParseResult, std::string> ParseAse(std::span<const uint8_t> bytes,
                 cel.w = r.U16();
                 cel.h = r.U16();
                 if (cel.w <= 0 || cel.h <= 0) break;
+                // セルはキャンバス外へはみ出せるが、キャンバス上限を大きく超える寸法は
+                // 破損 / 悪意ある入力とみなす（pixelBytes ≤ 8192^2*4 = 256MB に抑え、
+                // 後続の int キャストも安全にする）。
+                if (cel.w > kMaxCanvasDim || cel.h > kMaxCanvasDim)
+                    return std::unexpected(std::format(
+                        "{}: cel too large ({}x{}, limit {}) in frame {}",
+                        sourceName, cel.w, cel.h, kMaxCanvasDim, frame));
                 const size_t pixelBytes = static_cast<size_t>(cel.w) * static_cast<size_t>(cel.h)
                                         * static_cast<size_t>(bytesPerPixel);
 
@@ -315,18 +331,19 @@ std::expected<ParseResult, std::string> ParseAse(std::span<const uint8_t> bytes,
                         return std::unexpected(std::format("{}: broken compressed cel", sourceName));
                     const size_t compressedSize = chunkEnd - r.pos();
                     auto compressed = r.Bytes(compressedSize);
-                    int outLen = 0;
-                    char* inflated = stbi_zlib_decode_malloc(
+                    // 固定長の出力バッファへ展開する。malloc 版と違い展開後サイズが
+                    // 事前に上限指定でき、細工された zlib ストリーム（decompression
+                    // bomb）でもピクセル所要量を超えた時点でエラーになる。
+                    nativePixels.resize(pixelBytes);
+                    const int decoded = stbi_zlib_decode_buffer(
+                        reinterpret_cast<char*>(nativePixels.data()),
+                        static_cast<int>(pixelBytes),
                         reinterpret_cast<const char*>(compressed.data()),
-                        static_cast<int>(compressedSize), &outLen);
-                    if (!inflated || static_cast<size_t>(outLen) < pixelBytes) {
-                        if (inflated) stbi_image_free(inflated);
+                        static_cast<int>(compressedSize));
+                    if (decoded < 0 || static_cast<size_t>(decoded) != pixelBytes)
                         return std::unexpected(std::format(
-                            "{}: zlib decode failed in frame {}", sourceName, frame));
-                    }
-                    nativePixels.assign(reinterpret_cast<uint8_t*>(inflated),
-                                        reinterpret_cast<uint8_t*>(inflated) + pixelBytes);
-                    stbi_image_free(inflated);
+                            "{}: zlib decode failed in frame {} (expected {} bytes, got {})",
+                            sourceName, frame, pixelBytes, decoded));
                 }
 
                 if (!ConvertPixels(nativePixels, cel.w, cel.h, colorDepth, palette,
@@ -404,6 +421,12 @@ std::expected<ParseResult, std::string> ParseAse(std::span<const uint8_t> bytes,
     const int rows = (frameCount + columns - 1) / columns;
     result.atlasWidth  = columns * canvasW;
     result.atlasHeight = rows * canvasH;
+    // GPU テクスチャにできない巨大アトラスは確保前に弾く（bad_alloc を出さない）。
+    if (result.atlasWidth > kMaxAtlasDim || result.atlasHeight > kMaxAtlasDim)
+        return std::unexpected(std::format(
+            "{}: atlas too large ({}x{} for {} frames of {}x{}, limit {})",
+            sourceName, result.atlasWidth, result.atlasHeight, frameCount,
+            canvasW, canvasH, kMaxAtlasDim));
     result.atlasPixels.assign(
         static_cast<size_t>(result.atlasWidth) * static_cast<size_t>(result.atlasHeight) * 4, 0);
     result.frames.resize(static_cast<size_t>(frameCount));
