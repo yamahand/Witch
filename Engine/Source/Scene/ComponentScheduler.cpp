@@ -2,6 +2,7 @@
 #include "WitchEngine/Scene/Component.h"
 #include "WitchEngine/Scene/GameObject.h"
 #include <algorithm>
+#include <cassert>
 
 namespace witch {
 
@@ -26,6 +27,9 @@ void ComponentScheduler::UnregisterAll(GameObject* obj) {
 void ComponentScheduler::RunPhase(UpdatePhase phase, float dt) {
     FlushPending();
     for (Component* c : phases_[PhaseIndex(phase)]) {
+        // Register される Component は GameObject::AddComponent 経由でのみ生成され、
+        // owner_ を設定済みのはず（Component.h の契約）。
+        assert(c->Owner() && "Component registered without an owner");
         if (!c->Owner()->IsDestroyed()) {
             c->Update(dt);
         }
