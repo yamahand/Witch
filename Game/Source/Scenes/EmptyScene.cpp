@@ -4,6 +4,7 @@
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Core/ResourceManager.h"
 #include "WitchEngine/Graphics2D/AnimationComponent.h"
+#include "WitchEngine/Graphics2D/AsepriteComponent.h"
 #include "WitchEngine/Graphics2D/Camera2D.h"
 #include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Graphics2D/SpriteComponent.h"
@@ -26,12 +27,20 @@ constexpr rhi::Color kTints[] = {
     {1.0f, 0.3f, 0.3f, 1.0f},
     {1.0f, 1.0f, 1.0f, 0.5f},
 };
+
+// N キーで循環する Unity ちゃんの .ase（Content マウント直下からの VFS パス）。
+constexpr const char* kUnitychanAseFiles[] = {
+    "Aseprite/Unitychan/Unitychan_Idle.ase",
+    "Aseprite/Unitychan/Unitychan_Run.ase",
+    "Aseprite/Unitychan/Unitychan_Attack1.ase",
+    "Aseprite/Unitychan/Unitychan_Jump_Up.ase",
+};
 }
 
 void EmptyScene::OnEnter() {
     log::Info("EmptyScene: OnEnter");
     log::Info("keys: arrows=move WASD=camera Q/E/wheel=zoom R=spin F=flip "
-              "T=tint L=layer P=anim play/stop O=anim loop Esc=quit");
+              "T=tint L=layer P=anim play/stop O=anim loop N=unitychan anim Esc=quit");
 
     auto* resources = Services::Instance().resources;
 
@@ -74,6 +83,26 @@ void EmptyScene::OnEnter() {
         AnimationClip{.frameWidth = 32, .frameHeight = 32, .columns = 4,
                       .frames = {0, 1, 2, 3}, .fps = 4.0f, .loop = true});
     animObj->AddComponent<SpriteComponent>(testSheet_, 64.0f, 64.0f);
+
+    // Aseprite デモ: Unity ちゃんの .ase を直接ロードして再生（Content マウント経由）。
+    // シートごとにコマ数・コマごとの duration が異なる。N キーで切り替える。
+    for (const char* path : kUnitychanAseFiles) {
+        auto sheet = resources->LoadAseprite(path);
+        if (!sheet) {
+            log::Error("Failed to load aseprite {}: {}", path, sheet.error());
+            continue;
+        }
+        unitySheets_.push_back({path, *sheet});
+    }
+    if (!unitySheets_.empty()) {
+        auto* unityObj = Spawn<GameObject>();
+        unityObj->transform.x = 250.0f;
+        unityObj->transform.y = 150.0f;
+        // AsepriteComponent を先に追加してコマ更新を同一フレームの描画に反映する。
+        unityAnim_ = unityObj->AddComponent<AsepriteComponent>(unitySheets_[0].sheet);
+        // 描画サイズは 72x72 の 2 倍。80x80 のシートへ切り替えても同サイズで描く（デモ用）。
+        unityObj->AddComponent<SpriteComponent>(unitySheets_[0].sheet->texture, 144.0f, 144.0f);
+    }
 
     // HUD スプライト（Screen 空間 = 仮想座標直指定、カメラ非追従）。
     // シーン領域の左上 (16,16) に TestSheet の 0 コマ目を貼る。
@@ -153,6 +182,14 @@ void EmptyScene::Update(float dt) {
                 log::Info("anim finished (frame {})", anim_->CurrentFrame());
                 loggedFinished_ = true;
             }
+        }
+
+        // N キーで Unity ちゃんのシートを循環（テクスチャごと差し替わる）。
+        if (unityAnim_ && !unitySheets_.empty() && input->WasPressed(Key::N)) {
+            unitySheetIndex_ = (unitySheetIndex_ + 1) % static_cast<int>(unitySheets_.size());
+            const auto& entry = unitySheets_[static_cast<size_t>(unitySheetIndex_)];
+            unityAnim_->SetSheet(entry.sheet);
+            log::Info("unitychan anim -> {}", entry.path);
         }
 
         // WASD でカメラを移動、Q/E でズーム（カメラ／座標系の動作確認）。

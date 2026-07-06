@@ -3,16 +3,20 @@
 #include "WitchEngine/Scene/GameObject.h"
 #include "WitchEngine/Core/TextureInfo.h"
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 namespace witch {
 
 class SpriteComponent;
 class AnimationComponent;
+class AsepriteComponent;
+struct AsepriteSheet;
 
 /// M5 機能のデモシーン。
 /// 矢印: Witch 移動 / WASD: カメラ / Q,E,ホイール: ズーム
 /// R: 回転（押下中）/ F: 左右反転 / T: tint 循環 / L: レイヤー入替
-/// P: アニメ Play/Stop / O: アニメ loop 切替 / Escape: 終了
+/// P: アニメ Play/Stop / O: アニメ loop 切替 / N: Unity ちゃんアニメ切替 / Escape: 終了
 class EmptyScene : public Scene {
 public:
     void OnEnter() override;
@@ -30,6 +34,16 @@ private:
     SpriteComponent*    witchSprite_ = nullptr;
     SpriteComponent*    staticSprite_ = nullptr;
     AnimationComponent* anim_ = nullptr;
+
+    // Aseprite デモ（Unity ちゃん）。N キーでシートを循環する。
+    // path はロードに成功したものだけを sheet と対で持つ（ログ表示用）。
+    struct UnitySheet {
+        const char* path;
+        std::shared_ptr<const AsepriteSheet> sheet;
+    };
+    std::vector<UnitySheet> unitySheets_;
+    AsepriteComponent* unityAnim_ = nullptr;
+    int unitySheetIndex_ = 0;
 
     int  tintIndex_ = 0;
     bool animLoop_ = true;
