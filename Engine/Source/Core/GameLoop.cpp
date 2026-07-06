@@ -9,6 +9,10 @@
 #include "Core/Profiling.h"
 #include <cassert>
 
+#ifdef WITCH_DEBUG_UI
+#include "WitchEngine/Debug/LogViewerWindow.h"
+#endif
+
 namespace witch {
 
 static constexpr rhi::Color kCornflowerBlue{0.392f, 0.584f, 0.929f, 1.0f};
@@ -59,11 +63,12 @@ bool GameLoop::Tick(Scene* currentScene) {
         if (currentScene) currentScene->Update(time_->DeltaTime());
     }
 
-    // 3) ゲームのデバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
+    // 3) デバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
 #ifdef WITCH_DEBUG_UI
-    if (currentScene) {
+    {
         WITCH_PROFILE_SCOPE_N("DebugUI");
-        currentScene->DrawDebugUI();
+        if (currentScene) currentScene->DrawDebugUI();
+        if (logViewer_) logViewer_->Draw(); // エンジン標準の Log Viewer
     }
 #endif
 

@@ -4,6 +4,10 @@ namespace witch::rhi {
 class IRenderer;
 } // namespace witch::rhi
 
+namespace witch::debug {
+class LogViewerWindow;
+} // namespace witch::debug
+
 namespace witch {
 
 class Time;
@@ -34,10 +38,18 @@ public:
     /// @return OS が終了メッセージを送ってきたら false（ループを止める）。
     bool Tick(Scene* currentScene);
 
+#ifdef WITCH_DEBUG_UI
+    /// エンジン標準の Log Viewer を設定する（非所有、Engine が所有）。null 可。
+    void SetLogViewer(debug::LogViewerWindow* viewer) { logViewer_ = viewer; }
+#endif
+
 private:
     Time*           time_;
     IInput*         input_;
     rhi::IRenderer* renderer_;
+#ifdef WITCH_DEBUG_UI
+    debug::LogViewerWindow* logViewer_ = nullptr;
+#endif
 };
 
 } // namespace witch

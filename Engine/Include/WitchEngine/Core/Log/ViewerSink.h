@@ -36,6 +36,9 @@ public:
     /// レベル・カテゴリの絞り込みは表示側の責務（ここでは全件保持する）。
     [[nodiscard]] std::vector<Entry> Snapshot() const;
 
+    /// 蓄積内容を破棄する（表示側の Clear ボタン用）。
+    void Clear();
+
 private:
     mutable std::mutex mutex_; ///< Snapshot() が Logger 外のスレッドから呼ばれるため必要
     std::vector<Entry> ring_;

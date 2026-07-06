@@ -172,6 +172,13 @@ if(WITCH_DEBUG_UI)
     # #ifdef WITCH_DEBUG_UI で守れるようにする。
     target_link_libraries(WitchEngine PUBLIC imgui::imgui)
     target_compile_definitions(WitchEngine PUBLIC WITCH_DEBUG_UI)
+
+    # エンジン標準の ImGui Log Viewer。ViewerSink（データ側・常時ビルド）と分離し、
+    # 表示側だけを WITCH_DEBUG_UI に閉じ込める。
+    target_sources(WitchEngine PRIVATE
+        Engine/Source/Debug/LogViewerWindow.cpp
+        Engine/Include/WitchEngine/Debug/LogViewerWindow.h
+    )
 endif()
 
 # ─── Tracy profiling ─────────────────────────────────────────────────────────
