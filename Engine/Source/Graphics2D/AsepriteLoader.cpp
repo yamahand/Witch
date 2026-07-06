@@ -396,6 +396,10 @@ std::expected<ParseResult, std::string> ParseAse(std::span<const uint8_t> bytes,
                 for (uint16_t p = 0; p < packets && r.ok(); ++p) {
                     index += r.U8();
                     const size_t count = [&] { const uint8_t c = r.U8(); return c == 0 ? 256u : static_cast<size_t>(c); }();
+                    // インデックスは U8（最大 256 色）。kChunkPalette と同じ 4096 上限で、
+                    // 破損 / 悪意ある packets 連続による palette の巨大確保（throw）を防ぐ。
+                    if (index + count > 4096)
+                        return std::unexpected(std::format("{}: broken old palette", sourceName));
                     if (palette.size() < index + count)
                         palette.resize(index + count, {0, 0, 0, 255});
                     for (size_t c = 0; c < count && r.ok(); ++c, ++index)
