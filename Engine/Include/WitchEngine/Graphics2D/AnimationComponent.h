@@ -20,10 +20,8 @@ struct AnimationClip {
 
 /// 兄弟 SpriteComponent のソース矩形を時間で切り替えるコンポーネント。
 /// SpriteComponent は OnAttach または最初の Update で遅延解決するため、
-/// AddComponent の順序はどちらでも動く。ただし GameObject::Update は追加順に
-/// コンポーネントを呼ぶため、**AnimationComponent を先に追加すると**コマ更新が
-/// 同一フレームの描画（後続の SpriteComponent::Update の提出）に反映される。
-/// Sprite を先にすると反映は 1 フレーム遅れる（実害はほぼないが揃えておくのが吉）。
+/// AddComponent の順序はどちらでも動く。Animation フェーズは Render フェーズより
+/// 先に走るため、追加順によらずコマ更新は同一フレームの描画提出に反映される。
 /// SpriteComponent が最後まで見つからない場合は警告して不活性になる。
 class AnimationComponent : public Component {
 public:
@@ -31,6 +29,9 @@ public:
 
     void OnAttach() override;
     void Update(float dt) override;
+
+    /// コマ送りは Animation フェーズ（Render フェーズの提出より前に矩形を確定する）。
+    UpdatePhase Phase() const override { return UpdatePhase::Animation; }
 
 #ifdef WITCH_DEBUG_UI
     void DrawDebugUI() override;

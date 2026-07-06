@@ -74,8 +74,6 @@ void EmptyScene::OnEnter() {
     staticSprite_->SetColor({0.7f, 0.7f, 1.0f, 1.0f}); // 薄青で識別
 
     // TestSheet アニメーション（赤→緑→青→黄 4fps ループ）。
-    // AnimationComponent を先に追加すると、コマ更新が同一フレームの描画に反映される
-    // （後続の SpriteComponent::Update が更新済みソース矩形で提出するため）。
     auto* animObj = Spawn<GameObject>();
     animObj->transform.x = 250.0f;
     animObj->transform.y = 0.0f;
@@ -98,9 +96,6 @@ void EmptyScene::OnEnter() {
         auto* unityObj = Spawn<GameObject>();
         unityObj->transform.x = 250.0f;
         unityObj->transform.y = 150.0f;
-        // AsepriteComponent を先に追加する: 追加順が更新順なので、先に走る
-        // AsepriteComponent::Update がソース矩形を確定してから SpriteComponent::Update が
-        // 提出し、コマ更新が同一フレームの描画に反映される（逆順だと 1 フレーム遅れる）。
         unityAnim_ = unityObj->AddComponent<AsepriteComponent>(unitySheets_[0].sheet);
         // 描画サイズは 72x72 の 2 倍。80x80 のシートへ切り替えても同サイズで描く（デモ用）。
         unityObj->AddComponent<SpriteComponent>(unitySheets_[0].sheet->texture, 144.0f, 144.0f);

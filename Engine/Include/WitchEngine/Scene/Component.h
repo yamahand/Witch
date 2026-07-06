@@ -1,5 +1,6 @@
 #pragma once
 #include "WitchEngine/Scene/DebugUI.h"
+#include "WitchEngine/Scene/UpdatePhase.h"
 
 namespace witch {
 
@@ -13,10 +14,15 @@ public:
 
     /// AddComponent 完了直後に呼ばれる。初期化処理を書く。
     virtual void OnAttach() {}
-    /// 毎フレーム GameObject::Update から呼ばれる。
+    /// 毎フレーム、Phase() が返すフェーズで ComponentScheduler から呼ばれる。
+    /// 同一フェーズ内の GameObject 間の実行順は未規定（ComponentScheduler.h の契約参照）。
     virtual void Update([[maybe_unused]] float dt) {}
     /// コンポーネント破棄直前に呼ばれる。
     virtual void OnDetach() {}
+
+    /// 所属する更新フェーズ。種類ごとに固定（既定は Update）。
+    /// インスタンスの生存中に返す値を変えてはならない（登録先リストが変わらないため）。
+    virtual UpdatePhase Phase() const { return UpdatePhase::Update; }
 
     /// 所有 GameObject を返す。owner は自分より必ず長生きするため生ポインタで持つ。
     GameObject* Owner() const { return owner_; }

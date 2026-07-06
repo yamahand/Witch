@@ -65,14 +65,25 @@ Witch/                          ← リポジトリのルート
 ## コア設計（Claude Code はこの仕様で基底クラスをゼロから実装する）
 - **Component**（Scene/Component.h）: 全コンポーネントの基底。
   仮想 `OnAttach()` / `Update(float dt)` / `OnDetach()`。
+  `Phase()` で所属する更新フェーズを宣言（既定 `UpdatePhase::Update`。種類ごとに固定で、
+  生存中に変えない）。`Update` は所属フェーズで ComponentScheduler から呼ばれる。
   `Owner()` で所有 GameObject に弱参照（所有しない。owner は必ず自分より長生き）。
+- **ComponentScheduler**（Scene/ComponentScheduler.h）: Scene が 1 つ所有。
+  Component をフェーズ別リストで管理し、`UpdatePhase` の宣言順
+  （PreUpdate → Update → PostUpdate → Animation → Camera → Render）に更新する。
+  フェーズは消費者が現れてから enum に足す（Physics 系は M7、Input は必要時）。
+  **並列化契約**: 同一フェーズ内での GameObject 間の実行順は未規定。順序が必要なら
+  別フェーズに分ける。現実装は逐次だが、将来フェーズ単位で並列化できるよう
+  この契約に依存しないコードを書く。
 - **GameObject**（Scene/GameObject.h）: 登場物の基底。サブクラスは薄く保つ。
   Component を `unique_ptr` で所有。`AddComponent<T>()` / `GetComponent<T>()`。
-  `OnSpawn()` / `OnDespawn()` / `Update(float dt)`（既定で全 Component を更新）。
+  `OnSpawn()` / `OnDespawn()` / `Update(float dt)`（Update フェーズ先頭で呼ばれる
+  オブジェクト単位フック。Component の更新は ComponentScheduler が行う）。
   `Destroy()` は遅延フラグを立てるだけ。`ObjectId Id()`、`GetScene()` で所属シーンに弱参照。
 - **Scene**（Scene/Scene.h）: 所有ツリーの根。GameObject を `unique_ptr` で所有。
+  ComponentScheduler を所有する。
   `Spawn<T>()` は更新中に呼ばれても安全なよう保留リストに積む。
-  `Update(float dt)` は **「生成反映 → 全更新 → 破棄回収」の 3 段階（順序厳守）**。
+  `Update(float dt)` は **「生成反映 → フェーズ実行 → 破棄回収」の 3 段階（順序厳守）**。
   `Find(ObjectId)` で弱参照を解決（今は線形で可）。
   `OnEnter()` / `OnExit()`。`LoadLevel(path)` は ObjectRegistry 経由で実体化。
 - **ObjectRegistry**（Core/ObjectRegistry.h）: 文字列型名 → 生成関数のファクトリ。

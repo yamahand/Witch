@@ -27,6 +27,9 @@ public:
     /// オーナーの Transform を読んで SubmitSprite を呼ぶ。
     void Update(float dt) override;
 
+    /// 描画提出は Render フェーズ（Animation / Camera で確定した状態を提出する）。
+    UpdatePhase Phase() const override { return UpdatePhase::Render; }
+
 #ifdef WITCH_DEBUG_UI
     /// レイヤー・カラー・flip・ソース矩形の状態表示と編集。
     void DrawDebugUI() override;

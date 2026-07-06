@@ -12,10 +12,8 @@ class SpriteComponent;
 /// コマごとの duration・タグ・ループ方向（forward / reverse / pingpong）に対応する。
 /// 兄弟解決は遅延を許す: AddComponent は OnAttach を push の前に呼ぶため、
 /// AsepriteComponent を先に追加すると OnAttach 時点では SpriteComponent がまだ無く、
-/// 解決は最初の Update の ResolveSprite まで遅れる。それでも **AsepriteComponent を
-/// 先に追加すると**コマ更新が同一フレームの描画に反映されるのは、追加順が更新順で
-/// あり、先に走る AsepriteComponent::Update がソース矩形を確定してから後続の
-/// SpriteComponent::Update が提出するため。逆順だと反映が 1 フレーム遅れる。
+/// 解決は最初の Update の ResolveSprite まで遅れる。Animation フェーズは Render
+/// フェーズより先に走るため、追加順によらずコマ更新は同一フレームの描画提出に反映される。
 /// シート差し替え時は SpriteComponent のテクスチャも張り替える。
 class AsepriteComponent : public Component {
 public:
@@ -23,6 +21,9 @@ public:
 
     void OnAttach() override;
     void Update(float dt) override;
+
+    /// コマ送りは Animation フェーズ（Render フェーズの提出より前に矩形を確定する）。
+    UpdatePhase Phase() const override { return UpdatePhase::Animation; }
 
 #ifdef WITCH_DEBUG_UI
     void DrawDebugUI() override;

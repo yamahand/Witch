@@ -1,4 +1,5 @@
 #include "WitchEngine/Scene/GameObject.h"
+#include "WitchEngine/Scene/Scene.h"
 
 namespace witch {
 
@@ -9,9 +10,14 @@ GameObject::~GameObject() {
     }
 }
 
-void GameObject::Update(float dt) {
-    for (auto& comp : components_) {
-        comp->Update(dt);
+void GameObject::Update(float /*dt*/) {
+    // オブジェクト単位のフック。既定では何もしない。
+    // Component の更新は Scene の ComponentScheduler がフェーズ順に行う。
+}
+
+void GameObject::RegisterComponent(Component* component) {
+    if (spawned_ && scene_) {
+        scene_->scheduler_.Register(component);
     }
 }
 
