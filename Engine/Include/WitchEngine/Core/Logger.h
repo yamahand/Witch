@@ -21,8 +21,11 @@ class ILogSink;
 class Logger {
 public:
     struct Config {
-        size_t textBufferCapacity = 100u * 1024 * 1024; ///< 1 面あたり。ダブルバッファで 2 面確保される
-        size_t recordCapacity = 100'000;                ///< 未フラッシュ LogRecord の上限。超えると強制 Flush
+        /// TextBuffer 1 面あたりの容量。ダブルバッファで 2 面確保される。
+        /// 毎フレーム Flush される前提では 1 フレーム分のログしか溜まらないため、
+        /// 既定は控えめにしてある（逼迫時は Log() 内から強制 Flush されるので安全）。
+        size_t textBufferCapacity = 8u * 1024 * 1024;
+        size_t recordCapacity = 10'000; ///< 未フラッシュ LogRecord の上限。超えると強制 Flush
     };
 
     explicit Logger(const Config& config = {});
