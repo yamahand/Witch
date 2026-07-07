@@ -83,18 +83,28 @@ void DrawChildren(const MenuNode& node) {
 
 } // namespace
 
-bool DebugMenu::AddItem(std::string path, Callback callback) {
+DebugMenu::ItemId DebugMenu::AddItem(std::string path, Callback callback) {
     // 空トークン（"Debug/" や "A//B" 等）はタイプミスの可能性が高く、空白の
     // メニュー項目が出てしまうため、警告して登録せずに無視する。
     const auto tokens = SplitTokens(path);
     if (std::ranges::any_of(tokens, [](std::string_view t) { return t.empty(); })) {
         log::Warn("DebugMenu::AddItem: path \"{}\" contains an empty token. Item ignored.",
                   path);
-        return false;
+        return kInvalidItemId;
+    }
+    // "##" は ImGui が ID 区切りとして解釈し、以降が非表示になる・他項目と ID が
+    // 衝突するなど意図しない挙動になるため拒否する（サブメニュー描画で内部的に
+    // 付与している "##menu" との相互作用も防ぐ）。
+    if (path.find("##") != std::string::npos) {
+        log::Warn("DebugMenu::AddItem: path \"{}\" contains \"##\" "
+                  "(reserved by ImGui as an ID separator). Item ignored.",
+                  path);
+        return kInvalidItemId;
     }
     // 同一 path の重複登録は後勝ち。旧項目の callback をその場で書き換えず、
     // 削除予約して新項目を積む（旧 callback の実行中に AddItem されても、実行中の
-    // std::function を破壊しないため）。表示位置は再登録側（末尾）に移る。
+    // std::function を破壊しないため）。旧 id は無効になり、表示位置は再登録側
+    // （末尾）に移る。
     for (auto& item : items_) {
         if (!item.pendingRemove && item.path == path) {
             log::Warn("DebugMenu::AddItem: duplicate path \"{}\". "
@@ -105,13 +115,14 @@ bool DebugMenu::AddItem(std::string path, Callback callback) {
             break;
         }
     }
-    items_.push_back(Item{std::move(path), std::move(callback)});
-    return true;
+    const ItemId id = nextId_++;
+    items_.push_back(Item{std::move(path), std::move(callback), id});
+    return id;
 }
 
-void DebugMenu::RemoveItem(std::string_view path) {
+void DebugMenu::RemoveItem(ItemId id) {
     for (auto& item : items_) {
-        if (!item.pendingRemove && item.path == path) {
+        if (!item.pendingRemove && item.id == id) {
             // 即時 erase せず削除予約に留める（メニューコールバック中に呼ばれても
             // 描画中の木や実行中の callback を無効化しないため。Scene の遅延破棄と同じ発想）。
             item.pendingRemove = true;
@@ -119,7 +130,8 @@ void DebugMenu::RemoveItem(std::string_view path) {
             return;
         }
     }
-    log::Warn("DebugMenu::RemoveItem: path \"{}\" is not registered.", path);
+    // 上書き登録（AddItem の後勝ち）で既に無効化された id もここに来る。
+    log::Warn("DebugMenu::RemoveItem: id {} is not registered.", id);
 }
 
 void DebugMenu::Draw() {
