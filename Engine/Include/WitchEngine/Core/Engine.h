@@ -18,6 +18,7 @@ class Logger;
 #ifdef WITCH_DEBUG_UI
 namespace witch::debug {
 class LogViewerWindow;
+class HierarchyWindow;
 } // namespace witch::debug
 #endif
 
@@ -72,6 +73,7 @@ private:
     std::unique_ptr<GameLoop>        gameLoop_;
 #ifdef WITCH_DEBUG_UI
     std::unique_ptr<debug::LogViewerWindow> logViewer_;
+    std::unique_ptr<debug::HierarchyWindow> hierarchyWindow_;
 #endif
     std::unique_ptr<Scene>           currentScene_;
     std::unique_ptr<Scene>           pendingScene_;

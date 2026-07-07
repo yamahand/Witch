@@ -7,6 +7,7 @@ class IRenderer;
 #ifdef WITCH_DEBUG_UI
 namespace witch::debug {
 class LogViewerWindow;
+class HierarchyWindow;
 } // namespace witch::debug
 #endif
 
@@ -43,6 +44,8 @@ public:
 #ifdef WITCH_DEBUG_UI
     /// エンジン標準の Log Viewer を設定する（非所有、Engine が所有）。null 可。
     void SetLogViewer(debug::LogViewerWindow* viewer) { logViewer_ = viewer; }
+    /// エンジン標準のヒエラルキー＋インスペクターを設定する（非所有、Engine が所有）。null 可。
+    void SetHierarchyWindow(debug::HierarchyWindow* window) { hierarchyWindow_ = window; }
 #endif
 
 private:
@@ -51,6 +54,7 @@ private:
     rhi::IRenderer* renderer_;
 #ifdef WITCH_DEBUG_UI
     debug::LogViewerWindow* logViewer_ = nullptr;
+    debug::HierarchyWindow* hierarchyWindow_ = nullptr;
 #endif
 };
 

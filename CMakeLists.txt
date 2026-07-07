@@ -173,7 +173,9 @@ if(WITCH_DEBUG_UI)
     # ※ 下の source_group(TREE ...) より前に追加すること。後だと SOURCES スナップショットに
     #   含まれず、ソリューションエクスプローラーで階層フィルタが適用されない。
     target_sources(WitchEngine PRIVATE
+        Engine/Source/Debug/HierarchyWindow.cpp
         Engine/Source/Debug/LogViewerWindow.cpp
+        Engine/Include/WitchEngine/Debug/HierarchyWindow.h
         Engine/Include/WitchEngine/Debug/LogViewerWindow.h
     )
 endif()
