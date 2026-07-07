@@ -4,9 +4,11 @@ namespace witch::rhi {
 class IRenderer;
 } // namespace witch::rhi
 
+#ifdef WITCH_DEBUG_UI
 namespace witch::debug {
 class LogViewerWindow;
 } // namespace witch::debug
+#endif
 
 namespace witch {
 
