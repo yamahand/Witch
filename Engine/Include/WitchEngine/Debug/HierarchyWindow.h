@@ -24,7 +24,7 @@ public:
 
 private:
     ObjectId selected_ = kInvalidId;  ///< 弱参照。消えたら未選択に戻す。
-    bool open_ = true;                ///< 起動時 ON。閉じたら再表示なし（ON/OFF 切替は今後追加）。
+    bool open_ = true;                ///< 起動時 ON。閉じても DebugMenu の "Hierarchy" 項目で再表示できる。
 };
 
 } // namespace witch::debug

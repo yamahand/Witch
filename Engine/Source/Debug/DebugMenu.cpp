@@ -50,6 +50,9 @@ void InsertPath(MenuNode& root, std::string_view path, const DebugMenu::Callback
 /// callback だけを持つノードは実行項目。両方持つ場合は MenuItem + サブメニューの両方を出す。
 void DrawChildren(const MenuNode& node) {
     for (const auto& child : node.children) {
+        // 葉（MenuItem）とサブメニュー（BeginMenu）が同名ラベルを共有しても
+        // ImGui の ID が衝突しないよう、ノードごとに ID スコープを切る。
+        ImGui::PushID(child.get());
         const std::string label(child->label);
         if (child->callback) {
             if (ImGui::MenuItem(label.c_str())) {
@@ -62,6 +65,7 @@ void DrawChildren(const MenuNode& node) {
                 ImGui::EndMenu();
             }
         }
+        ImGui::PopID();
     }
 }
 
