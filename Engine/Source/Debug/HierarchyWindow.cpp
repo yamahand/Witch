@@ -75,8 +75,22 @@ void HierarchyWindow::Draw(Scene* scene) {
         return;
     }
 
-    // ── 左ペイン: オブジェクト一覧 ──
+    // 選択中オブジェクトの解決は描画の可視性（BeginChild の戻り値）に依存させない。
+    // BeginChild はクリップされたフレームで false を返す契約があり、その内側でだけ
+    // 解決すると、選択中オブジェクトが実在していても表示が飛んだ 1 フレームで
+    // 選択状態を失ってしまう。
     GameObject* selectedObj = nullptr;
+    for (const auto& obj : scene->DebugObjects()) {
+        if (!obj->IsDestroyed() && obj->Id() == selected_) {
+            selectedObj = obj.get();
+            break;
+        }
+    }
+    // 選択オブジェクトが消えていたら未選択に戻す。
+    if (!selectedObj)
+        selected_ = kInvalidId;
+
+    // ── 左ペイン: オブジェクト一覧 ──
     if (ImGui::BeginChild("HierarchyPane", ImVec2(220, 0), ImGuiChildFlags_ResizeX)) {
         for (const auto& obj : scene->DebugObjects()) {
             if (obj->IsDestroyed()) continue;
@@ -84,17 +98,13 @@ void HierarchyWindow::Draw(Scene* scene) {
             const std::string label = std::format(
                 "{} (id={})", DisplayName(*obj), obj->Id());
             const bool isSelected = (obj->Id() == selected_);
-            if (ImGui::Selectable(label.c_str(), isSelected))
+            if (ImGui::Selectable(label.c_str(), isSelected)) {
                 selected_ = obj->Id();
-            if (obj->Id() == selected_)
                 selectedObj = obj.get();
+            }
         }
     }
     ImGui::EndChild();
-
-    // 選択オブジェクトが消えていたら未選択に戻す。
-    if (!selectedObj)
-        selected_ = kInvalidId;
 
     // ── 右ペイン: インスペクター ──
     ImGui::SameLine();

@@ -11,7 +11,9 @@ class DebugUI {
 public:
     virtual ~DebugUI() = default;
     /// 毎フレーム ImGui フレーム内で呼ばれる自由描画フック。既定は何もしない。
-    /// 選択状態に関わらず常時呼ばれる（オーバーレイ等の用途）。
+    /// GameObject / Scene は選択状態に関わらず常時呼ばれる（オーバーレイ等の用途）。
+    /// Component::DrawDebugUI() は現状呼び出し経路が無い（GameObject が転送しない）ため
+    /// override しても実行時に呼ばれない。Component の表示は DrawInspector() を使うこと。
     virtual void DrawDebugUI() {}
     /// ヒエラルキーウィンドウで選択されたときだけ呼ばれる。既定は何もしない
     /// （表示するものがない派生は実装不要）。TreeNode / PushID の枠は呼び出し側
