@@ -11,6 +11,10 @@ namespace witch::vfs {
 class Vfs;
 } // namespace witch::vfs
 
+namespace witch::log {
+class Logger;
+} // namespace witch::log
+
 namespace witch {
 
 class ResourceManager;
@@ -52,6 +56,7 @@ private:
     /// pendingScene_ を currentScene_ に昇格させる。フレーム先頭で呼ぶ。
     void ApplyPendingSceneChange();
 
+    std::unique_ptr<log::Logger>     logger_; ///< 最初に生成し、Shutdown で最後に破棄する
     std::unique_ptr<vfs::Vfs>        vfs_;
     std::unique_ptr<Time>            time_;
     std::unique_ptr<rhi::IRenderer>  renderer_;

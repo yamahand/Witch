@@ -1,5 +1,9 @@
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/GameLoop.h"
+#include "WitchEngine/Core/Log/ConsoleSink.h"
+#include "WitchEngine/Core/Log/DebugOutputSink.h"
+#include "WitchEngine/Core/Log/FileSink.h"
+#include "WitchEngine/Core/Log/ViewerSink.h"
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/ResourceManager.h"
 #include "WitchEngine/Graphics2D/CameraManager.h"
@@ -30,6 +34,22 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
 
     // アロケータ差し替えが有効か最初に検証する（他サービス生成前）。
     platform::EnsureAllocatorActive();
+
+    // Logger は他サービスより先に生成する。以降の Init 内ログ（他サービス含む）が
+    // Sink パイプラインを通るようにするため。Shutdown では逆に最後に破棄する。
+    logger_ = std::make_unique<log::Logger>();
+    logger_->AddSink(std::make_unique<log::ConsoleSink>());
+    logger_->AddSink(std::make_unique<log::DebugOutputSink>());
+    logger_->AddSink(std::make_unique<log::ViewerSink>());
+    Services::Instance().logger = logger_.get();
+
+    // ファイルログは開けなくても致命傷にしない（dev-Content マウント失敗時と同じ方針）。
+    // error() 自体が失敗内容の文言を含むため、ここでは前置きせずそのまま差し込む。
+    if (auto fileSink = log::FileSink::Create(platform::GetExecutableDir() / "Witch.log")) {
+        logger_->AddSink(std::move(*fileSink));
+    } else {
+        log::Warn("{}. Continuing without file logging.", fileSink.error());
+    }
 
     log::Info("Engine init start.");
     log::Info("Engine version: {}", WITCH_ENGINE_VERSION_STRING);
@@ -109,6 +129,12 @@ void Engine::Run() {
     running_ = true;
 
     while (running_) {
+        // このフレームで発生するログに載せる番号を先頭で確定する。time_->Tick() は
+        // GameLoop::Tick 内でこのフレームにつき 1 回だけ frameCount を進めるため、
+        // 「これから回すフレーム番号」= 現在値 + 1。フレーム先頭の ApplyPendingSceneChange
+        // 内のログも同じ番号で記録され、末尾では Flush のみに専念できる。
+        logger_->SetFrameNumber(time_->FrameCount() + 1);
+
         // シーン切り替えはフレーム先頭で適用してから当該シーンを回す。
         // （シーン管理の分離は将来 SceneManager へ切り出す予定。）
         // 遷移コスト（OnExit/OnEnter＋リソース読込）は GameLoop の "Frame" ゾーン外だが、
@@ -122,6 +148,9 @@ void Engine::Run() {
         if (!gameLoop_->Tick(currentScene_.get())) {
             running_ = false;
         }
+
+        // フレーム末に Deferred Sink（Console / File）を書き出す。
+        logger_->Flush();
 
         WITCH_PROFILE_FRAME();
     }
@@ -165,6 +194,14 @@ void Engine::Shutdown() {
     log::Info("Vfs destroyed.");
 
     log::Info("Engine shutdown complete.");
+
+    // Logger は最後に破棄する（上記のログを Deferred Sink まで届けてから）。
+    // 以降の log:: 呼び出しはファサードのフォールバック出力になる。
+    if (logger_) {
+        logger_->Flush();
+        Services::Instance().logger = nullptr;
+        logger_.reset();
+    }
 }
 
 void Engine::ApplyPendingSceneChange() {
