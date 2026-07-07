@@ -2,7 +2,8 @@
 
 namespace witch::log {
 
-ViewerSink::ViewerSink(size_t capacity) : capacity_(capacity) {
+ViewerSink::ViewerSink(size_t capacity)
+    : capacity_(capacity == 0 ? 1 : capacity) { // 0 はリング操作が UB になるため最低 1 に
     ring_.reserve(capacity_);
 }
 

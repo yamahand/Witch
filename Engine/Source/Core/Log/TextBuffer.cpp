@@ -4,7 +4,8 @@
 namespace witch::log {
 
 std::optional<uint32_t> TextBuffer::Append(std::string_view text) {
-    if (size_ + text.size() > buffer_.size()) {
+    // size_ + text.size() の加算オーバーフローを避けるため残容量ベースで判定する。
+    if (text.size() > buffer_.size() - size_) {
         return std::nullopt;
     }
     const auto offset = static_cast<uint32_t>(size_);

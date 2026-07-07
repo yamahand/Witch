@@ -5,6 +5,7 @@
 #include "Core/Log/LogRecord.h"
 #include "Core/Log/TextBuffer.h"
 #include <cstdio>
+#include <functional>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -101,18 +102,24 @@ void Logger::Log(LogLevel level, Category category, std::string_view message,
     {
         auto& buffer = impl_->buffers[impl_->active];
         const size_t needed = category.name.size() + message.size();
-        if (impl_->records.size() >= impl_->config.recordCapacity ||
-            buffer.Size() + needed > buffer.Capacity()) {
+        const size_t remaining = buffer.Capacity() - buffer.Size();
+        if (impl_->records.size() >= impl_->config.recordCapacity || needed > remaining) {
             impl_->FlushLocked();
         }
     }
 
     auto& buffer = impl_->buffers[impl_->active]; // Flush 後を指し直す
 
-    // 空バッファにすら収まらない病的なサイズだけは切り詰める。
+    // 空バッファにすら収まらない病的なサイズは切り詰める。カテゴリを先に確保し、
+    // 残りをメッセージへ割り当てる（カテゴリが容量以上なら本文保存は諦め、ハッシュのみ残す）。
+    const size_t capacity = buffer.Capacity();
+    std::string_view cat = category.name;
+    if (cat.size() > capacity) {
+        cat = {}; // 保存しきれないカテゴリ本文は捨てる（categoryHash は保持される）
+    }
     std::string_view msg = message;
-    if (category.name.size() + msg.size() > buffer.Capacity()) {
-        msg = msg.substr(0, buffer.Capacity() - category.name.size());
+    if (msg.size() > capacity - cat.size()) {
+        msg = msg.substr(0, capacity - cat.size());
     }
 
     LogRecord record{};
@@ -126,10 +133,10 @@ void Logger::Log(LogLevel level, Category category, std::string_view message,
     record.function = loc.function_name();
     record.line = loc.line();
 
-    if (!category.name.empty()) {
-        if (auto offset = buffer.Append(category.name)) {
+    if (!cat.empty()) {
+        if (auto offset = buffer.Append(cat)) {
             record.categoryOffset = *offset;
-            record.categoryLength = static_cast<uint32_t>(category.name.size());
+            record.categoryLength = static_cast<uint32_t>(cat.size());
         }
     }
     if (auto offset = buffer.Append(msg)) {

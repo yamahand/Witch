@@ -44,11 +44,11 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     Services::Instance().logger = logger_.get();
 
     // ファイルログは開けなくても致命傷にしない（dev-Content マウント失敗時と同じ方針）。
+    // error() 自体が失敗内容の文言を含むため、ここでは前置きせずそのまま差し込む。
     if (auto fileSink = log::FileSink::Create(platform::GetExecutableDir() / "Witch.log")) {
         logger_->AddSink(std::move(*fileSink));
     } else {
-        log::Warn("Failed to open log file: {}. Continuing without file logging.",
-                  fileSink.error());
+        log::Warn("{}. Continuing without file logging.", fileSink.error());
     }
 
     log::Info("Engine init start.");
@@ -129,6 +129,12 @@ void Engine::Run() {
     running_ = true;
 
     while (running_) {
+        // このフレームで発生するログに載せる番号を先頭で確定する。time_->Tick() は
+        // GameLoop::Tick 内でこのフレームにつき 1 回だけ frameCount を進めるため、
+        // 「これから回すフレーム番号」= 現在値 + 1。フレーム先頭の ApplyPendingSceneChange
+        // 内のログも同じ番号で記録され、末尾では Flush のみに専念できる。
+        logger_->SetFrameNumber(time_->FrameCount() + 1);
+
         // シーン切り替えはフレーム先頭で適用してから当該シーンを回す。
         // （シーン管理の分離は将来 SceneManager へ切り出す予定。）
         // 遷移コスト（OnExit/OnEnter＋リソース読込）は GameLoop の "Frame" ゾーン外だが、
@@ -144,7 +150,6 @@ void Engine::Run() {
         }
 
         // フレーム末に Deferred Sink（Console / File）を書き出す。
-        logger_->SetFrameNumber(time_->FrameCount());
         logger_->Flush();
 
         WITCH_PROFILE_FRAME();
