@@ -118,7 +118,7 @@ logger->AddSink(std::make_unique<log::ConsoleSink>(
 
 - Engine が所有し、GameLoop の DebugUI フェーズ（ImGui フレーム内）で毎フレーム `Draw()`
 - ViewerSink::Snapshot() をポーリングして "Log" ウィンドウに表示
-- 機能: レベル閾値、カテゴリ部分一致フィルタ、Auto-scroll、Clear、レベル別色分け、
-  行ホバーで file:line / function のツールチップ
+- 機能: レベル別の表示トグル（ON のレベルのみ表示）、ログ本文の部分一致フィルタ、
+  Auto-scroll、Clear、レベル別色分け、行ホバーで file:line / function のツールチップ
 - OFF ビルド（release 等）では表示側の .cpp ごとビルドから外れる
   （ViewerSink＝データ側は常時ビルドされる）

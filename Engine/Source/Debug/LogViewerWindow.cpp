@@ -39,32 +39,32 @@ void LogViewerWindow::Draw() {
     }
     ImGui::SameLine();
     ImGui::Checkbox("Auto-scroll", &autoScroll_);
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(90.0f);
-    {
-        static constexpr const char* kLevelNames[] = {"Trace", "Info", "Warn", "Error", "Fatal"};
-        int level = static_cast<int>(minLevel_);
-        if (ImGui::Combo("##minLevel", &level, kLevelNames, IM_ARRAYSIZE(kLevelNames))) {
-            minLevel_ = static_cast<log::LogLevel>(level);
-        }
+
+    // レベルごとの表示トグル。ON のレベルだけを表示する。
+    static constexpr const char* kLevelNames[kLevelCount] = {"Trace", "Info", "Warn", "Error", "Fatal"};
+    for (int i = 0; i < kLevelCount; ++i) {
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, LevelColor(static_cast<log::LogLevel>(i)));
+        ImGui::Checkbox(kLevelNames[i], &levelEnabled_[i]);
+        ImGui::PopStyleColor();
     }
-    ImGui::SameLine();
+
     ImGui::SetNextItemWidth(-1.0f);
-    ImGui::InputTextWithHint("##categoryFilter", "category filter",
-                             categoryFilter_, sizeof(categoryFilter_));
+    ImGui::InputTextWithHint("##filter", "filter (message)", filter_, sizeof(filter_));
 
     ImGui::Separator();
 
     // ── ログ本体 ──
     // Snapshot はコピーを返すが、既定容量 4096 件のデバッグ UI 用途では十分軽い。
     const auto entries = sink_->Snapshot();
-    const std::string_view filter(categoryFilter_);
+    const std::string_view filter(filter_);
 
     std::vector<const log::ViewerSink::Entry*> visible;
     visible.reserve(entries.size());
     for (const auto& e : entries) {
-        if (e.level < minLevel_) continue;
-        if (!filter.empty() && e.category.find(filter) == std::string::npos) continue;
+        const int levelIndex = static_cast<int>(e.level);
+        if (levelIndex < 0 || levelIndex >= kLevelCount || !levelEnabled_[levelIndex]) continue;
+        if (!filter.empty() && e.message.find(filter) == std::string::npos) continue;
         visible.push_back(&e);
     }
 

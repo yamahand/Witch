@@ -22,11 +22,15 @@ public:
     void Draw();
 
 private:
+    static constexpr int kLevelCount = 5; // Trace / Info / Warn / Error / Fatal
+
     log::ViewerSink* sink_;
     bool open_ = true;
     bool autoScroll_ = true;
-    log::LogLevel minLevel_ = log::LogLevel::Trace;
-    char categoryFilter_[64] = {};
+    // レベルごとの表示 ON/OFF。ON のレベルだけを表示する（閾値ではなく個別トグル）。
+    bool levelEnabled_[kLevelCount] = {true, true, true, true, true};
+    // ログ本文に対する部分一致フィルタ。空なら全件通す。
+    char filter_[64] = {};
 };
 
 } // namespace witch::debug
