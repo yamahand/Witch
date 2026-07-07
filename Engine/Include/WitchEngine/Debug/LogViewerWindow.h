@@ -21,6 +21,9 @@ public:
     /// ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）で毎フレーム呼ぶ。
     void Draw();
 
+    bool IsOpen() const { return open_; }
+    void SetOpen(bool open) { open_ = open; }
+
 private:
     static constexpr int kLevelCount = 5; // Trace / Info / Warn / Error / Fatal
 

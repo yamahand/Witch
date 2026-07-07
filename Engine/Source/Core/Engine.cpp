@@ -12,6 +12,7 @@
 #include "WitchEngine/Vfs/Vfs.h"
 #include "WitchEngine/Core/Version.h"
 #ifdef WITCH_DEBUG_UI
+#include "WitchEngine/Debug/DebugMenu.h"
 #include "WitchEngine/Debug/HierarchyWindow.h"
 #include "WitchEngine/Debug/LogViewerWindow.h"
 #endif
@@ -134,6 +135,18 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     // シーンには依存しない（毎フレーム Tick が現在シーンを渡す）ため、ここで生成してよい。
     hierarchyWindow_ = std::make_unique<debug::HierarchyWindow>();
     gameLoop_->SetHierarchyWindow(hierarchyWindow_.get());
+
+    // デバッグウィンドウ外を右クリックしたときのコンテキストメニュー。
+    // エンジン標準の表示切替項目をここで登録し、以降はゲーム側が GetDebugMenu() 経由で
+    // 自由に項目を追加できる。
+    debugMenu_ = std::make_unique<debug::DebugMenu>();
+    debugMenu_->AddItem("Log Viewer", [this] {
+        logViewer_->SetOpen(!logViewer_->IsOpen());
+    });
+    debugMenu_->AddItem("Hierarchy", [this] {
+        hierarchyWindow_->SetOpen(!hierarchyWindow_->IsOpen());
+    });
+    gameLoop_->SetDebugMenu(debugMenu_.get());
 #endif
 
     initialized_ = true;
@@ -178,6 +191,7 @@ void Engine::Shutdown() {
     // GameLoop は最後に生成したので最初に破棄する（time_/input_/renderer_ を弱参照するため）。
     gameLoop_.reset();
 #ifdef WITCH_DEBUG_UI
+    debugMenu_.reset();
     hierarchyWindow_.reset();
     logViewer_.reset(); // ViewerSink（Logger 所有）より先に破棄する
 #endif
