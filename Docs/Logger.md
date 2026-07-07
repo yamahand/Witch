@@ -109,5 +109,16 @@ log::Info(kPhysics, "collision resolved dt={}", dt);
 logger->AddSink(std::make_unique<log::ConsoleSink>(
     nullptr, std::make_unique<log::LevelFilter>(log::LogLevel::Warn)));
 
-// ImGui Viewer 側（将来・WITCH_DEBUG_UI 内）: ViewerSink::Snapshot() を描画するだけ
 ```
+
+## ImGui Log Viewer（表示側）
+
+`Engine/Include/WitchEngine/Debug/LogViewerWindow.h`（WITCH_DEBUG_UI 定義時のみ存在）。
+依存は Viewer → ViewerSink の一方向のみで、Logger 側は Viewer を知らない。
+
+- Engine が所有し、GameLoop の DebugUI フェーズ（ImGui フレーム内）で毎フレーム `Draw()`
+- ViewerSink::Snapshot() をポーリングして "Log" ウィンドウに表示
+- 機能: レベル別の表示トグル（ON のレベルのみ表示）、ログ本文の部分一致フィルタ、
+  Auto-scroll、Clear、レベル別色分け、行ホバーで file:line / function のツールチップ
+- OFF ビルド（release 等）では表示側の .cpp ごとビルドから外れる
+  （ViewerSink＝データ側は常時ビルドされる）

@@ -31,6 +31,12 @@ void ViewerSink::Write(const LogView& view) {
     }
 }
 
+void ViewerSink::Clear() {
+    std::lock_guard lock(mutex_);
+    ring_.clear();
+    head_ = 0;
+}
+
 std::vector<ViewerSink::Entry> ViewerSink::Snapshot() const {
     std::lock_guard lock(mutex_);
     if (ring_.size() < capacity_) {

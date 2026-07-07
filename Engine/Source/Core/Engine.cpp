@@ -11,6 +11,9 @@
 #include "WitchEngine/Rhi/IRenderer.h"
 #include "WitchEngine/Vfs/Vfs.h"
 #include "WitchEngine/Core/Version.h"
+#ifdef WITCH_DEBUG_UI
+#include "WitchEngine/Debug/LogViewerWindow.h"
+#endif
 #include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
 #include "Platform/PlatformFactory.h"
@@ -40,7 +43,13 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     logger_ = std::make_unique<log::Logger>();
     logger_->AddSink(std::make_unique<log::ConsoleSink>());
     logger_->AddSink(std::make_unique<log::DebugOutputSink>());
-    logger_->AddSink(std::make_unique<log::ViewerSink>());
+    auto viewerSink = std::make_unique<log::ViewerSink>();
+#ifdef WITCH_DEBUG_UI
+    // ViewerSink（データ側）は Logger が所有し、表示側の LogViewerWindow は Engine が
+    // 所有して非所有ポインタで参照する（Logger と Viewer の分離を保つ）。
+    logViewer_ = std::make_unique<debug::LogViewerWindow>(viewerSink.get());
+#endif
+    logger_->AddSink(std::move(viewerSink));
     Services::Instance().logger = logger_.get();
 
     // ファイルログは開けなくても致命傷にしない（dev-Content マウント失敗時と同じ方針）。
@@ -119,6 +128,9 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     // フレーム位相のオーケストレータ。全サービス生成後に、依存を注入して作る。
     // Init が成功して返る以上、time_/input_/renderer_ は必ず有効。
     gameLoop_ = std::make_unique<GameLoop>(time_.get(), input_.get(), renderer_.get());
+#ifdef WITCH_DEBUG_UI
+    gameLoop_->SetLogViewer(logViewer_.get());
+#endif
 
     initialized_ = true;
     log::Info("Engine init complete.");
@@ -161,6 +173,9 @@ void Engine::Run() {
 void Engine::Shutdown() {
     // GameLoop は最後に生成したので最初に破棄する（time_/input_/renderer_ を弱参照するため）。
     gameLoop_.reset();
+#ifdef WITCH_DEBUG_UI
+    logViewer_.reset(); // ViewerSink（Logger 所有）より先に破棄する
+#endif
 
     if (currentScene_) {
         currentScene_->OnExit();

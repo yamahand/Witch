@@ -58,8 +58,8 @@ compile_commands.json
 *.vcxproj.user
 *.slnx
 *.dir/
-Debug/
-Release/
+/Debug/
+/Release/
 out/
 .vs/
 

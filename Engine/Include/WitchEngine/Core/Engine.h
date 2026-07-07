@@ -15,6 +15,12 @@ namespace witch::log {
 class Logger;
 } // namespace witch::log
 
+#ifdef WITCH_DEBUG_UI
+namespace witch::debug {
+class LogViewerWindow;
+} // namespace witch::debug
+#endif
+
 namespace witch {
 
 class ResourceManager;
@@ -64,6 +70,9 @@ private:
     std::unique_ptr<ResourceManager> resourceManager_;
     std::unique_ptr<CameraManager>   cameraManager_;
     std::unique_ptr<GameLoop>        gameLoop_;
+#ifdef WITCH_DEBUG_UI
+    std::unique_ptr<debug::LogViewerWindow> logViewer_;
+#endif
     std::unique_ptr<Scene>           currentScene_;
     std::unique_ptr<Scene>           pendingScene_;
     bool running_     = false;

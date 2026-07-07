@@ -160,11 +160,6 @@ if(WIN32)
     target_link_libraries(WitchEngine PRIVATE mimalloc)
 endif()
 
-# Visual Studio のソリューションエクスプローラーで実ディレクトリ階層通りの
-# フィルターを作る（ヘッダも target_sources 済みなので Header Files 相当も分類される）。
-get_target_property(_WitchEngineSources WitchEngine SOURCES)
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${_WitchEngineSources})
-
 if(WITCH_DEBUG_UI)
     # ImGui はゲーム側が GameObject::DrawDebugUI() 内で直接使う設計のため、あえて PUBLIC で
     # Game へ伝播させる（デバッグ UI 記述のイテレーション速度を優先）。
@@ -172,7 +167,21 @@ if(WITCH_DEBUG_UI)
     # #ifdef WITCH_DEBUG_UI で守れるようにする。
     target_link_libraries(WitchEngine PUBLIC imgui::imgui)
     target_compile_definitions(WitchEngine PUBLIC WITCH_DEBUG_UI)
+
+    # エンジン標準の ImGui Log Viewer。ViewerSink（データ側・常時ビルド）と分離し、
+    # 表示側だけを WITCH_DEBUG_UI に閉じ込める。
+    # ※ 下の source_group(TREE ...) より前に追加すること。後だと SOURCES スナップショットに
+    #   含まれず、ソリューションエクスプローラーで階層フィルタが適用されない。
+    target_sources(WitchEngine PRIVATE
+        Engine/Source/Debug/LogViewerWindow.cpp
+        Engine/Include/WitchEngine/Debug/LogViewerWindow.h
+    )
 endif()
+
+# Visual Studio のソリューションエクスプローラーで実ディレクトリ階層通りの
+# フィルターを作る（ヘッダも target_sources 済みなので Header Files 相当も分類される）。
+get_target_property(_WitchEngineSources WitchEngine SOURCES)
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${_WitchEngineSources})
 
 # ─── Tracy profiling ─────────────────────────────────────────────────────────
 # WITCH_PROFILING=ON のときだけ Tracy をリンクし TRACY_ENABLE を定義する。
