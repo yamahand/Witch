@@ -19,9 +19,12 @@ public:
     /// @param scene 表示対象の現在シーン（非所有）。null 可（シーン未設定時は何もしない）。
     void Draw(Scene* scene);
 
+    bool IsOpen() const { return open_; }
+    void SetOpen(bool open) { open_ = open; }
+
 private:
     ObjectId selected_ = kInvalidId;  ///< 弱参照。消えたら未選択に戻す。
-    bool open_ = true;                ///< 起動時 ON。閉じたら再表示なし（ON/OFF 切替は今後追加）。
+    bool open_ = true;                ///< 起動時 ON。閉じても DebugMenu の "Hierarchy" 項目で再表示できる。
 };
 
 } // namespace witch::debug

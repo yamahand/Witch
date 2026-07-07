@@ -8,6 +8,7 @@ class IRenderer;
 namespace witch::debug {
 class LogViewerWindow;
 class HierarchyWindow;
+class DebugMenu;
 } // namespace witch::debug
 #endif
 
@@ -46,6 +47,9 @@ public:
     void SetLogViewer(debug::LogViewerWindow* viewer) { logViewer_ = viewer; }
     /// エンジン標準のヒエラルキー＋インスペクターを設定する（非所有、Engine が所有）。null 可。
     void SetHierarchyWindow(debug::HierarchyWindow* window) { hierarchyWindow_ = window; }
+    /// デバッグウィンドウ外を右クリックしたときのコンテキストメニューを設定する
+    /// （非所有、Engine が所有）。null 可。
+    void SetDebugMenu(debug::DebugMenu* menu) { debugMenu_ = menu; }
 #endif
 
 private:
@@ -55,6 +59,7 @@ private:
 #ifdef WITCH_DEBUG_UI
     debug::LogViewerWindow* logViewer_ = nullptr;
     debug::HierarchyWindow* hierarchyWindow_ = nullptr;
+    debug::DebugMenu*       debugMenu_ = nullptr;
 #endif
 };
 

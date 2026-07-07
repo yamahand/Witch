@@ -10,6 +10,7 @@
 #include <cassert>
 
 #ifdef WITCH_DEBUG_UI
+#include "WitchEngine/Debug/DebugMenu.h"
 #include "WitchEngine/Debug/HierarchyWindow.h"
 #include "WitchEngine/Debug/LogViewerWindow.h"
 #endif
@@ -71,6 +72,10 @@ bool GameLoop::Tick(Scene* currentScene) {
         if (currentScene) currentScene->DrawDebugUI();
         if (hierarchyWindow_) hierarchyWindow_->Draw(currentScene); // ヒエラルキー＋インスペクター
         if (logViewer_) logViewer_->Draw(); // エンジン標準の Log Viewer
+        // デバッグウィンドウ外を右クリックしたときのコンテキストメニュー。
+        // BeginPopupContextVoid はどの ImGui ウィンドウ上でもないかを内部で判定するため、
+        // 他ウィンドウの描画より前後どちらでもよいが、並びを一貫させるため最後に呼ぶ。
+        if (debugMenu_) debugMenu_->Draw();
     }
 #endif
 

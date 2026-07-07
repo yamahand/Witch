@@ -175,8 +175,11 @@ if(WITCH_DEBUG_UI)
     target_sources(WitchEngine PRIVATE
         Engine/Source/Debug/HierarchyWindow.cpp
         Engine/Source/Debug/LogViewerWindow.cpp
+        Engine/Source/Debug/DebugMenu.cpp
         Engine/Include/WitchEngine/Debug/HierarchyWindow.h
         Engine/Include/WitchEngine/Debug/LogViewerWindow.h
+        Engine/Include/WitchEngine/Debug/DebugMenu.h
+        Engine/Include/WitchEngine/Debug/DebugMenuItem.h
     )
 endif()
 

@@ -19,6 +19,7 @@ class Logger;
 namespace witch::debug {
 class LogViewerWindow;
 class HierarchyWindow;
+class DebugMenu;
 } // namespace witch::debug
 #endif
 
@@ -54,6 +55,12 @@ public:
 
     Services& GetServices() { return Services::Instance(); }
 
+#ifdef WITCH_DEBUG_UI
+    /// デバッグウィンドウ外を右クリックしたときのコンテキストメニュー。ゲーム側から
+    /// AddItem() で項目を追加できる（"/" 区切りでネスト可）。WITCH_DEBUG_UI 限定。
+    debug::DebugMenu* GetDebugMenu() { return debugMenu_.get(); }
+#endif
+
 private:
     Engine() = default;
     ~Engine() = default;
@@ -74,6 +81,7 @@ private:
 #ifdef WITCH_DEBUG_UI
     std::unique_ptr<debug::LogViewerWindow> logViewer_;
     std::unique_ptr<debug::HierarchyWindow> hierarchyWindow_;
+    std::unique_ptr<debug::DebugMenu>       debugMenu_;
 #endif
     std::unique_ptr<Scene>           currentScene_;
     std::unique_ptr<Scene>           pendingScene_;
