@@ -3,6 +3,7 @@
 #include "WitchEngine/Core/Logger.h"
 
 #include <imgui.h>
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -32,32 +33,29 @@ struct MenuNode {
     }
 };
 
-/// path が空トークンを含むか（空文字列、先頭/末尾の '/'、"//" の連続）。
-/// InsertPath と同じ分割規則で判定する。
-bool HasEmptyToken(std::string_view path) {
-    size_t start = 0;
-    while (true) {
-        const size_t slash = path.find('/', start);
-        const size_t end = (slash == std::string_view::npos) ? path.size() : slash;
-        if (end == start) return true;
-        if (slash == std::string_view::npos) return false;
-        start = slash + 1;
-    }
-}
-
-/// path を "/" で分割しながら木にたどり、葉に callback を設定する。
-/// "Debug/Toggle Collider" -> root -> "Debug" -> "Toggle Collider"(callback)。
-void InsertPath(MenuNode& root, std::string_view path, const DebugMenu::Callback* callback) {
-    MenuNode* node = &root;
+/// path を "/" で分割したトークン列を返す。分割規則はここに一元化する
+/// （空トークン判定と木構築で規則がズレないようにするため）。
+/// "Debug/Toggle Collider" -> {"Debug", "Toggle Collider"}。空文字列 -> {""}。
+std::vector<std::string_view> SplitTokens(std::string_view path) {
+    std::vector<std::string_view> tokens;
     size_t start = 0;
     while (start <= path.size()) {
         const size_t slash = path.find('/', start);
         const size_t end = (slash == std::string_view::npos) ? path.size() : slash;
-        node = node->ChildFor(path.substr(start, end - start));
+        tokens.push_back(path.substr(start, end - start));
         if (slash == std::string_view::npos) break;
         start = slash + 1;
     }
-    node->callback = callback; // 葉に到達。同一パス重複時は後勝ち。
+    return tokens;
+}
+
+/// path のトークン列をたどって木に挿入し、葉に callback を設定する。
+void InsertPath(MenuNode& root, std::string_view path, const DebugMenu::Callback* callback) {
+    MenuNode* node = &root;
+    for (const std::string_view token : SplitTokens(path)) {
+        node = node->ChildFor(token);
+    }
+    node->callback = callback; // 葉に到達。
 }
 
 /// root の子を ImGui のメニュー項目として描く。children を持つノードはサブメニュー、
@@ -85,28 +83,52 @@ void DrawChildren(const MenuNode& node) {
 
 } // namespace
 
-void DebugMenu::AddItem(std::string path, Callback callback) {
+bool DebugMenu::AddItem(std::string path, Callback callback) {
     // 空トークン（"Debug/" や "A//B" 等）はタイプミスの可能性が高く、空白の
     // メニュー項目が出てしまうため、警告して登録せずに無視する。
-    if (HasEmptyToken(path)) {
+    const auto tokens = SplitTokens(path);
+    if (std::ranges::any_of(tokens, [](std::string_view t) { return t.empty(); })) {
         log::Warn("DebugMenu::AddItem: path \"{}\" contains an empty token. Item ignored.",
                   path);
-        return;
+        return false;
     }
-    // 同一 path の重複登録は後勝ちで上書きされる（InsertPath 参照）。意図しない
-    // 使い回しに気付けるよう警告だけ出す。
-    for (const auto& item : items_) {
-        if (item.path == path) {
+    // 同一 path の重複登録は後勝ち。旧項目の callback をその場で書き換えず、
+    // 削除予約して新項目を積む（旧 callback の実行中に AddItem されても、実行中の
+    // std::function を破壊しないため）。表示位置は再登録側（末尾）に移る。
+    for (auto& item : items_) {
+        if (!item.pendingRemove && item.path == path) {
             log::Warn("DebugMenu::AddItem: duplicate path \"{}\". "
                       "The existing callback will be overridden.",
                       path);
+            item.pendingRemove = true;
+            hasPendingRemove_ = true;
             break;
         }
     }
     items_.push_back(Item{std::move(path), std::move(callback)});
+    return true;
+}
+
+void DebugMenu::RemoveItem(std::string_view path) {
+    for (auto& item : items_) {
+        if (!item.pendingRemove && item.path == path) {
+            // 即時 erase せず削除予約に留める（メニューコールバック中に呼ばれても
+            // 描画中の木や実行中の callback を無効化しないため。Scene の遅延破棄と同じ発想）。
+            item.pendingRemove = true;
+            hasPendingRemove_ = true;
+            return;
+        }
+    }
+    log::Warn("DebugMenu::RemoveItem: path \"{}\" is not registered.", path);
 }
 
 void DebugMenu::Draw() {
+    // 削除予約の回収はコールバックが走っていない Draw 先頭で行う。
+    if (hasPendingRemove_) {
+        std::erase_if(items_, [](const Item& item) { return item.pendingRemove; });
+        hasPendingRemove_ = false;
+    }
+
     if (!ImGui::BeginPopupContextVoid("DebugMenuPopup", ImGuiPopupFlags_MouseButtonRight)) {
         return;
     }

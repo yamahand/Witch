@@ -179,6 +179,7 @@ if(WITCH_DEBUG_UI)
         Engine/Include/WitchEngine/Debug/HierarchyWindow.h
         Engine/Include/WitchEngine/Debug/LogViewerWindow.h
         Engine/Include/WitchEngine/Debug/DebugMenu.h
+        Engine/Include/WitchEngine/Debug/DebugMenuItem.h
     )
 endif()
 

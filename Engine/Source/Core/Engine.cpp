@@ -190,17 +190,20 @@ void Engine::Run() {
 void Engine::Shutdown() {
     // GameLoop は最後に生成したので最初に破棄する（time_/input_/renderer_ を弱参照するため）。
     gameLoop_.reset();
-#ifdef WITCH_DEBUG_UI
-    debugMenu_.reset();
-    hierarchyWindow_.reset();
-    logViewer_.reset(); // ViewerSink（Logger 所有）より先に破棄する
-#endif
 
+    // シーンはデバッグ UI より先に破棄する。ゲーム側の GameObject / Component が
+    // DebugMenuItem（デストラクタで DebugMenu::RemoveItem を呼ぶ）を持てるようにするため。
     if (currentScene_) {
         currentScene_->OnExit();
         currentScene_.reset();
     }
     pendingScene_.reset();
+
+#ifdef WITCH_DEBUG_UI
+    debugMenu_.reset();
+    hierarchyWindow_.reset();
+    logViewer_.reset(); // ViewerSink（Logger 所有）より先に破棄する
+#endif
 
     // Destroy services in reverse creation order.
     Services::Instance().cameras = nullptr;
