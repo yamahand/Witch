@@ -1,8 +1,8 @@
 #pragma once
 #ifdef WITCH_DEBUG_UI
+#include <deque>
 #include <functional>
 #include <string>
-#include <vector>
 
 namespace witch::debug {
 
@@ -27,7 +27,10 @@ private:
         std::string path;
         Callback callback;
     };
-    std::vector<Item> items_;
+    // deque なのは push_back で既存要素への参照が無効化されないため。
+    // Draw() 中の木は items_ の callback を指しており、メニュー項目のコールバック内から
+    // AddItem() が呼ばれても（項目の動的追加）ぶら下がりポインタにならない。
+    std::deque<Item> items_;
 };
 
 } // namespace witch::debug

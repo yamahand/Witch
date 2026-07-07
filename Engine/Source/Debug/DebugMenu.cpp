@@ -50,22 +50,22 @@ void InsertPath(MenuNode& root, std::string_view path, const DebugMenu::Callback
 /// callback だけを持つノードは実行項目。両方持つ場合は MenuItem + サブメニューの両方を出す。
 void DrawChildren(const MenuNode& node) {
     for (const auto& child : node.children) {
-        // 葉（MenuItem）とサブメニュー（BeginMenu）が同名ラベルを共有しても
-        // ImGui の ID が衝突しないよう、ノードごとに ID スコープを切る。
-        ImGui::PushID(child.get());
-        const std::string label(child->label);
+        // ID はラベル文字列から生成させる（フレーム間で安定。ポインタ由来だと
+        // 木を毎フレーム作り直す都合で ID が変わり、サブメニューのホバー展開が壊れる）。
+        // 兄弟間のラベル一意性は ChildFor のマージが保証する。葉（MenuItem）と
+        // サブメニュー（BeginMenu）が同名ラベルを共有する場合の ID 衝突は、
+        // サブメニュー側に "##menu" を付けて回避する（"##" 以降は表示されない）。
         if (child->callback) {
-            if (ImGui::MenuItem(label.c_str())) {
+            if (ImGui::MenuItem(child->label.c_str())) {
                 (*child->callback)();
             }
         }
         if (!child->children.empty()) {
-            if (ImGui::BeginMenu(label.c_str())) {
+            if (ImGui::BeginMenu((child->label + "##menu").c_str())) {
                 DrawChildren(*child);
                 ImGui::EndMenu();
             }
         }
-        ImGui::PopID();
     }
 }
 
