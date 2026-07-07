@@ -16,6 +16,8 @@ public:
 
     /// 項目を登録する。path は "/" 区切りでネスト階層を表す。
     /// 登録順を各階層内の表示順として保持する（アルファベット順ソートはしない）。
+    /// 空トークンを含む path（"Debug/" や "A//B" 等）は警告を出して登録せず無視する。
+    /// 同一 path の重複登録は警告を出した上で後勝ち（既存 callback を上書き）。
     void AddItem(std::string path, Callback callback);
 
     /// ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）で毎フレーム呼ぶ。

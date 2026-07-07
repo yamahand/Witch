@@ -1,5 +1,6 @@
 #ifdef WITCH_DEBUG_UI
 #include "WitchEngine/Debug/DebugMenu.h"
+#include "WitchEngine/Core/Logger.h"
 
 #include <imgui.h>
 #include <memory>
@@ -30,6 +31,19 @@ struct MenuNode {
         return children.back().get();
     }
 };
+
+/// path が空トークンを含むか（空文字列、先頭/末尾の '/'、"//" の連続）。
+/// InsertPath と同じ分割規則で判定する。
+bool HasEmptyToken(std::string_view path) {
+    size_t start = 0;
+    while (true) {
+        const size_t slash = path.find('/', start);
+        const size_t end = (slash == std::string_view::npos) ? path.size() : slash;
+        if (end == start) return true;
+        if (slash == std::string_view::npos) return false;
+        start = slash + 1;
+    }
+}
 
 /// path を "/" で分割しながら木にたどり、葉に callback を設定する。
 /// "Debug/Toggle Collider" -> root -> "Debug" -> "Toggle Collider"(callback)。
@@ -72,6 +86,23 @@ void DrawChildren(const MenuNode& node) {
 } // namespace
 
 void DebugMenu::AddItem(std::string path, Callback callback) {
+    // 空トークン（"Debug/" や "A//B" 等）はタイプミスの可能性が高く、空白の
+    // メニュー項目が出てしまうため、警告して登録せずに無視する。
+    if (HasEmptyToken(path)) {
+        log::Warn("DebugMenu::AddItem: path \"{}\" contains an empty token. Item ignored.",
+                  path);
+        return;
+    }
+    // 同一 path の重複登録は後勝ちで上書きされる（InsertPath 参照）。意図しない
+    // 使い回しに気付けるよう警告だけ出す。
+    for (const auto& item : items_) {
+        if (item.path == path) {
+            log::Warn("DebugMenu::AddItem: duplicate path \"{}\". "
+                      "The existing callback will be overridden.",
+                      path);
+            break;
+        }
+    }
     items_.push_back(Item{std::move(path), std::move(callback)});
 }
 
