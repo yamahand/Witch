@@ -92,22 +92,17 @@ void AnimationComponent::ApplyFrame() {
 }
 
 #ifdef WITCH_DEBUG_UI
-void AnimationComponent::DrawDebugUI() {
-    ImGui::PushID(this);
-    if (ImGui::TreeNode("AnimationComponent")) {
-        ImGui::Text("frame %d/%d (cell %d)  %s%s",
-                    frameIndex_, static_cast<int>(clip_.frames.size()),
-                    clip_.frames.empty() ? -1 : clip_.frames[frameIndex_],
-                    playing_ ? "playing" : "stopped",
-                    finished_ ? " (finished)" : "");
-        ImGui::DragFloat("fps", &clip_.fps, 0.5f, 0.0f, 120.0f);
-        ImGui::Checkbox("loop", &clip_.loop);
-        if (ImGui::Button("Play")) Play();
-        ImGui::SameLine();
-        if (ImGui::Button("Stop")) Stop();
-        ImGui::TreePop();
-    }
-    ImGui::PopID();
+void AnimationComponent::DrawInspector() {
+    ImGui::Text("frame %d/%d (cell %d)  %s%s",
+                frameIndex_, static_cast<int>(clip_.frames.size()),
+                clip_.frames.empty() ? -1 : clip_.frames[frameIndex_],
+                playing_ ? "playing" : "stopped",
+                finished_ ? " (finished)" : "");
+    ImGui::DragFloat("fps", &clip_.fps, 0.5f, 0.0f, 120.0f);
+    ImGui::Checkbox("loop", &clip_.loop);
+    if (ImGui::Button("Play")) Play();
+    ImGui::SameLine();
+    if (ImGui::Button("Stop")) Stop();
 }
 #endif
 

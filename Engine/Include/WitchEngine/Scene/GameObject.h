@@ -4,7 +4,11 @@
 #include "WitchEngine/Scene/Transform.h"
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
+#ifdef WITCH_DEBUG_UI
+#include <span>
+#endif
 
 namespace witch {
 
@@ -27,11 +31,6 @@ public:
     /// 毎フレーム Update フェーズの先頭で呼ばれるオブジェクト単位のフック。既定は空。
     /// Component の更新はここでは行わない（Scene の ComponentScheduler がフェーズ順に回す）。
     virtual void Update(float dt);
-#ifdef WITCH_DEBUG_UI
-    /// ImGui フレーム内で呼ばれる。既定で全 Component の DrawDebugUI を呼ぶ。
-    /// サブクラスは追加の ImGui::* 呼び出しを書いて base を呼ぶ。
-    void DrawDebugUI() override;
-#endif
     /// 破棄直前に呼ばれる。
     virtual void OnDespawn() {}
 
@@ -52,6 +51,16 @@ public:
     ObjectId Id() const { return id_; }
     Scene* GetScene() const { return scene_; }
 
+    /// デバッグ表示・レベルエディタ連携用の名前。未設定（空）を許す。
+    /// ヒエラルキーウィンドウは空のとき型名にフォールバックして表示する。
+    void SetName(std::string name) { name_ = std::move(name); }
+    const std::string& Name() const { return name_; }
+
+#ifdef WITCH_DEBUG_UI
+    /// HierarchyWindow が Component を列挙するための読み取り専用ビュー。
+    std::span<const std::unique_ptr<Component>> DebugComponents() const { return components_; }
+#endif
+
     Transform transform;
 
 private:
@@ -66,6 +75,7 @@ private:
 
     ObjectId id_ = kInvalidId;
     Scene* scene_ = nullptr;
+    std::string name_;
     bool pendingDestroy_ = false;
     bool spawned_ = false;  ///< Scene の生成反映ステージ通過済みか（Scene が立てる）。
     std::vector<std::unique_ptr<Component>> components_;

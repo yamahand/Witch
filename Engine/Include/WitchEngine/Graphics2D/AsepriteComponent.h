@@ -26,7 +26,7 @@ public:
     UpdatePhase Phase() const override { return UpdatePhase::Animation; }
 
 #ifdef WITCH_DEBUG_UI
-    void DrawDebugUI() override;
+    void DrawInspector() override;
 #endif
 
     /// 全フレームを先頭から無限ループで再生する。

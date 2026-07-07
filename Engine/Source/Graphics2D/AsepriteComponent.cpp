@@ -166,31 +166,26 @@ void AsepriteComponent::ApplyFrame() {
 }
 
 #ifdef WITCH_DEBUG_UI
-void AsepriteComponent::DrawDebugUI() {
-    ImGui::PushID(this);
-    if (ImGui::TreeNode("AsepriteComponent")) {
-        const int total = sheet_ ? static_cast<int>(sheet_->frames.size()) : 0;
-        ImGui::Text("frame %d/%d  range [%d..%d]  %s%s",
-                    frame_, total, from_, to_,
-                    playing_ ? "playing" : "stopped",
-                    finished_ ? " (finished)" : "");
-        if (sheet_) {
-            ImGui::Text("sheet: %dx%d, %d tags",
-                        sheet_->frameWidth, sheet_->frameHeight,
-                        static_cast<int>(sheet_->tags.size()));
-            for (const auto& tag : sheet_->tags) {
-                if (ImGui::SmallButton(tag.name.c_str()))
-                    Play(tag.name);
-                ImGui::SameLine();
-            }
-            ImGui::NewLine();
+void AsepriteComponent::DrawInspector() {
+    const int total = sheet_ ? static_cast<int>(sheet_->frames.size()) : 0;
+    ImGui::Text("frame %d/%d  range [%d..%d]  %s%s",
+                frame_, total, from_, to_,
+                playing_ ? "playing" : "stopped",
+                finished_ ? " (finished)" : "");
+    if (sheet_) {
+        ImGui::Text("sheet: %dx%d, %d tags",
+                    sheet_->frameWidth, sheet_->frameHeight,
+                    static_cast<int>(sheet_->tags.size()));
+        for (const auto& tag : sheet_->tags) {
+            if (ImGui::SmallButton(tag.name.c_str()))
+                Play(tag.name);
+            ImGui::SameLine();
         }
-        if (ImGui::Button("Play")) Play();
-        ImGui::SameLine();
-        if (ImGui::Button("Stop")) Stop();
-        ImGui::TreePop();
+        ImGui::NewLine();
     }
-    ImGui::PopID();
+    if (ImGui::Button("Play")) Play();
+    ImGui::SameLine();
+    if (ImGui::Button("Stop")) Stop();
 }
 #endif
 

@@ -21,12 +21,4 @@ void GameObject::RegisterComponent(Component* component) {
     }
 }
 
-#ifdef WITCH_DEBUG_UI
-void GameObject::DrawDebugUI() {
-    for (auto& comp : components_) {
-        comp->DrawDebugUI();
-    }
-}
-#endif
-
 } // namespace witch
