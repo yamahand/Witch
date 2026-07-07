@@ -32,7 +32,7 @@ public:
 
 #ifdef WITCH_DEBUG_UI
     /// レイヤー・カラー・flip・ソース矩形の状態表示と編集。
-    void DrawDebugUI() override;
+    void DrawInspector() override;
 #endif
 
     void SetAnchor(Anchor anchor) { anchor_ = anchor; }

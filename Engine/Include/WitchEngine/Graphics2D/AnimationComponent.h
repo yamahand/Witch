@@ -34,7 +34,7 @@ public:
     UpdatePhase Phase() const override { return UpdatePhase::Animation; }
 
 #ifdef WITCH_DEBUG_UI
-    void DrawDebugUI() override;
+    void DrawInspector() override;
 #endif
 
     /// 先頭から再生する（finished をリセット）。

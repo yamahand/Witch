@@ -103,22 +103,17 @@ void SpriteComponent::Update([[maybe_unused]] float dt) {
 }
 
 #ifdef WITCH_DEBUG_UI
-void SpriteComponent::DrawDebugUI() {
-    ImGui::PushID(this);
-    if (ImGui::TreeNode("SpriteComponent")) {
-        ImGui::Text("texture: id=%u (%dx%d)", texture_.handle.id,
-                    texture_.width, texture_.height);
-        ImGui::Text("uv: (%.3f, %.3f)-(%.3f, %.3f)", u0_, v0_, u1_, v1_);
-        int layer = layer_;
-        if (ImGui::DragInt("layer", &layer, 1.0f, -32768, 32767))
-            layer_ = static_cast<int16_t>(layer);
-        ImGui::ColorEdit4("color", &color_.r);
-        ImGui::Checkbox("flipX", &flipX_);
-        ImGui::SameLine();
-        ImGui::Checkbox("flipY", &flipY_);
-        ImGui::TreePop();
-    }
-    ImGui::PopID();
+void SpriteComponent::DrawInspector() {
+    ImGui::Text("texture: id=%u (%dx%d)", texture_.handle.id,
+                texture_.width, texture_.height);
+    ImGui::Text("uv: (%.3f, %.3f)-(%.3f, %.3f)", u0_, v0_, u1_, v1_);
+    int layer = layer_;
+    if (ImGui::DragInt("layer", &layer, 1.0f, -32768, 32767))
+        layer_ = static_cast<int16_t>(layer);
+    ImGui::ColorEdit4("color", &color_.r);
+    ImGui::Checkbox("flipX", &flipX_);
+    ImGui::SameLine();
+    ImGui::Checkbox("flipY", &flipY_);
 }
 #endif
 

@@ -5,6 +5,9 @@
 #include <memory>
 #include <string_view>
 #include <vector>
+#ifdef WITCH_DEBUG_UI
+#include <span>
+#endif
 
 namespace witch {
 
@@ -27,9 +30,15 @@ public:
     virtual void Update(float dt);
 
 #ifdef WITCH_DEBUG_UI
-    /// 生存オブジェクトの DrawDebugUI を呼ぶ。ImGui フレーム内（BeginDebugUI 後・
-    /// RenderDebugUI 前）に呼ぶこと。
+    /// 生存オブジェクトの DrawDebugUI（毎フレーム自由描画フック）を呼ぶ。
+    /// ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）に呼ぶこと。
+    /// インスペクター表示（DrawInspector）はここではなく HierarchyWindow が
+    /// 選択中オブジェクトに対してのみ行う。
     void DrawDebugUI() override;
+
+    /// HierarchyWindow が GameObject を列挙するための読み取り専用ビュー。
+    /// pendingSpawn_（未反映）は含まない。
+    std::span<const std::unique_ptr<GameObject>> DebugObjects() const { return objects_; }
 #endif
 
     /// 更新中に呼んでも安全。保留リストに積み、次の生成フェーズで反映する。

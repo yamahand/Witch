@@ -12,6 +12,7 @@
 #include "WitchEngine/Vfs/Vfs.h"
 #include "WitchEngine/Core/Version.h"
 #ifdef WITCH_DEBUG_UI
+#include "WitchEngine/Debug/HierarchyWindow.h"
 #include "WitchEngine/Debug/LogViewerWindow.h"
 #endif
 #include "Platform/Memory.h"
@@ -130,6 +131,9 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     gameLoop_ = std::make_unique<GameLoop>(time_.get(), input_.get(), renderer_.get());
 #ifdef WITCH_DEBUG_UI
     gameLoop_->SetLogViewer(logViewer_.get());
+    // シーンには依存しない（毎フレーム Tick が現在シーンを渡す）ため、ここで生成してよい。
+    hierarchyWindow_ = std::make_unique<debug::HierarchyWindow>();
+    gameLoop_->SetHierarchyWindow(hierarchyWindow_.get());
 #endif
 
     initialized_ = true;
@@ -174,6 +178,7 @@ void Engine::Shutdown() {
     // GameLoop は最後に生成したので最初に破棄する（time_/input_/renderer_ を弱参照するため）。
     gameLoop_.reset();
 #ifdef WITCH_DEBUG_UI
+    hierarchyWindow_.reset();
     logViewer_.reset(); // ViewerSink（Logger 所有）より先に破棄する
 #endif
 

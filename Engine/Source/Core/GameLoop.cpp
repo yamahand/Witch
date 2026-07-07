@@ -10,6 +10,7 @@
 #include <cassert>
 
 #ifdef WITCH_DEBUG_UI
+#include "WitchEngine/Debug/HierarchyWindow.h"
 #include "WitchEngine/Debug/LogViewerWindow.h"
 #endif
 
@@ -68,6 +69,7 @@ bool GameLoop::Tick(Scene* currentScene) {
     {
         WITCH_PROFILE_SCOPE_N("DebugUI");
         if (currentScene) currentScene->DrawDebugUI();
+        if (hierarchyWindow_) hierarchyWindow_->Draw(currentScene); // ヒエラルキー＋インスペクター
         if (logViewer_) logViewer_->Draw(); // エンジン標準の Log Viewer
     }
 #endif
