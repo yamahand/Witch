@@ -35,6 +35,10 @@ public:
         static const int kId = 0;
         return &kId;
     }
+    /// マクロ適用済みかの検出用マーカー（kHasComponentTypeId 参照）。
+    /// WITCH_COMPONENT が各型で自分自身に再定義する。付け忘れると親のものが継承され、
+    /// `ComponentSelfType != 自分の型` になるので多段継承でも付け忘れを検出できる。
+    using ComponentSelfType = Component;
     /// このインスタンスが型 ID `id` の型、またはその派生か。
     /// 基底型引き（GetComponent<基底>）を dynamic_cast なしで再現するための判定。
     /// 派生では WITCH_COMPONENT マクロが「自分 or 基底の IsA」で上書きする。
@@ -55,10 +59,11 @@ private:
 /// Base が Component 派生でない場合は Base::IsA が解決できずコンパイルエラーになる
 /// （Self の完全性を要求する static_assert はクラス本体では評価できないため置かない）。
 ///
-/// このマクロは `StaticTypeId()` をクラスごとに再宣言する。これにより各型の
-/// `&T::StaticTypeId`（関数アドレス）が Component のものと異なる定数式になり、
-/// GetComponent<T> 側でマクロ付け忘れをコンパイル時に検出できる（HasComponentTypeId）。
+/// このマクロは `StaticTypeId()` をクラスごとに再定義し、`ComponentSelfType` を
+/// Self 自身に束ねる。後者により kHasComponentTypeId が「その型自身がマクロを適用したか」を
+/// 判定でき、多段継承（B : A で B がマクロ付け忘れ）でも付け忘れを検出できる。
 #define WITCH_COMPONENT(Self, Base)                                          \
+    using ComponentSelfType = Self;                                          \
     static ::witch::ComponentTypeId StaticTypeId() {                        \
         static const int kId = 0;                                          \
         return &kId;                                                        \
@@ -67,13 +72,14 @@ private:
         return id == StaticTypeId() || Base::IsA(id);                       \
     }
 
-/// 型 T が WITCH_COMPONENT を適用済みか（= 自前の StaticTypeId を宣言しているか）。
-/// マクロ未適用の派生は StaticTypeId が Component のものを継承するため、
-/// 関数アドレスが一致することで検出できる。T == Component は正当なので別扱いにする。
-/// マクロ付け忘れのまま GetComponent すると誤った型を static_cast で返す危険があるため、
-/// これを GetComponent の static_assert で機械的に弾く。
+/// 型 T が WITCH_COMPONENT を「T 自身で」適用済みか。
+/// マクロは `ComponentSelfType = Self` を定義するので、適用済みなら
+/// `T::ComponentSelfType == T` になる。付け忘れると親の ComponentSelfType が継承され
+/// （例: B : A で B が付け忘れ → B::ComponentSelfType == A ≠ B）、多段継承でも検出できる。
+/// これによりマクロ付け忘れのまま GetComponent して誤った static_cast（未定義動作）に
+/// なる後退を、GetComponent の static_assert で機械的に弾く。
 template<typename T>
 inline constexpr bool kHasComponentTypeId =
-    std::is_same_v<T, Component> || (&T::StaticTypeId != &Component::StaticTypeId);
+    std::is_same_v<typename T::ComponentSelfType, T>;
 
 } // namespace witch
