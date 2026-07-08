@@ -31,8 +31,12 @@ public:
     virtual UpdatePhase Phase() const { return UpdatePhase::Update; }
 
     /// この型を一意に識別する ID。派生では WITCH_COMPONENT マクロが上書きする。
+    /// kId は意図的に非 const（書き込み可能データ）。const にするとリンカの
+    /// /OPT:ICF（Release 既定）が同一内容の読み取り専用データを畳み込み、
+    /// 異なる型の ID が同じアドレスになり得る。書き込み可能データは畳み込まれない。
+    /// ゼロ初期化の POD なので初期化ガードは生成されず、実行時コストはない。
     static ComponentTypeId StaticTypeId() {
-        static const int kId = 0;
+        static int kId = 0;
         return &kId;
     }
     /// マクロ適用済みかの検出用マーカー（kHasComponentTypeId 参照）。
@@ -53,7 +57,8 @@ private:
 };
 
 /// Component 派生クラスの型 ID インフラを宣言する。クラス本体の public 領域に 1 行置く。
-/// @param Self このクラス自身の型（現状は使わないが、将来の拡張と可読性のため受ける）
+/// @param Self このクラス自身の型。`ComponentSelfType = Self` に束ね、
+///             kHasComponentTypeId によるマクロ付け忘れ検出のキーになる。
 /// @param Base 直接の基底クラス（Component もしくは中間コンポーネント基底）
 /// IsA は「自分の ID か、基底の IsA が真か」で答えるため、基底型 ID での取得も成立する。
 /// Base が Component 派生でない場合は Base::IsA が解決できずコンパイルエラーになる
@@ -65,7 +70,8 @@ private:
 #define WITCH_COMPONENT(Self, Base)                                          \
     using ComponentSelfType = Self;                                          \
     static ::witch::ComponentTypeId StaticTypeId() {                        \
-        static const int kId = 0;                                          \
+        /* 非 const の理由は Component::StaticTypeId のコメント参照（ICF 対策） */ \
+        static int kId = 0;                                                 \
         return &kId;                                                        \
     }                                                                       \
     bool IsA(::witch::ComponentTypeId id) const override {                  \
