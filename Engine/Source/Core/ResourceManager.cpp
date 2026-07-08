@@ -7,6 +7,7 @@
 #include "WitchEngine/Rhi/IRenderer.h"
 #include "WitchEngine/Vfs/Vfs.h"
 #include "Graphics2D/AsepriteLoader.h"
+#include <cassert>
 
 namespace witch {
 
@@ -112,15 +113,25 @@ void ResourceManager::UnloadAll() {
         return;
     }
 
+    // DestroyTexture は 1 回ごとに WaitIdle()（GPU 完全同期）するが、fence が既に
+    // 完了していれば即 return するため、連続破棄でも実待ちは最初の 1 回だけ。
+    // アセット数が増えて一括破棄が無視できなくなったら、IRenderer に
+    // 「複数ハンドルをまとめて破棄し WaitIdle は最後に 1 回」の API を足す（RefactoringNotes §5）。
     for (auto& [path, info] : textureCache_)
         renderer->DestroyTexture(info.handle);
 
     for (auto& [path, sheet] : asepriteCache_) {
         // シーン跨ぎで shared_ptr を保持しているコードの検出（現設計では想定外）。
-        // スロット回収を確実にするため破棄はする。残った参照側のハンドルは無効になる。
-        if (sheet.use_count() > 1)
+        // 到達した場合、残った保持者側は AsepriteSheet は生きたまま GPU ハンドルだけが
+        // 無効になり「黒テクスチャ」等の分かりにくい症状になる。デバッグビルドでは
+        // ここで止めて気づけるようにし、リリースでは破棄を続行してスロットを確実に回収する
+        // （残った参照側のハンドルは無効になる）。参照カウント化が必要になったサイン。
+        if (sheet.use_count() > 1) {
             log::Warn("AsepriteSheet '{}' still referenced (use_count={}); "
                       "destroying its texture anyway", path, sheet.use_count());
+            assert(false && "AsepriteSheet outlived ResourceManager::UnloadAll; "
+                            "reference counting likely needed (RefactoringNotes §5)");
+        }
         renderer->DestroyTexture(sheet->texture.handle);
     }
 
