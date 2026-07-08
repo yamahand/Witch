@@ -92,4 +92,42 @@ ResourceManager::LoadAseprite(std::string_view path) {
     return sheet;  // shared_ptr<AsepriteSheet> → shared_ptr<const AsepriteSheet> は暗黙変換
 }
 
+ResourceManager::~ResourceManager() {
+    UnloadAll();
+}
+
+void ResourceManager::UnloadAll() {
+    if (textureCache_.empty() && asepriteCache_.empty())
+        return;
+
+    auto* renderer = Services::Instance().renderer;
+    if (!renderer) {
+        // 破棄順の防御。renderer 側 Shutdown が全テクスチャを解放するので
+        // GPU リークにはならない。キャッシュだけ空にして返す。
+        log::Warn("ResourceManager::UnloadAll: renderer unavailable; "
+                  "skipping DestroyTexture ({} textures, {} sheets)",
+                  textureCache_.size(), asepriteCache_.size());
+        textureCache_.clear();
+        asepriteCache_.clear();
+        return;
+    }
+
+    for (auto& [path, info] : textureCache_)
+        renderer->DestroyTexture(info.handle);
+
+    for (auto& [path, sheet] : asepriteCache_) {
+        // シーン跨ぎで shared_ptr を保持しているコードの検出（現設計では想定外）。
+        // スロット回収を確実にするため破棄はする。残った参照側のハンドルは無効になる。
+        if (sheet.use_count() > 1)
+            log::Warn("AsepriteSheet '{}' still referenced (use_count={}); "
+                      "destroying its texture anyway", path, sheet.use_count());
+        renderer->DestroyTexture(sheet->texture.handle);
+    }
+
+    log::Info("ResourceManager: unloaded {} textures, {} aseprite sheets",
+              textureCache_.size(), asepriteCache_.size());
+    textureCache_.clear();
+    asepriteCache_.clear();
+}
+
 } // namespace witch
