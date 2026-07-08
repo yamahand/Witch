@@ -59,16 +59,28 @@ private:
 /// Component 派生クラスの型 ID インフラを宣言する。クラス本体の public 領域に 1 行置く。
 /// @param Self このクラス自身の型。`ComponentSelfType = Self` に束ね、
 ///             kHasComponentTypeId によるマクロ付け忘れ検出のキーになる。
-/// @param Base 直接の基底クラス（Component もしくは中間コンポーネント基底）
-/// IsA は「自分の ID か、基底の IsA が真か」で答えるため、基底型 ID での取得も成立する。
-/// Base が Component 派生でない場合は Base::IsA が解決できずコンパイルエラーになる
-/// （Self の完全性を要求する static_assert はクラス本体では評価できないため置かない）。
+/// @param Base **必ず Self の直接の基底クラス**を渡す（Component もしくは中間コンポーネント基底）。
 ///
-/// このマクロは `StaticTypeId()` をクラスごとに再定義し、`ComponentSelfType` を
-/// Self 自身に束ねる。後者により kHasComponentTypeId が「その型自身がマクロを適用したか」を
-/// 判定でき、多段継承（B : A で B がマクロ付け忘れ）でも付け忘れを検出できる。
+/// ## Base の取り違えに対する検出可能性（規約で守る部分の明文化）
+/// - Base が基底ですらない型: `Base::IsA(id)` の修飾呼び出しが this→Base* 変換に失敗し
+///   コンパイルエラー（機械的に検出される）。
+/// - Base がマクロ未適用の中間クラス: マクロ内の static_assert
+///   （`Base::ComponentSelfType == Base`）がコンパイルエラーで弾く（機械的に検出される）。
+/// - **中間クラスを飛ばして祖先を渡す**（例: `Foo : SpriteComponent` に
+///   `WITCH_COMPONENT(Foo, Component)`）: IsA チェーンから中間の ID が抜け、
+///   `GetComponent<中間型>()` が Self を見つけられなくなる。C++23 には直接基底を取る
+///   リフレクションが無く**コンパイル時検出は不可能**（is_base_of は間接基底でも真のため
+///   この誤りを見抜けない）。ここだけは規約で守ること。
+///   継承を浅く保つ方針（CLAUDE.md 鉄則 4）なら Base は通常 Component 直付けで済む。
+///
+/// IsA は「自分の ID か、基底の IsA が真か」で答えるため、基底型 ID での取得も成立する。
+/// kHasComponentTypeId（ComponentSelfType 比較）が「Self 自身がマクロを適用したか」を
+/// 判定し、多段継承（B : A で B がマクロ付け忘れ）でも付け忘れを検出できる。
 #define WITCH_COMPONENT(Self, Base)                                          \
     using ComponentSelfType = Self;                                          \
+    static_assert(::std::is_same_v<typename Base::ComponentSelfType, Base>,  \
+                  "WITCH_COMPONENT: Base must itself apply WITCH_COMPONENT " \
+                  "(or be witch::Component)");                               \
     static ::witch::ComponentTypeId StaticTypeId() {                        \
         /* 非 const の理由は Component::StaticTypeId のコメント参照（ICF 対策） */ \
         static int kId = 0;                                                 \
