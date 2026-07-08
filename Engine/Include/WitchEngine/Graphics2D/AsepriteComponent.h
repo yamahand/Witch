@@ -17,6 +17,8 @@ class SpriteComponent;
 /// シート差し替え時は SpriteComponent のテクスチャも張り替える。
 class AsepriteComponent : public Component {
 public:
+    WITCH_COMPONENT(AsepriteComponent, Component);
+
     explicit AsepriteComponent(std::shared_ptr<const AsepriteSheet> sheet);
 
     void OnAttach() override;

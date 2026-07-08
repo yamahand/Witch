@@ -25,6 +25,8 @@ struct AnimationClip {
 /// SpriteComponent が最後まで見つからない場合は警告して不活性になる。
 class AnimationComponent : public Component {
 public:
+    WITCH_COMPONENT(AnimationComponent, Component);
+
     explicit AnimationComponent(AnimationClip clip);
 
     void OnAttach() override;
