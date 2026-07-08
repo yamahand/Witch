@@ -17,6 +17,8 @@ enum class SpriteSpace {
 /// テクスチャを毎フレーム Renderer に送るコンポーネント。
 class SpriteComponent : public Component {
 public:
+    WITCH_COMPONENT(SpriteComponent, Component);
+
     /// @param texture ResourceManager::LoadTexture が返すテクスチャ情報。
     ///                ピクセル指定のソース矩形の UV 換算にテクスチャ実サイズを使う。
     /// @param width/height 描画サイズ（ワールド単位）

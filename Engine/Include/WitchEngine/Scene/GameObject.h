@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <typeinfo>
 #ifdef WITCH_DEBUG_UI
 #include <span>
 #endif
@@ -98,9 +99,15 @@ T* GameObject::AddComponent(Args&&... args) {
 
 template<typename T>
 T* GameObject::GetComponent() const {
+    static_assert(std::is_base_of_v<Component, T>,
+                  "T must derive from witch::Component");
+    // IsA は「T そのもの or T の派生」で真になるため、基底型での取得も成立する
+    // （dynamic_cast の階層探索・RTTI を使わず、型 ID の比較だけで判定する）。
+    const ComponentTypeId id = T::StaticTypeId();
     for (const auto& comp : components_) {
-        if (T* c = dynamic_cast<T*>(comp.get()))
-            return c;
+        if (comp->IsA(id)) {
+            return static_cast<T*>(comp.get());
+        }
     }
     return nullptr;
 }
