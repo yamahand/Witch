@@ -1,6 +1,7 @@
 #pragma once
 #include "WitchEngine/Scene/DebugUI.h"
 #include "WitchEngine/Scene/UpdatePhase.h"
+#include <type_traits>
 
 namespace witch {
 
@@ -34,8 +35,6 @@ public:
         static const int kId = 0;
         return &kId;
     }
-    /// 実インスタンスの動的型 ID。GetComponent の完全一致判定に使う（デバッグ用途）。
-    virtual ComponentTypeId TypeId() const { return StaticTypeId(); }
     /// このインスタンスが型 ID `id` の型、またはその派生か。
     /// 基底型引き（GetComponent<基底>）を dynamic_cast なしで再現するための判定。
     /// 派生では WITCH_COMPONENT マクロが「自分 or 基底の IsA」で上書きする。
@@ -55,14 +54,26 @@ private:
 /// IsA は「自分の ID か、基底の IsA が真か」で答えるため、基底型 ID での取得も成立する。
 /// Base が Component 派生でない場合は Base::IsA が解決できずコンパイルエラーになる
 /// （Self の完全性を要求する static_assert はクラス本体では評価できないため置かない）。
+///
+/// このマクロは `StaticTypeId()` をクラスごとに再宣言する。これにより各型の
+/// `&T::StaticTypeId`（関数アドレス）が Component のものと異なる定数式になり、
+/// GetComponent<T> 側でマクロ付け忘れをコンパイル時に検出できる（HasComponentTypeId）。
 #define WITCH_COMPONENT(Self, Base)                                          \
     static ::witch::ComponentTypeId StaticTypeId() {                        \
         static const int kId = 0;                                          \
         return &kId;                                                        \
     }                                                                       \
-    ::witch::ComponentTypeId TypeId() const override { return StaticTypeId(); } \
     bool IsA(::witch::ComponentTypeId id) const override {                  \
         return id == StaticTypeId() || Base::IsA(id);                       \
     }
+
+/// 型 T が WITCH_COMPONENT を適用済みか（= 自前の StaticTypeId を宣言しているか）。
+/// マクロ未適用の派生は StaticTypeId が Component のものを継承するため、
+/// 関数アドレスが一致することで検出できる。T == Component は正当なので別扱いにする。
+/// マクロ付け忘れのまま GetComponent すると誤った型を static_cast で返す危険があるため、
+/// これを GetComponent の static_assert で機械的に弾く。
+template<typename T>
+inline constexpr bool kHasComponentTypeId =
+    std::is_same_v<T, Component> || (&T::StaticTypeId != &Component::StaticTypeId);
 
 } // namespace witch

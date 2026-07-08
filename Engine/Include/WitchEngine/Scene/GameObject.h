@@ -5,8 +5,8 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
-#include <typeinfo>
 #ifdef WITCH_DEBUG_UI
 #include <span>
 #endif
@@ -101,6 +101,12 @@ template<typename T>
 T* GameObject::GetComponent() const {
     static_assert(std::is_base_of_v<Component, T>,
                   "T must derive from witch::Component");
+    // マクロ付け忘れ検出: WITCH_COMPONENT が無いと T::StaticTypeId は Component の
+    // ものにフォールバックし、id が基底 ID になって無関係な型に誤マッチ→不正な
+    // static_cast（未定義動作）になる。旧 dynamic_cast は安全に nullptr を返していた
+    // ため、この後退をコンパイル時に弾く。
+    static_assert(kHasComponentTypeId<T>,
+                  "GetComponent<T>: T is missing WITCH_COMPONENT(T, Base) in its class body");
     // IsA は「T そのもの or T の派生」で真になるため、基底型での取得も成立する
     // （dynamic_cast の階層探索・RTTI を使わず、型 ID の比較だけで判定する）。
     const ComponentTypeId id = T::StaticTypeId();
