@@ -117,8 +117,8 @@ void ResourceManager::UnloadAll() {
     // 完了していれば即 return するため、連続破棄でも実待ちは最初の 1 回だけ。
     // アセット数が増えて一括破棄が無視できなくなったら、IRenderer に
     // 「複数ハンドルをまとめて破棄し WaitIdle は最後に 1 回」の API を足す（RefactoringNotes §5）。
-    for (auto& [path, info] : textureCache_)
-        renderer->DestroyTexture(info.handle);
+    for (auto& cache : textureCache_)
+        renderer->DestroyTexture(cache.second.handle);
 
     for (auto& [path, sheet] : asepriteCache_) {
         // シーン跨ぎで shared_ptr を保持しているコードの検出（現設計では想定外）。
