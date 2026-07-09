@@ -4,8 +4,11 @@ namespace witch {
 
 /// 2D カメラ。ワールド座標 → スクリーン座標（ピクセル, 左上原点）の変換を担う。
 ///
-/// 設計方針: カメラ変換は CPU 側（SpriteComponent::Update）で適用し、RHI/HLSL は
-/// スクリーン座標のまま保つ（RHI 隔離の鉄則）。RHI 層はカメラを一切知らない。
+/// 設計方針: スプライトのカメラ変換は IRenderer::SetCamera 経由で頂点シェーダが
+/// 適用する（GameLoop が毎フレーム ViewScale/ViewOffset を渡す）。
+/// WorldToScreenX/Y・ScreenToWorldX/Y はマウスピック等の CPU 側単発変換用に残す。
+/// RHI に渡すのは合成済みの scale + offset のみで、注視点やビューポートの
+/// 概念は漏らさない（RHI 隔離の鉄則）。
 ///
 /// カメラ中心(x_, y_) がビューポート中央に来るように写像する。zoom > 1 で拡大。
 class Camera2D {
@@ -46,11 +49,18 @@ public:
     /// マウスカーソル基準ズーム等が要る場合は、将来 SetZoom(zoom, anchorScreenX, anchorScreenY)
     /// のようにアンカーを渡せる形へ拡張する（GitHub Issue #6 で追跡）。
     float WorldToScreenX(float worldX) const {
-        return (worldX - x_) * zoom_ + viewportWidth_ * 0.5f;
+        return worldX * ViewScale() + ViewOffsetX();
     }
     float WorldToScreenY(float worldY) const {
-        return (worldY - y_) * zoom_ + viewportHeight_ * 0.5f;
+        return worldY * ViewScale() + ViewOffsetY();
     }
+
+    /// ビュー変換の合成形 screen = world * ViewScale() + ViewOffset()。
+    /// IRenderer::SetCamera へ渡す値。WorldToScreenX/Y と同一の変換
+    /// （(w - pos) * zoom + viewport*0.5 の恒等変形）。
+    float ViewScale()   const { return zoom_; }
+    float ViewOffsetX() const { return viewportWidth_  * 0.5f - x_ * zoom_; }
+    float ViewOffsetY() const { return viewportHeight_ * 0.5f - y_ * zoom_; }
 
     /// スクリーン座標 → ワールド座標（マウスピック等の逆変換）。
     float ScreenToWorldX(float screenX) const {

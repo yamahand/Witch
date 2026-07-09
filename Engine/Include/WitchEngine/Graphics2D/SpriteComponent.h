@@ -7,12 +7,11 @@
 
 namespace witch {
 
-/// スプライトの座標空間。
-enum class SpriteSpace {
-    World,   ///< transform をワールド座標として扱い、カメラ変換を受ける（既定）。
-    Screen,  ///< transform を仮想スクリーン座標として直接使う。HUD 用。
-             ///< カメラ位置・ズームの影響を受けず、常に World の手前に描かれる。
-};
+/// スプライトの座標空間（rhi::SpriteSpace の別名）。
+/// World  = transform をワールド座標として扱い、カメラ変換を受ける（既定）。
+/// Screen = transform を仮想スクリーン座標として直接使う。HUD 用。
+///          カメラ位置・ズームの影響を受けず、常に World の手前に描かれる。
+using SpriteSpace = rhi::SpriteSpace;
 
 /// テクスチャを毎フレーム Renderer に送るコンポーネント。
 class SpriteComponent : public Component {
@@ -71,8 +70,8 @@ public:
     SpriteSpace Space() const { return space_; }
 
 private:
-    /// レイヤーと空間を RHI の sortKey に合成する。
-    /// bit 24: 空間（Screen が World より手前）。
+    /// レイヤーを RHI の sortKey（同一 space 内の順序キー）に変換する。
+    /// 空間は SpriteDrawDesc.space で渡し、RHI が space 主・sortKey 副でソートする。
     /// bits 8..23: layer（int16_t + 0x8000 バイアスで昇順化）。bits 0..7 は予約。
     uint32_t SortKey() const;
 
