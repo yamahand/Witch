@@ -19,6 +19,17 @@ using namespace witch;
 
 using StepLog = std::vector<std::string>;
 
+/// 固定ステップの dt。契約上 FixedUpdate には常にこの値を渡す（Time::kFixedDelta 相当）。
+constexpr float kFixedDt = 1.0f / 60.0f;
+
+/// 1 フレーム = 固定ステップ 1 回 + フレーム更新 1 回として回すヘルパ。
+/// 固定側（PreUpdate → Hook → Update → PostUpdate）と毎フレーム側
+/// （Animation → Camera → Render）を通しで実行する。
+void StepFrame(Scene& scene) {
+    scene.FixedUpdate(kFixedDt);
+    scene.FrameUpdate(kFixedDt);
+}
+
 /// 実行されたフェーズを共有ログに記録する Component。フェーズごとに別の型になるため
 /// 「フェーズは種類ごとに固定」の契約（Component.h）も満たす。
 template<UpdatePhase P>
@@ -58,7 +69,7 @@ TEST_CASE("Phases run in declaration order with hook before Update phase", "[Com
     obj->AddComponent<PhaseProbe<UpdatePhase::Update>>(&log, "Update");
     obj->AddComponent<PhaseProbe<UpdatePhase::PreUpdate>>(&log, "PreUpdate");
 
-    scene.Update(0.016f);
+    StepFrame(scene);
 
     const StepLog expected{
         "PreUpdate", "Hook", "Update", "PostUpdate", "Animation", "Camera", "Render",
@@ -92,17 +103,18 @@ TEST_CASE("Component added mid-frame runs in a later phase of the same frame", "
     auto* obj = scene.Spawn<GameObject>();
     obj->AddComponent<MidFrameAdder>(&log);
 
-    scene.Update(0.016f);
+    StepFrame(scene);
 
     // ComponentScheduler.h の契約: 保留反映は各フェーズ実行直前に行うため、
-    // Update 中に追加した Render フェーズの Component は同一フレームの Render で走る
+    // 固定側の Update 中に追加した Render フェーズの Component は
+    // 同一フレームの FrameUpdate の Render で走る
     // （Update 中に足した Sprite が 1 フレーム消える現象を防ぐ）。
     const StepLog expected{"Adder", "LateRender"};
     CHECK(log == expected);
 
     // 次フレームは通常どおり Render フェーズで走る。
     log.clear();
-    scene.Update(0.016f);
+    StepFrame(scene);
     const StepLog expected2{"LateRender"};
     CHECK(log == expected2);
 }
