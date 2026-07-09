@@ -599,8 +599,11 @@ void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
     // リージョン 0 = World（SetCamera のビュー変換）、リージョン 1 = Screen（恒等）。
     // screenSize は両リージョンに必要（NDC 変換は space によらず同じ）。
     const Letterbox lb = ComputeLetterbox();
+    // フィールド順・サイズは Sprite.hlsl の cbuffer FrameCB と手動一致（要同期）。
     struct FrameCB { float screenW, screenH; float camScaleX, camScaleY;
                      float camOffsetX, camOffsetY; float pad[2]; };
+    static_assert(sizeof(FrameCB) <= kCBAlignedSize,
+                  "FrameCB must fit in one CB region (no overlap with the identity region)");
     const float vw = (float)VirtualWidth(), vh = (float)VirtualHeight();
     *reinterpret_cast<FrameCB*>(cbMapped_[frameIndex_]) =
         {vw, vh, camScale_, camScale_, camOffsetX_, camOffsetY_, 0.0f, 0.0f};
