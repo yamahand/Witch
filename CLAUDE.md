@@ -72,18 +72,27 @@ Witch/                          ← リポジトリのルート
   Component をフェーズ別リストで管理し、`UpdatePhase` の宣言順
   （PreUpdate → Update → PostUpdate → Animation → Camera → Render）に更新する。
   フェーズは消費者が現れてから enum に足す（Physics 系は M7、Input は必要時）。
+  **固定/毎フレームの所属**: PreUpdate / Update / PostUpdate は固定ステップ側
+  （dt = 1/60 固定、フレーム内 0〜N 回）、Animation / Camera / Render は
+  毎フレーム側（dt = 可変、必ず 1 回）。Physics 系は固定側に足す。
   **並列化契約**: 同一フェーズ内での GameObject 間の実行順は未規定。順序が必要なら
   別フェーズに分ける。現実装は逐次だが、将来フェーズ単位で並列化できるよう
   この契約に依存しないコードを書く。
 - **GameObject**（Scene/GameObject.h）: 登場物の基底。サブクラスは薄く保つ。
   Component を `unique_ptr` で所有。`AddComponent<T>()` / `GetComponent<T>()`。
-  `OnSpawn()` / `OnDespawn()` / `Update(float dt)`（Update フェーズ先頭で呼ばれる
-  オブジェクト単位フック。Component の更新は ComponentScheduler が行う）。
+  `OnSpawn()` / `OnDespawn()` / `Update(float dt)`（固定ステップごとに Update フェーズ
+  先頭で呼ばれるオブジェクト単位フック。dt は常に 1/60。
+  Component の更新は ComponentScheduler が行う）。
   `Destroy()` は遅延フラグを立てるだけ。`ObjectId Id()`、`GetScene()` で所属シーンに弱参照。
 - **Scene**（Scene/Scene.h）: 所有ツリーの根。GameObject を `unique_ptr` で所有。
   ComponentScheduler を所有する。
   `Spawn<T>()` は更新中に呼ばれても安全なよう保留リストに積む。
-  `Update(float dt)` は **「生成反映 → フェーズ実行 → 破棄回収」の 3 段階（順序厳守）**。
+  更新は固定タイムステップ（アキュムレータ方式、60Hz）で 2 本立て（順序厳守）:
+  `FixedUpdate(fixedDt)` = **生成反映 → 固定側フェーズ**（フレーム内 0〜N 回）、
+  `FrameUpdate(dt)` = **生成反映 → 毎フレーム側フェーズ → 破棄回収**（必ず 1 回、
+  全 FixedUpdate の後）。while ループは GameLoop が Time のアキュムレータで回す。
+  **エッジ入力（WasPressed 等）は FrameUpdate 側で読む**（入力世代がフレーム単位の
+  ため、固定側だと多重ステップフレームで二重発火する）。
   `Find(ObjectId)` で弱参照を解決（今は線形で可）。
   `OnEnter()` / `OnExit()`。`LoadLevel(path)` は ObjectRegistry 経由で実体化。
 - **ObjectRegistry**（Core/ObjectRegistry.h）: 文字列型名 → 生成関数のファクトリ。
