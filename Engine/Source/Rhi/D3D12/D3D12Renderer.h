@@ -54,6 +54,12 @@ public:
     void DestroyTexture(rhi::TextureHandle handle) override;
     void SubmitSprite(const rhi::SpriteDrawDesc& desc) override;
 
+    void SetCamera(float scale, float offsetX, float offsetY) override {
+        camScale_   = scale;
+        camOffsetX_ = offsetX;
+        camOffsetY_ = offsetY;
+    }
+
 #ifdef WITCH_DEBUG_UI
     void BeginDebugUI() override;
     void RenderDebugUI() override;
@@ -125,9 +131,18 @@ private:
     ComPtr<ID3D12PipelineState>       spritePSO_;
 
     /// 256 バイトアライン済み定数バッファ（永続マップ）。
+    /// 1 フレームあたり 2 リージョン: offset 0 = World（カメラ変換）、
+    /// offset kCBAlignedSize = Screen（恒等）。DoFlushSprites が space 切替時に
+    /// Root CBV を該当リージョンへ差し替える。
     static constexpr uint32_t kCBAlignedSize = 256;
+    static constexpr uint32_t kCBRegionCount = 2;
     ComPtr<ID3D12Resource>            cbUpload_[kBackBufferCount];
     uint8_t*                          cbMapped_[kBackBufferCount]{};
+
+    /// SetCamera で設定されるビュー変換（screen = world * scale + offset）。既定は恒等。
+    float                             camScale_   = 1.0f;
+    float                             camOffsetX_ = 0.0f;
+    float                             camOffsetY_ = 0.0f;
 
     /// フレーム毎動的頂点バッファ（永続マップ）。
     /// カラーは頂点持ち: ルート定数だと per-sprite 状態がコマンドに焼き付き、

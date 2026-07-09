@@ -63,6 +63,13 @@ public:
     /// スプライトを描画キューに積む。ICommandList::FlushSprites で実際のコマンドに変換される。
     virtual void SubmitSprite(const SpriteDrawDesc& desc) = 0;
 
+    /// World 空間スプライトに適用するビュー変換を設定する。
+    /// screen = world * scale + offset（一様スケール + 平行移動、単位は仮想スクリーンピクセル）。
+    /// 既定は恒等（scale=1, offset=0）。Screen 空間スプライトには適用されない。
+    /// 変換は FlushSprites 時に頂点シェーダで適用されるため、そのフレームの
+    /// SubmitSprite の前後どちらで呼んでもよい。フレームを跨いで持続するステート。
+    virtual void SetCamera(float scale, float offsetX, float offsetY) = 0;
+
 #ifdef WITCH_DEBUG_UI
     /// デバッグ UI のフレームを開始する。入力ポンプ後・BeginFrame の前に呼ぶ
     /// （実際の呼び出し位置は Engine::Run 参照）。
