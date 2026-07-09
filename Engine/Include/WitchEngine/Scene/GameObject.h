@@ -29,7 +29,9 @@ public:
 
     /// スポーン直後に呼ばれる。サブクラスはここに初期化処理を書く。
     virtual void OnSpawn() {}
-    /// 毎フレーム Update フェーズの先頭で呼ばれるオブジェクト単位のフック。既定は空。
+    /// 固定ステップごとに Update フェーズの先頭で呼ばれるオブジェクト単位のフック。
+    /// 既定は空。dt は常に Time::FixedDeltaTime で、フレーム内で 0〜N 回呼ばれる
+    /// （UpdatePhase.h の固定/毎フレーム契約参照）。
     /// Component の更新はここでは行わない（Scene の ComponentScheduler がフェーズ順に回す）。
     virtual void Update(float dt);
     /// 破棄直前に呼ばれる。

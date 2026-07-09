@@ -22,12 +22,30 @@ public:
     /// シーンが非アクティブになる直前に呼ばれる。
     virtual void OnExit() {}
 
-    /// 生成反映 → フェーズ実行 → 破棄回収 の 3 段階で更新する。順序は厳守。
-    /// フェーズ実行は ComponentScheduler が UpdatePhase の宣言順
-    /// （PreUpdate → Update → PostUpdate → Animation → Camera → Render）に回す。
-    /// GameObject::Update フックは Update フェーズの Component より前に呼ばれる。
-    /// サブクラスがオーバーライドする場合は必ず Scene::Update(dt) を呼ぶ。
-    virtual void Update(float dt);
+    /// 固定タイムステップ 1 回分の更新。GameLoop がフレーム内で 0〜N 回呼ぶ
+    /// （dt は常に Time::FixedDeltaTime）。順序は厳守:
+    /// 生成反映 → PreUpdate → GameObject::Update フック → Update → PostUpdate。
+    /// ゲームロジック（と将来の Physics 系フェーズ）はこちらで回す。
+    /// サブクラスがオーバーライドする場合は必ず Scene::FixedUpdate(fixedDt) を呼ぶ。
+    /// 注: エッジ入力（WasPressed 等）は多重ステップフレームで二重発火するため
+    /// FrameUpdate 側で読むこと（入力世代の更新はフレームに 1 回のため）。
+    virtual void FixedUpdate(float fixedDt);
+
+    /// フレームごとの更新。GameLoop が全 FixedUpdate の後に必ず 1 回呼ぶ
+    /// （dt は可変のフレーム経過時間）。順序は厳守:
+    /// 生成反映 → Animation → Camera → Render → 破棄回収。
+    /// 生成反映を先頭で再度行うのは、固定ステップ 0 回のフレーム（高リフレッシュ
+    /// レート環境）でも OnEnter 中の Spawn が同フレームの描画に乗るようにするため。
+    /// 破棄回収がフレーム末（= ここの末尾）である契約は従来どおり。
+    /// サブクラスがオーバーライドする場合は必ず Scene::FrameUpdate(dt) を呼ぶ。
+    virtual void FrameUpdate(float dt);
+
+    /// 【移行ブリッジ・削除予定】旧 3 段階更新。FixedUpdate + FrameUpdate を
+    /// 各 1 回ずつ呼ぶだけ。GameLoop のアキュムレータ配線後に削除する。
+    virtual void Update(float dt) {
+        FixedUpdate(dt);
+        FrameUpdate(dt);
+    }
 
 #ifdef WITCH_DEBUG_UI
     /// 生存オブジェクトの DrawDebugUI（毎フレーム自由描画フック）を呼ぶ。
@@ -57,6 +75,13 @@ private:
     friend class GameObject;
 
     static ObjectId NextId();
+
+    /// 生成反映（Stage 1）: pendingSpawn_ を OnSpawn → scheduler 登録 → objects_ へ移す。
+    /// FixedUpdate / FrameUpdate 両方の先頭で呼ばれる。
+    void FlushPendingSpawns();
+    /// 破棄回収（Stage 3）: Destroyed なオブジェクトを scheduler から外し
+    /// OnDespawn → delete する。FrameUpdate の末尾（= フレーム末）で呼ばれる。
+    void CollectDestroyed();
 
     ComponentScheduler scheduler_;
     std::vector<std::unique_ptr<GameObject>> objects_;

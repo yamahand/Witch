@@ -13,8 +13,7 @@ ObjectId Scene::NextId() {
     return sNextId.fetch_add(1, std::memory_order_relaxed);
 }
 
-void Scene::Update(float dt) {
-    // Stage 1: Reflect pending spawns into the live list.
+void Scene::FlushPendingSpawns() {
     // Swap to local first: OnSpawn() may call Spawn(), which pushes to pendingSpawn_.
     // Iterating and push_back-ing the same vector causes reallocation UB.
     // OnSpawn 完了後に spawned_ を立てて components_ を一括登録する。OnSpawn 中の
@@ -28,22 +27,9 @@ void Scene::Update(float dt) {
         }
         objects_.push_back(std::move(obj));
     }
+}
 
-    // Stage 2: Run update phases in declaration order.
-    // GameObject::Update フックは Update フェーズの Component より前に呼ぶ。
-    scheduler_.RunPhase(UpdatePhase::PreUpdate, dt);
-    for (auto& obj : objects_) {
-        if (!obj->IsDestroyed()) {
-            obj->Update(dt);
-        }
-    }
-    scheduler_.RunPhase(UpdatePhase::Update, dt);
-    scheduler_.RunPhase(UpdatePhase::PostUpdate, dt);
-    scheduler_.RunPhase(UpdatePhase::Animation, dt);
-    scheduler_.RunPhase(UpdatePhase::Camera, dt);
-    scheduler_.RunPhase(UpdatePhase::Render, dt);
-
-    // Stage 3: Despawn and collect destroyed objects.
+void Scene::CollectDestroyed() {
     // スケジューラからの除去は delete（erase_if）より前に行い、dangling を残さない。
     for (auto& obj : objects_) {
         if (obj->IsDestroyed()) {
@@ -54,6 +40,36 @@ void Scene::Update(float dt) {
     std::erase_if(objects_, [](const std::unique_ptr<GameObject>& o) {
         return o->IsDestroyed();
     });
+}
+
+void Scene::FixedUpdate(float fixedDt) {
+    // 生成反映 → 固定側フェーズ。ステップ中の Spawn は次の FixedUpdate または
+    // 同フレームの FrameUpdate（先に来る方）で反映される。
+    FlushPendingSpawns();
+
+    // GameObject::Update フックは Update フェーズの Component より前に呼ぶ。
+    scheduler_.RunPhase(UpdatePhase::PreUpdate, fixedDt);
+    for (auto& obj : objects_) {
+        if (!obj->IsDestroyed()) {
+            obj->Update(fixedDt);
+        }
+    }
+    scheduler_.RunPhase(UpdatePhase::Update, fixedDt);
+    scheduler_.RunPhase(UpdatePhase::PostUpdate, fixedDt);
+}
+
+void Scene::FrameUpdate(float dt) {
+    // 生成反映を再度行う: 固定ステップ 0 回のフレームでも Spawn 済みオブジェクトが
+    // 同フレームの描画（Render フェーズ）に乗ることを保証する。
+    FlushPendingSpawns();
+
+    scheduler_.RunPhase(UpdatePhase::Animation, dt);
+    scheduler_.RunPhase(UpdatePhase::Camera, dt);
+    scheduler_.RunPhase(UpdatePhase::Render, dt);
+
+    // 破棄回収はフレーム末。固定ステップ中に Destroy されたオブジェクトは
+    // 同フレームの残りフェーズをスキップされ、ここで回収される。
+    CollectDestroyed();
 }
 
 #ifdef WITCH_DEBUG_UI

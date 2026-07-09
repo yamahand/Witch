@@ -20,7 +20,10 @@ public:
 
     /// AddComponent 完了直後に呼ばれる。初期化処理を書く。
     virtual void OnAttach() {}
-    /// 毎フレーム、Phase() が返すフェーズで ComponentScheduler から呼ばれる。
+    /// Phase() が返すフェーズで ComponentScheduler から呼ばれる。
+    /// dt は所属フェーズで決まる（UpdatePhase.h の契約参照）:
+    /// 固定側フェーズなら Time::FixedDeltaTime（フレーム内 0〜N 回）、
+    /// 毎フレーム側フェーズなら可変のフレーム経過時間（フレームごとに 1 回）。
     /// 同一フェーズ内の GameObject 間の実行順は未規定（ComponentScheduler.h の契約参照）。
     virtual void Update([[maybe_unused]] float dt) {}
     /// コンポーネント破棄直前に呼ばれる。
