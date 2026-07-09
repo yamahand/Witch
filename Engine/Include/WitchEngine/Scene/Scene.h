@@ -40,13 +40,6 @@ public:
     /// サブクラスがオーバーライドする場合は必ず Scene::FrameUpdate(dt) を呼ぶ。
     virtual void FrameUpdate(float dt);
 
-    /// 【移行ブリッジ・削除予定】旧 3 段階更新。FixedUpdate + FrameUpdate を
-    /// 各 1 回ずつ呼ぶだけ。GameLoop のアキュムレータ配線後に削除する。
-    virtual void Update(float dt) {
-        FixedUpdate(dt);
-        FrameUpdate(dt);
-    }
-
 #ifdef WITCH_DEBUG_UI
     /// 生存オブジェクトの DrawDebugUI（毎フレーム自由描画フック）を呼ぶ。
     /// ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）に呼ぶこと。

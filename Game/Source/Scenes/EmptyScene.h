@@ -20,7 +20,12 @@ struct AsepriteSheet;
 class EmptyScene : public Scene {
 public:
     void OnEnter() override;
-    void Update(float dt) override;
+    /// 連続量の入力（IsDown + dt スケール）: 移動・回転・カメラ・キーズーム。
+    void FixedUpdate(float fixedDt) override;
+    /// エッジ/瞬間量の入力（WasPressed / ホイール）と定期ログ。
+    /// エッジ検出は入力世代がフレーム単位のため、固定側に置くと
+    /// 多重ステップフレームで二重発火する（Scene.h の契約参照）。
+    void FrameUpdate(float dt) override;
     void OnExit() override;
 
 private:

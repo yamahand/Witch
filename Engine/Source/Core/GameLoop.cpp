@@ -60,10 +60,22 @@ bool GameLoop::Tick(Scene* currentScene) {
     renderer_->BeginDebugUI();
 #endif
 
-    // 2) ロジック更新。
+    // 2) ロジック更新。固定タイムステップ（アキュムレータ方式）:
+    //    固定ステップ（60Hz、フレーム内 0〜N 回）→ フレーム更新（必ず 1 回）。
+    //    ステップ数の上界は Time::Tick の kMaxDelta クランプが与える（最大 15 回）。
+    //    エッジ入力（WasPressed）は input_->Update() がフレームに 1 回のため、
+    //    固定側で読むと多重ステップフレームで二重発火する。FrameUpdate 側で読むこと。
     {
         WITCH_PROFILE_SCOPE_N("SceneUpdate");
-        if (currentScene) currentScene->Update(time_->DeltaTime());
+        // シーンが無い間もステップは消費する（アキュムレータに溜め込んで
+        // シーン設定直後にまとめて走るのを防ぐ）。
+        while (time_->ConsumeFixedStep()) {
+            if (currentScene) {
+                WITCH_PROFILE_SCOPE_N("FixedStep");
+                currentScene->FixedUpdate(time_->FixedDeltaTime());
+            }
+        }
+        if (currentScene) currentScene->FrameUpdate(time_->DeltaTime());
     }
 
     // カメラのビュー変換を RHI に渡す（World スプライトに VS で適用される）。
