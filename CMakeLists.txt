@@ -254,6 +254,16 @@ if(MSVC)
     target_compile_options(WitchGame PRIVATE /W4 /WX /utf-8)
 endif()
 
+# ─── Unit tests (Catch2 + ctest) ─────────────────────────────────────────────
+# 既定 OFF。debug / ci-* プリセットが ON にする（vcpkg 側も tests feature で catch2 を
+# 取得する。CMakePresets.json / vcpkg.json 参照）。配布用 release プリセットでは
+# find_package / ビルドを一切行わない。
+option(WITCH_BUILD_TESTS "Build unit tests" OFF)
+if(WITCH_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(Engine/Tests)
+endif()
+
 # ─── Copy runtime assets to output directory ─────────────────────────────────
 add_custom_command(TARGET WitchGame POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

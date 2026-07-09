@@ -22,6 +22,12 @@
           "features": ["dx12-binding", "win32-binding"]
         }
       ]
+    },
+    "tests": {
+      "description": "Enable Catch2 unit tests",
+      "dependencies": [
+        "catch2"
+      ]
     }
   }
 }
