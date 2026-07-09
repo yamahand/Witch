@@ -7,6 +7,7 @@ add_executable(WitchEngineTests
     SceneTests.cpp
     ComponentTypeIdTests.cpp
     ComponentSchedulerTests.cpp
+    FixedStepAccumulatorTests.cpp
     VfsPathUtilTests.cpp
 )
 
