@@ -7,6 +7,7 @@
 #include "WitchEngine/Rhi/IRenderer.h"
 #include "WitchEngine/Vfs/Vfs.h"
 #include "Graphics2D/AsepriteLoader.h"
+#include <cassert>
 
 namespace witch {
 
@@ -90,6 +91,54 @@ ResourceManager::LoadAseprite(std::string_view path) {
               sheet->tags.size(), parsed->atlasWidth, parsed->atlasHeight);
     asepriteCache_[key] = sheet;
     return sheet;  // shared_ptr<AsepriteSheet> → shared_ptr<const AsepriteSheet> は暗黙変換
+}
+
+ResourceManager::~ResourceManager() {
+    UnloadAll();
+}
+
+void ResourceManager::UnloadAll() {
+    if (textureCache_.empty() && asepriteCache_.empty())
+        return;
+
+    auto* renderer = Services::Instance().renderer;
+    if (!renderer) {
+        // 破棄順の防御。renderer 側 Shutdown が全テクスチャを解放するので
+        // GPU リークにはならない。キャッシュだけ空にして返す。
+        log::Warn("ResourceManager::UnloadAll: renderer unavailable; "
+                  "skipping DestroyTexture ({} textures, {} sheets)",
+                  textureCache_.size(), asepriteCache_.size());
+        textureCache_.clear();
+        asepriteCache_.clear();
+        return;
+    }
+
+    // DestroyTexture は 1 回ごとに WaitIdle()（GPU 完全同期）するが、fence が既に
+    // 完了していれば即 return するため、連続破棄でも実待ちは最初の 1 回だけ。
+    // アセット数が増えて一括破棄が無視できなくなったら、IRenderer に
+    // 「複数ハンドルをまとめて破棄し WaitIdle は最後に 1 回」の API を足す（RefactoringNotes §5）。
+    for (auto& cache : textureCache_)
+        renderer->DestroyTexture(cache.second.handle);
+
+    for (auto& [path, sheet] : asepriteCache_) {
+        // シーン跨ぎで shared_ptr を保持しているコードの検出（現設計では想定外）。
+        // 到達した場合、残った保持者側は AsepriteSheet は生きたまま GPU ハンドルだけが
+        // 無効になり「黒テクスチャ」等の分かりにくい症状になる。デバッグビルドでは
+        // ここで止めて気づけるようにし、リリースでは破棄を続行してスロットを確実に回収する
+        // （残った参照側のハンドルは無効になる）。参照カウント化が必要になったサイン。
+        if (sheet.use_count() > 1) {
+            log::Warn("AsepriteSheet '{}' still referenced (use_count={}); "
+                      "destroying its texture anyway", path, sheet.use_count());
+            assert(false && "AsepriteSheet outlived ResourceManager::UnloadAll; "
+                            "reference counting likely needed (RefactoringNotes §5)");
+        }
+        renderer->DestroyTexture(sheet->texture.handle);
+    }
+
+    log::Info("ResourceManager: unloaded {} textures, {} aseprite sheets",
+              textureCache_.size(), asepriteCache_.size());
+    textureCache_.clear();
+    asepriteCache_.clear();
 }
 
 } // namespace witch

@@ -27,6 +27,15 @@ public:
     std::expected<std::shared_ptr<const AsepriteSheet>, std::string>
     LoadAseprite(std::string_view path);
 
+    /// キャッシュ済みの全テクスチャ・Aseprite シートの GPU テクスチャを
+    /// IRenderer::DestroyTexture で解放し、キャッシュを空にする。
+    /// Engine のシーン切替（旧シーン破棄後・新シーン OnEnter 前）とデストラクタから呼ぶ。
+    void UnloadAll();
+
+    /// Engine::Shutdown は renderer より先に ResourceManager を破棄する順序なので、
+    /// デストラクタで UnloadAll() を呼べば終了時も確実に解放される。
+    ~ResourceManager();
+
 private:
     std::unordered_map<std::string, TextureInfo> textureCache_;
     std::unordered_map<std::string, std::shared_ptr<const AsepriteSheet>> asepriteCache_;

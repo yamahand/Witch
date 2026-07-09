@@ -251,6 +251,11 @@ void Engine::ApplyPendingSceneChange() {
     }
 
     currentScene_ = std::move(pendingScene_);
+
+    // 旧シーン破棄後（AsepriteSheet への参照が解放された後）・新シーン OnEnter 前に
+    // 全リソースを解放。新シーンが同じアセットを使う場合は再ロードされるだけ。
+    resourceManager_->UnloadAll();
+
     currentScene_->OnEnter();
     log::Info("Scene entered.");
 }

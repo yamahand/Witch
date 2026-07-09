@@ -40,7 +40,8 @@ constexpr const char* kUnitychanAseFiles[] = {
 void EmptyScene::OnEnter() {
     log::Info("EmptyScene: OnEnter");
     log::Info("keys: arrows=move WASD=camera Q/E/wheel=zoom R=spin F=flip "
-              "T=tint L=layer P=anim play/stop O=anim loop N=unitychan anim Esc=quit");
+              "T=tint L=layer P=anim play/stop O=anim loop N=unitychan anim "
+              "G=reload scene Esc=quit");
 
     auto* resources = Services::Instance().resources;
 
@@ -127,6 +128,12 @@ void EmptyScene::Update(float dt) {
         if (input->WasPressed(Key::Escape)) {
             log::Info("Escape pressed — exiting.");
             Engine::Get().RequestExit();
+        }
+
+        // G でシーン再入（テクスチャ解放 → 再ロードの動作確認。RefactoringNotes §5）。
+        if (input->WasPressed(Key::G)) {
+            log::Info("G pressed — reloading EmptyScene.");
+            Engine::Get().ChangeScene<EmptyScene>();
         }
 
         // 矢印キーで Witch スプライトを移動、R/F/T/L で M5 描画機能を切り替え。
