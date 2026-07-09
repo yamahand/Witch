@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cmath>
 #include <string>
+#include <tuple>
 #ifdef WITCH_DEBUG_UI
 #include <imgui.h>
 #include <imgui_impl_dx12.h>
@@ -547,11 +548,13 @@ void D3D12Renderer::DoClear(ID3D12GraphicsCommandList* cl,
 void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
     if (pendingSprites_.empty()) return;
 
-    // Sort by sortKey before vertex generation. stable_sort keeps submission
-    // order for equal keys, so default-key sprites draw exactly as before.
+    // Sort by (space, sortKey) before vertex generation: Screen (HUD) always
+    // draws after (in front of) World, and the camera CBV switch below happens
+    // at most once per flush. stable_sort keeps submission order for equal
+    // keys, so default-key sprites draw exactly as before.
     std::stable_sort(pendingSprites_.begin(), pendingSprites_.end(),
                      [](const rhi::SpriteDrawDesc& a, const rhi::SpriteDrawDesc& b) {
-                         return a.sortKey < b.sortKey;
+                         return std::tie(a.space, a.sortKey) < std::tie(b.space, b.sortKey);
                      });
 
     // Write quad vertices for each sprite into the current frame's upload VB.
@@ -571,6 +574,8 @@ void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
             // Rotate the 4 corners around the pivot point.
             // Screen is y-down; this matrix keeps CCW-positive on screen
             // (rot = +π/2 turns "right of pivot" into "above pivot").
+            // World 空間でも同じ: VS のビュー変換は一様スケール + 平行移動なので
+            // 回転と可換であり、スクリーン空間で回してから変換した結果と一致する。
             const float px = s.x + s.width  * s.pivotX;
             const float py = s.y + s.height * s.pivotY;
             const float cs = std::cos(s.rotation);
@@ -587,14 +592,23 @@ void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
         }
     }
 
-    // Write screen size constant.
+    // Write frame constants (2 regions).
     // 仮想解像度有効時は CB に仮想サイズを書き、ビューポートをレターボックス
     // 内側矩形に絞る。VS の スクリーン→NDC 変換がそのまま仮想→内側矩形の
     // 写像になるため、シェーダ変更なしで一様スケールが成立する。
+    // リージョン 0 = World（SetCamera のビュー変換）、リージョン 1 = Screen（恒等）。
+    // screenSize は両リージョンに必要（NDC 変換は space によらず同じ）。
     const Letterbox lb = ComputeLetterbox();
-    struct ScreenCB { float w, h, pad[2]; };
-    *reinterpret_cast<ScreenCB*>(cbMapped_[frameIndex_]) =
-        {(float)VirtualWidth(), (float)VirtualHeight(), 0.0f, 0.0f};
+    // フィールド順・サイズは Sprite.hlsl の cbuffer FrameCB と手動一致（要同期）。
+    struct FrameCB { float screenW, screenH; float camScaleX, camScaleY;
+                     float camOffsetX, camOffsetY; float pad[2]; };
+    static_assert(sizeof(FrameCB) <= kCBAlignedSize,
+                  "FrameCB must fit in one CB region (no overlap with the identity region)");
+    const float vw = (float)VirtualWidth(), vh = (float)VirtualHeight();
+    *reinterpret_cast<FrameCB*>(cbMapped_[frameIndex_]) =
+        {vw, vh, camScale_, camScale_, camOffsetX_, camOffsetY_, 0.0f, 0.0f};
+    *reinterpret_cast<FrameCB*>(cbMapped_[frameIndex_] + kCBAlignedSize) =
+        {vw, vh, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
     // Set up pipeline state.
     cl->SetPipelineState(spritePSO_.Get());
@@ -614,13 +628,24 @@ void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
     cl->IASetVertexBuffers(0, 1, &vbv);
     cl->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
-    cl->SetGraphicsRootConstantBufferView(0, cbUpload_[frameIndex_]->GetGPUVirtualAddress());
-
     ID3D12DescriptorHeap* heaps[] = {srvHeap_.Get()};
     cl->SetDescriptorHeaps(1, heaps);
 
     // One draw call per sprite (separate triangle strip, no degenerate-strip tricks needed).
+    // Root CBV は直前のスプライトと space が変わったときだけ差し替える。
+    // (space, sortKey) ソート済みなので実際の切り替えは高々 1 回だが、
+    // ソート順に依存しない書き方にしておく（順序が崩れても描画は正しいまま）。
+    const D3D12_GPU_VIRTUAL_ADDRESS cbBase = cbUpload_[frameIndex_]->GetGPUVirtualAddress();
+    auto cbRegion = [cbBase](rhi::SpriteSpace space) {
+        return space == rhi::SpriteSpace::Screen ? cbBase + kCBAlignedSize : cbBase;
+    };
+    cl->SetGraphicsRootConstantBufferView(0, cbRegion(pendingSprites_[0].space));
+    rhi::SpriteSpace boundSpace = pendingSprites_[0].space;
     for (uint32_t i = 0; i < static_cast<uint32_t>(pendingSprites_.size()); ++i) {
+        if (pendingSprites_[i].space != boundSpace) {
+            boundSpace = pendingSprites_[i].space;
+            cl->SetGraphicsRootConstantBufferView(0, cbRegion(boundSpace));
+        }
         uint32_t texSlot = pendingSprites_[i].texture.id - 1;
         D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = srvHeap_->GetGPUDescriptorHandleForHeapStart();
         gpuHandle.ptr += texSlot * srvDescSize_;
@@ -696,7 +721,7 @@ bool D3D12Renderer::InitSpritePipeline() {
     srvRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
     D3D12_ROOT_PARAMETER params[2]{};
-    // [0] Root CBV at b0 (screen size)
+    // [0] Root CBV at b0 (FrameCB: screen size + camera transform)
     params[0].ParameterType             = D3D12_ROOT_PARAMETER_TYPE_CBV;
     params[0].Descriptor.ShaderRegister = 0;
     params[0].Descriptor.RegisterSpace  = 0;
@@ -792,7 +817,7 @@ bool D3D12Renderer::InitSpritePipeline() {
 
     D3D12_RANGE readRange{0, 0};
     for (uint32_t i = 0; i < kBackBufferCount; ++i) {
-        bufDesc.Width = kCBAlignedSize;
+        bufDesc.Width = kCBAlignedSize * kCBRegionCount;
         if (!Check(device_->CreateCommittedResource(
                 &uploadHeap, D3D12_HEAP_FLAG_NONE, &bufDesc,
                 D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&cbUpload_[i])),

@@ -1,6 +1,4 @@
 #include "WitchEngine/Graphics2D/SpriteComponent.h"
-#include "WitchEngine/Graphics2D/Camera2D.h"
-#include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Scene/GameObject.h"
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/Services.h"
@@ -40,10 +38,8 @@ void SpriteComponent::ClearSourceRect() {
 
 uint32_t SpriteComponent::SortKey() const {
     // int16_t を 0x8000 バイアスで昇順の uint16_t にしてから bits 8..23 に置く。
-    // bit 24 は空間ビット: Screen (HUD) は常に World 全体の手前。
-    const uint32_t spaceBit = space_ == SpriteSpace::Screen ? (1u << 24) : 0u;
-    return spaceBit
-         | (static_cast<uint32_t>(static_cast<uint16_t>(layer_ + 0x8000)) << 8);
+    // 空間（World/Screen）は SpriteDrawDesc.space で渡す（RHI が space 主でソート）。
+    return static_cast<uint32_t>(static_cast<uint16_t>(layer_ + 0x8000)) << 8;
 }
 
 void SpriteComponent::Update([[maybe_unused]] float dt) {
@@ -61,22 +57,9 @@ void SpriteComponent::Update([[maybe_unused]] float dt) {
     const float anchorWorldX = t.x + width_  * fx;
     const float anchorWorldY = t.y + height_ * fy;
 
-    // カメラ変換は CPU 側でここで適用する（RHI/HLSL はスクリーン座標のまま）。
-    // アクティブカメラを CameraManager サービスから引く。未設定ならワールド座標を素通し。
-    // Screen 空間 (HUD) は transform を仮想スクリーン座標として直接使い、カメラを見ない。
-    float anchorScreenX = anchorWorldX;
-    float anchorScreenY = anchorWorldY;
-    float drawW = width_;
-    float drawH = height_;
-    if (space_ == SpriteSpace::World) {
-        if (CameraManager* cameras = Services::Instance().cameras) {
-            const Camera2D& cam = cameras->Active();
-            anchorScreenX = cam.WorldToScreenX(anchorWorldX);
-            anchorScreenY = cam.WorldToScreenY(anchorWorldY);
-            drawW = width_  * cam.Zoom();
-            drawH = height_ * cam.Zoom();
-        }
-    }
+    // カメラ変換はここでは行わない。World スプライトはワールド座標のまま提出し、
+    // GameLoop が IRenderer::SetCamera で渡すビュー変換を頂点シェーダが適用する。
+    // Screen 空間 (HUD) は transform を仮想スクリーン座標として直接使い、カメラ変換を受けない。
 
     // flip は UV スワップだけで実現する（ソース矩形指定とも独立に合成できる）。
     const float u0 = flipX_ ? u1_ : u0_;
@@ -84,20 +67,21 @@ void SpriteComponent::Update([[maybe_unused]] float dt) {
     const float v0 = flipY_ ? v1_ : v0_;
     const float v1 = flipY_ ? v0_ : v1_;
 
-    // SubmitSprite が要求する左上スクリーン座標 = アンカースクリーン座標 − 矩形×アンカー係数。
-    // これによりアンカー点を固定したまま drawW/H で拡縮される（既定 Center なら中心固定）。
+    // SubmitSprite が要求する左上座標 = アンカー座標 − 矩形×アンカー係数
+    //（アンカー点を固定したままズームで拡縮される。既定 Center なら中心固定）。
     // 回転ピボットもアンカー点に一致させる（pivotX/Y = アンカー係数）。
     renderer->SubmitSprite({
         .texture  = texture_.handle,
-        .x        = anchorScreenX - drawW * fx,
-        .y        = anchorScreenY - drawH * fy,
-        .width    = drawW,
-        .height   = drawH,
+        .x        = anchorWorldX - width_  * fx,
+        .y        = anchorWorldY - height_ * fy,
+        .width    = width_,
+        .height   = height_,
         .u0 = u0, .v0 = v0, .u1 = u1, .v1 = v1,
         .color    = color_,
         .rotation = t.rotation,
         .pivotX   = fx,
         .pivotY   = fy,
+        .space    = space_,
         .sortKey  = SortKey(),
     });
 }

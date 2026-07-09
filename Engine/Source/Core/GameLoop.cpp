@@ -48,7 +48,8 @@ bool GameLoop::Tick(Scene* currentScene) {
 
     // カメラのビューポートを仮想解像度（無効時はウィンドウ実サイズ）に同期する。
     // これにより「画面に見えるワールド範囲」がウィンドウサイズと切り離される。
-    // SpriteComponent のワールド→スクリーン変換（Scene::Update 内）より前に行う。
+    // ScreenToWorld 系の CPU 変換（マウスピック等）が Scene::Update 内で
+    // 正しく動くよう、更新より前に行う。
     if (CameraManager* cameras = Services::Instance().cameras) {
         cameras->SetViewport(static_cast<float>(renderer_->VirtualWidth()),
                              static_cast<float>(renderer_->VirtualHeight()));
@@ -63,6 +64,16 @@ bool GameLoop::Tick(Scene* currentScene) {
     {
         WITCH_PROFILE_SCOPE_N("SceneUpdate");
         if (currentScene) currentScene->Update(time_->DeltaTime());
+    }
+
+    // カメラのビュー変換を RHI に渡す（World スプライトに VS で適用される）。
+    // Camera フェーズまでの更新で確定した今フレームの値を、描画前にここで送る。
+    // カメラ未設定なら恒等（ワールド座標をそのままスクリーン座標として扱う）。
+    if (CameraManager* cameras = Services::Instance().cameras) {
+        const Camera2D& cam = cameras->Active();
+        renderer_->SetCamera(cam.ViewScale(), cam.ViewOffsetX(), cam.ViewOffsetY());
+    } else {
+        renderer_->SetCamera(1.0f, 0.0f, 0.0f);
     }
 
     // 3) デバッグ UI。ImGui フレーム内（BeginDebugUI 後・RenderDebugUI 前）。
