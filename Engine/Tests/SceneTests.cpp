@@ -13,10 +13,14 @@ namespace {
 
 using namespace witch;
 
+/// 固定ステップの dt。契約上 FixedUpdate には常にこの値を渡す（Time::kFixedDelta 相当）。
+constexpr float kFixedDt = 1.0f / 60.0f;
+
 /// 1 フレーム = 固定ステップ 1 回 + フレーム更新 1 回として回すヘルパ。
-void StepFrame(Scene& scene, float dt = 0.016f) {
-    scene.FixedUpdate(dt);
-    scene.FrameUpdate(dt);
+/// FixedUpdate の dt は契約どおり固定値、FrameUpdate の dt だけ可変にできる。
+void StepFrame(Scene& scene, float frameDt = kFixedDt) {
+    scene.FixedUpdate(kFixedDt);
+    scene.FrameUpdate(frameDt);
 }
 
 /// ライフサイクルフックの呼び出し回数を数える GameObject。
@@ -180,12 +184,12 @@ TEST_CASE("OnDespawn is called exactly once on deferred destroy", "[Scene]") {
     CHECK(sDespawnCount == 1);
 }
 
-TEST_CASE("Spawn during update is reflected next frame", "[Scene]") {
+TEST_CASE("Spawn during update is deferred to the next update stage", "[Scene]") {
     Scene scene;
     auto* obj = scene.Spawn<ProbeObject>();
     auto* spawner = obj->AddComponent<SpawnerComponent>();
 
-    scene.FixedUpdate(0.016f);  // obj 反映 + SpawnerComponent が Spawn を発行
+    scene.FixedUpdate(kFixedDt);  // obj 反映 + SpawnerComponent が Spawn を発行
 
     auto* spawned = spawner->Spawned();
     REQUIRE(spawned != nullptr);
@@ -193,7 +197,7 @@ TEST_CASE("Spawn during update is reflected next frame", "[Scene]") {
     CHECK(scene.Find(spawned->Id()) == nullptr);
     CHECK(spawned->spawnCount == 0);
 
-    scene.FrameUpdate(0.016f);  // 同フレームの FrameUpdate 先頭で反映（描画に参加できる）
+    scene.FrameUpdate(kFixedDt);  // 同フレームの FrameUpdate 先頭で反映（描画に参加できる）
 
     CHECK(scene.Find(spawned->Id()) == spawned);
     CHECK(spawned->spawnCount == 1);
@@ -226,9 +230,9 @@ TEST_CASE("Multi-step frame runs fixed phases per step and render once", "[Scene
     auto* render = obj->AddComponent<RenderCountingComponent>();
 
     // キャッチアップフレーム: 固定ステップ 3 回 + フレーム更新 1 回。
-    scene.FixedUpdate(1.0f / 60.0f);
-    scene.FixedUpdate(1.0f / 60.0f);
-    scene.FixedUpdate(1.0f / 60.0f);
+    scene.FixedUpdate(kFixedDt);
+    scene.FixedUpdate(kFixedDt);
+    scene.FixedUpdate(kFixedDt);
     scene.FrameUpdate(0.05f);
 
     CHECK(logic->updateCount == 3);
@@ -241,12 +245,12 @@ TEST_CASE("Spawn during a fixed step joins the same frame's render", "[Scene]") 
     auto* obj = scene.Spawn<ProbeObject>();
     auto* spawner = obj->AddComponent<SpawnerComponent>();
 
-    scene.FixedUpdate(0.016f);  // spawner が Spawn（保留）
+    scene.FixedUpdate(kFixedDt);  // spawner が Spawn（保留）
     auto* spawned = spawner->Spawned();
     REQUIRE(spawned != nullptr);
     auto* render = spawned->AddComponent<RenderCountingComponent>();
 
-    scene.FrameUpdate(0.016f);
+    scene.FrameUpdate(kFixedDt);
 
     // 同一フレームの FrameUpdate 先頭で反映され、そのフレームの描画に乗る。
     CHECK(spawned->spawnCount == 1);
@@ -254,7 +258,7 @@ TEST_CASE("Spawn during a fixed step joins the same frame's render", "[Scene]") 
     // 固定側の Update はまだ走っていない（次の FixedUpdate から）。
     CHECK(spawned->updateCount == 0);
 
-    scene.FixedUpdate(0.016f);
+    scene.FixedUpdate(kFixedDt);
     CHECK(spawned->updateCount == 1);
 }
 

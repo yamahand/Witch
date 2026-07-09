@@ -68,10 +68,14 @@ TEST_CASE("Clamped worst-case frame is bounded to a finite step count",
           "[FixedStepAccumulator]") {
     FixedStepAccumulator acc(kFixedDelta);
     // Time::Tick の kMaxDelta = 0.25s クランプが効いた最悪フレーム。
-    // 0.25 / (1/60) = 15 ステップで止まる（spiral of death の上界検証）。
+    // 実数では 0.25 / (1/60) = 15 だが、float32 の kFixedDelta は真の 1/60 より
+    // わずかに大きく（15 * kFixedDelta > 0.25f）、丸め方向次第で 14 にもなり得る。
+    // spiral of death 対策としてはどちらでも十分なので、上界の検証は範囲で行う。
     acc.Advance(0.25f);
 
-    CHECK(DrainSteps(acc) == 15);
+    const int steps = DrainSteps(acc);
+    CHECK(steps >= 14);
+    CHECK(steps <= 15);
     // 不変条件: 消費後の剰余は常に fixedDelta 未満。
     CHECK(acc.Alpha() < 1.0f);
 }

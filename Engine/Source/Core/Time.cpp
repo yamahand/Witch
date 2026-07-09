@@ -20,7 +20,7 @@ void Time::Tick() {
 
     // Clamp delta to avoid spiral of death after pauses (e.g. breakpoints).
     // 固定タイムステップ導入後もこのクランプが 1 フレームの固定ステップ数の
-    // 上界（0.25 / kFixedDelta = 15 回）を与える主対策として残る。
+    // 上界（0.25 / kFixedDelta ≒ 15 回。float 丸めで 14 になり得る）を与える主対策として残る。
     static constexpr float kMaxDelta = 0.25f;
     deltaTime_ = std::min(deltaTime_, kMaxDelta);
 

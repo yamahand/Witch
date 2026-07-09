@@ -30,7 +30,9 @@ public:
     /// Tick() が dt をクランプ（kMaxDelta）してから積むため、1 フレームの
     /// ステップ数には自然に上界が付く（FixedStepAccumulator.h の契約参照）。
     bool ConsumeFixedStep() { return accumulator_.ConsumeStep(); }
-    /// 固定ステップの剰余の正規化値 [0, 1)。将来の描画補間用（現状消費者なし）。
+    /// 固定ステップの剰余の正規化値。将来の描画補間用（現状消費者なし）。
+    /// ConsumeFixedStep() を消費し切った後（= FrameUpdate 中）に呼ぶ契約で、
+    /// そのとき [0, 1)。消費前に呼ぶと 1 以上になり得る。
     float InterpolationAlpha() const { return accumulator_.Alpha(); }
 
 private:

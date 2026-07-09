@@ -7,7 +7,8 @@ namespace witch {
 ///
 /// 使い方: フレームごとに Advance(frameDelta) で経過時間を積み、
 /// ConsumeStep() が true を返す間 1 固定ステップずつ実行する。
-/// 剰余は常に fixedDelta 未満なのでフレームをまたいで蓄積せず、
+/// 消費し切った後の剰余は常に fixedDelta 未満で、次フレームへ持ち越される
+/// （持ち越しはあるが fixedDelta 以上に溜まることはない）。そのため
 /// frameDelta に上限（Time の kMaxDelta クランプ）がある限り
 /// 1 フレームのステップ数にも自然に上界が付く。
 ///
@@ -30,7 +31,9 @@ public:
         return true;
     }
 
-    /// 剰余の正規化値 [0, 1)。将来の描画補間（前ステップと今ステップのブレンド係数）用。
+    /// 剰余の正規化値。将来の描画補間（前ステップと今ステップのブレンド係数）用。
+    /// ConsumeStep() を消費し切った後に呼ぶ契約で、そのとき [0, 1)。
+    /// 消費前（Advance 直後など）に呼ぶと 1 以上になり得る。
     float Alpha() const { return accumulator_ / fixedDelta_; }
 
     /// 1 固定ステップの長さ（秒）。
