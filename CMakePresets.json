@@ -25,7 +25,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "WITCH_DEBUG_UI": "ON",
         "WITCH_MOUNT_DEV_CONTENT": "ON",
-        "VCPKG_MANIFEST_FEATURES": "debug-ui"
+        "WITCH_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "debug-ui;tests"
       }
     },
     {
@@ -37,7 +38,7 @@
       "cacheVariables": {
         "WITCH_PROFILING": "ON",
         "WITCH_DEBUG_UI": "ON",
-        "VCPKG_MANIFEST_FEATURES": "profiling;debug-ui"
+        "VCPKG_MANIFEST_FEATURES": "profiling;debug-ui;tests"
       }
     },
     {
@@ -75,7 +76,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "WITCH_DEBUG_UI": "ON",
         "WITCH_MOUNT_DEV_CONTENT": "ON",
-        "VCPKG_MANIFEST_FEATURES": "debug-ui"
+        "WITCH_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "debug-ui;tests"
       }
     },
     {
@@ -86,7 +88,9 @@
       "binaryDir": "${sourceDir}/build/ci-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "WITCH_DEBUG_UI": "OFF"
+        "WITCH_DEBUG_UI": "OFF",
+        "WITCH_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     }
   ],
@@ -124,6 +128,19 @@
   ],
   "testPresets": [
     {
+      "name": "test-debug",
+      "displayName": "Test Debug",
+      "configurePreset": "debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      }
+    },
+    {
       "name": "test-ci-windows-debug",
       "displayName": "Test CI Windows Debug",
       "configurePreset": "ci-windows-debug",
@@ -132,7 +149,7 @@
         "outputOnFailure": true
       },
       "execution": {
-        "noTestsAction": "ignore",
+        "noTestsAction": "error",
         "stopOnFailure": false
       }
     },
@@ -145,7 +162,7 @@
         "outputOnFailure": true
       },
       "execution": {
-        "noTestsAction": "ignore",
+        "noTestsAction": "error",
         "stopOnFailure": false
       }
     }
