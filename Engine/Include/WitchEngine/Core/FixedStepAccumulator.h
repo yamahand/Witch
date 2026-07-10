@@ -1,4 +1,5 @@
 #pragma once
+#include <cassert>
 
 namespace witch {
 
@@ -17,7 +18,11 @@ namespace witch {
 /// （要求する場合は double か整数ナノ秒に置き換える）。
 class FixedStepAccumulator {
 public:
-    explicit constexpr FixedStepAccumulator(float fixedDelta) : fixedDelta_(fixedDelta) {}
+    /// fixedDelta は正であること（回復不能な前提違反としてアサートで弾く。
+    /// 0 以下だと ConsumeStep が無限ループし、Alpha がゼロ除算になる）。
+    explicit constexpr FixedStepAccumulator(float fixedDelta) : fixedDelta_(fixedDelta) {
+        assert(fixedDelta > 0.0f && "FixedStepAccumulator: fixedDelta must be positive");
+    }
 
     /// フレームの経過時間を積む。フレームごとに 1 回呼ぶ。
     void Advance(float frameDelta) { accumulator_ += frameDelta; }

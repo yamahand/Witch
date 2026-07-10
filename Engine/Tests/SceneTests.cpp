@@ -3,6 +3,7 @@
 // 固定タイムステップ導入後は 1 フレーム = FixedUpdate × 0〜N 回 + FrameUpdate × 1 回。
 // 通常フレームの契約は StepFrame（Fixed + Frame 各 1 回）で、固定/毎フレーム分割固有の
 // 契約（0 ステップ・多重ステップ）は末尾の専用ケースで検証する。
+#include "WitchEngine/Core/Time.h"
 #include "WitchEngine/Scene/Component.h"
 #include "WitchEngine/Scene/GameObject.h"
 #include "WitchEngine/Scene/Scene.h"
@@ -13,8 +14,9 @@ namespace {
 
 using namespace witch;
 
-/// 固定ステップの dt。契約上 FixedUpdate には常にこの値を渡す（Time::kFixedDelta 相当）。
-constexpr float kFixedDt = 1.0f / 60.0f;
+/// 固定ステップの dt。契約上 FixedUpdate には常にこの値を渡す。
+/// 1/60 を重複定義せず単一ソース（Time::kFixedDelta）を参照する。
+constexpr float kFixedDt = Time::kFixedDelta;
 
 /// 1 フレーム = 固定ステップ 1 回 + フレーム更新 1 回として回すヘルパ。
 /// FixedUpdate の dt は契約どおり固定値、FrameUpdate の dt だけ可変にできる。
