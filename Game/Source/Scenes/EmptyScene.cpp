@@ -65,7 +65,6 @@ void EmptyScene::OnEnter() {
     obj->transform.y = 0.0f;
     witchSprite_ = obj->AddComponent<SpriteComponent>(spriteTexture_, 128.0f, 128.0f);
     witchSprite_->SetLayer(1);
-    witchId_ = obj->Id(); // Update から弱参照で解決する。
 
     // レイヤー検証用の静止 Witch（操作対象と重なる位置、レイヤー 0）。
     auto* staticObj = Spawn<GameObject>();
@@ -119,9 +118,52 @@ void EmptyScene::OnEnter() {
     }
 }
 
-void EmptyScene::Update(float dt) {
+void EmptyScene::FixedUpdate(float fixedDt) {
+    // 連続量の入力（IsDown + dt スケール）は固定ステップ側で処理する。
+    // 移動・回転速度が描画レートに依存せず 60Hz 固定で決まる。
+    IInput* input = Services::Instance().input;
+    if (input) {
+        // 矢印キーで Witch スプライトを移動。オーナー GameObject はシーンと同寿命
+        // （Destroy しない）ので、Spawn 時に保持した witchSprite_ の Owner() から直接引く。
+        // Find(ObjectId) と違い OnEnter 直後の生成未反映ステップでも操作できる。
+        if (GameObject* witch = witchSprite_ ? witchSprite_->Owner() : nullptr) {
+            float dx = 0.0f;
+            float dy = 0.0f;
+            if (input->IsDown(Key::Left))  dx -= 1.0f;
+            if (input->IsDown(Key::Right)) dx += 1.0f;
+            if (input->IsDown(Key::Up))    dy -= 1.0f;
+            if (input->IsDown(Key::Down))  dy += 1.0f;
+            witch->transform.x += dx * kMoveSpeed * fixedDt;
+            witch->transform.y += dy * kMoveSpeed * fixedDt;
+
+            // R 押下中は反時計回りに回転（ピボット = アンカー = 中心）。
+            if (input->IsDown(Key::R))
+                witch->transform.rotation += kSpinSpeed * fixedDt;
+        }
+
+        // WASD でカメラを移動、Q/E でズーム（カメラ／座標系の動作確認）。
+        if (auto* cameras = Services::Instance().cameras) {
+            Camera2D& camera = cameras->Active();
+            float cdx = 0.0f;
+            float cdy = 0.0f;
+            if (input->IsDown(Key::A)) cdx -= 1.0f;
+            if (input->IsDown(Key::D)) cdx += 1.0f;
+            if (input->IsDown(Key::W)) cdy -= 1.0f;
+            if (input->IsDown(Key::S)) cdy += 1.0f;
+            camera.Move(cdx * kCameraSpeed * fixedDt, cdy * kCameraSpeed * fixedDt);
+
+            if (input->IsDown(Key::E)) camera.SetZoom(camera.Zoom() + kZoomSpeed * fixedDt);
+            if (input->IsDown(Key::Q)) camera.SetZoom(camera.Zoom() - kZoomSpeed * fixedDt);
+        }
+    }
+    Scene::FixedUpdate(fixedDt);
+}
+
+void EmptyScene::FrameUpdate(float dt) {
     ++frameCount_;
 
+    // エッジ/瞬間量の入力（WasPressed / ホイール）はフレーム側で処理する。
+    // 固定側に置くと多重ステップフレームで二重発火する（EmptyScene.h 参照）。
     IInput* input = Services::Instance().input;
     if (input) {
         // Escape でアプリ終了（WasPressed のエッジ検出を確認）。
@@ -136,23 +178,7 @@ void EmptyScene::Update(float dt) {
             Engine::Get().ChangeScene<EmptyScene>();
         }
 
-        // 矢印キーで Witch スプライトを移動、R/F/T/L で M5 描画機能を切り替え。
-        // 注: OnEnter の Spawn は pendingSpawn_ 行きのため、最初の Update フレームでは
-        // まだ objects_ に反映されておらず Find は nullptr を返す（移動が1フレーム遅れる）。
-        if (GameObject* witch = Find(witchId_)) {
-            float dx = 0.0f;
-            float dy = 0.0f;
-            if (input->IsDown(Key::Left))  dx -= 1.0f;
-            if (input->IsDown(Key::Right)) dx += 1.0f;
-            if (input->IsDown(Key::Up))    dy -= 1.0f;
-            if (input->IsDown(Key::Down))  dy += 1.0f;
-            witch->transform.x += dx * kMoveSpeed * dt;
-            witch->transform.y += dy * kMoveSpeed * dt;
-
-            // R 押下中は反時計回りに回転（ピボット = アンカー = 中心）。
-            if (input->IsDown(Key::R))
-                witch->transform.rotation += kSpinSpeed * dt;
-        }
+        // F/T/L で M5 描画機能を切り替え。
         if (witchSprite_) {
             if (input->WasPressed(Key::F))
                 witchSprite_->SetFlip(!witchSprite_->FlipX(), false);
@@ -196,20 +222,9 @@ void EmptyScene::Update(float dt) {
             log::Info("unitychan anim -> {}", entry.path);
         }
 
-        // WASD でカメラを移動、Q/E でズーム（カメラ／座標系の動作確認）。
+        // マウスホイールでズーム（ホイールは瞬間量なのでフレーム側）。
         if (auto* cameras = Services::Instance().cameras) {
             Camera2D& camera = cameras->Active();
-            float cdx = 0.0f;
-            float cdy = 0.0f;
-            if (input->IsDown(Key::A)) cdx -= 1.0f;
-            if (input->IsDown(Key::D)) cdx += 1.0f;
-            if (input->IsDown(Key::W)) cdy -= 1.0f;
-            if (input->IsDown(Key::S)) cdy += 1.0f;
-            camera.Move(cdx * kCameraSpeed * dt, cdy * kCameraSpeed * dt);
-
-            if (input->IsDown(Key::E)) camera.SetZoom(camera.Zoom() + kZoomSpeed * dt);
-            if (input->IsDown(Key::Q)) camera.SetZoom(camera.Zoom() - kZoomSpeed * dt);
-            // マウスホイールでもズーム。
             if (float wheel = input->MouseWheelDelta(); wheel != 0.0f)
                 camera.SetZoom(camera.Zoom() + wheel * kWheelZoomStep);
         }
@@ -233,7 +248,7 @@ void EmptyScene::Update(float dt) {
                   "virt=({:.0f},{:.0f}) world=({:.0f},{:.0f})",
                   frameCount_, dt, mx, my, vx, vy, wx, wy);
     }
-    Scene::Update(dt);
+    Scene::FrameUpdate(dt);
 }
 
 void EmptyScene::OnExit() {

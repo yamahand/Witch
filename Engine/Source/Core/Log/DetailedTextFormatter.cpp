@@ -19,7 +19,7 @@ std::string_view BaseName(const char* path) {
 
 /// MSVC の function_name() は戻り値型・呼出規約込みの完全なシグネチャを返すため、
 /// 引数リスト以降を落とし、最後の空白より後ろ（修飾名）だけを残す。
-/// 例: "void __cdecl witch::EmptyScene::Update(float)" → "witch::EmptyScene::Update"
+/// 例: "void __cdecl witch::EmptyScene::FrameUpdate(float)" → "witch::EmptyScene::FrameUpdate"
 std::string_view ShortFunction(const char* function) {
     std::string_view sv(function);
     if (auto paren = sv.find('('); paren != std::string_view::npos) {

@@ -4,9 +4,11 @@
 find_package(Catch2 3 CONFIG REQUIRED)
 
 add_executable(WitchEngineTests
+    TestHelpers.h
     SceneTests.cpp
     ComponentTypeIdTests.cpp
     ComponentSchedulerTests.cpp
+    FixedStepAccumulatorTests.cpp
     VfsPathUtilTests.cpp
 )
 
