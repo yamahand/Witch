@@ -125,7 +125,6 @@ void EmptyScene::FixedUpdate(float fixedDt) {
     if (input) {
         // 矢印キーで Witch スプライトを移動。オーナー GameObject はシーンと同寿命
         // （Destroy しない）ので、Spawn 時に保持した witchSprite_ の Owner() から直接引く。
-        // Find(ObjectId) と違い OnEnter 直後の生成未反映ステップでも操作できる。
         if (GameObject* witch = witchSprite_ ? witchSprite_->Owner() : nullptr) {
             float dx = 0.0f;
             float dy = 0.0f;

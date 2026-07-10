@@ -13,19 +13,34 @@ ObjectId Scene::NextId() {
     return sNextId.fetch_add(1, std::memory_order_relaxed);
 }
 
+void Scene::Enter() {
+    inEnter_ = true;
+    OnEnter();
+    inEnter_ = false;
+}
+
+void Scene::Exit() {
+    OnExit();
+}
+
+void Scene::CommitSpawn(std::unique_ptr<GameObject> obj) {
+    // OnSpawn 完了後に spawned_ を立てて components_ を一括登録する。OnSpawn 中の
+    // AddComponent は spawned_ が false なので個別登録されず、ここで漏れなく拾われる
+    // （spawned_ 以降の AddComponent は GameObject::RegisterComponent が個別登録する）。
+    obj->OnSpawn();
+    obj->spawned_ = true;
+    for (auto& comp : obj->components_) {
+        scheduler_.Register(comp.get());
+    }
+    objects_.push_back(std::move(obj));
+}
+
 void Scene::FlushPendingSpawns() {
     // Swap to local first: OnSpawn() may call Spawn(), which pushes to pendingSpawn_.
     // Iterating and push_back-ing the same vector causes reallocation UB.
-    // OnSpawn 完了後に spawned_ を立てて components_ を一括登録する。OnSpawn 中の
-    // AddComponent は spawned_ が false なので個別登録されず、ここで漏れなく拾われる。
     auto spawning = std::move(pendingSpawn_);
     for (auto& obj : spawning) {
-        obj->OnSpawn();
-        obj->spawned_ = true;
-        for (auto& comp : obj->components_) {
-            scheduler_.Register(comp.get());
-        }
-        objects_.push_back(std::move(obj));
+        CommitSpawn(std::move(obj));
     }
 }
 

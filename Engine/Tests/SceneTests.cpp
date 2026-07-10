@@ -98,7 +98,7 @@ TEST_CASE("Spawn is deferred until the next update", "[Scene]") {
 
     REQUIRE(obj != nullptr);
     REQUIRE(obj->Id() != kInvalidId);
-    // 保留リストにいる間は Find で見つからない（RefactoringNotes §8 の文書化された挙動）。
+    // OnEnter 外の Spawn は保留リストに積まれ、反映まで Find で見つからない（Scene.h の契約）。
     CHECK(scene.Find(obj->Id()) == nullptr);
     CHECK(obj->spawnCount == 0);
 
@@ -252,6 +252,116 @@ TEST_CASE("Spawn during a fixed step joins the same frame's render", "[Scene]") 
 
     scene.FixedUpdate(kFixedDt);
     CHECK(spawned->updateCount == 1);
+}
+
+// ── OnEnter 中の即時 Spawn（Enter() 経由の即時反映モード） ──────────────────
+
+/// コンストラクタ引数で位置を受け、OnSpawn がその値を観測する GameObject。
+/// 「OnSpawn が必要とする情報はコンストラクタ引数で渡す」自己完結契約の検証用。
+class ConfiguredObject : public GameObject {
+public:
+    explicit ConfiguredObject(float x) { transform.x = x; }
+    void OnSpawn() override { xSeenByOnSpawn = transform.x; }
+    float xSeenByOnSpawn = -1.0f;
+};
+
+/// OnSpawn でさらに Spawn する GameObject（入れ子 Spawn の即時性検証用）。
+class NestedSpawnObject : public GameObject {
+public:
+    void OnSpawn() override { child = GetScene()->Spawn<ProbeObject>(); }
+    ProbeObject* child = nullptr;
+};
+
+TEST_CASE("Spawn during OnEnter is applied immediately", "[Scene]") {
+    class EnterScene : public Scene {
+    public:
+        ProbeObject* spawned = nullptr;
+        bool foundDuringEnter = false;
+        int spawnCountDuringEnter = -1;
+
+    protected:
+        void OnEnter() override {
+            spawned = Spawn<ProbeObject>();
+            // Spawn の戻り時点で反映済み: Find が通り、OnSpawn も完了している。
+            foundDuringEnter = (Find(spawned->Id()) == spawned);
+            spawnCountDuringEnter = spawned->spawnCount;
+        }
+    };
+
+    EnterScene scene;
+    scene.Enter();
+
+    CHECK(scene.foundDuringEnter);
+    CHECK(scene.spawnCountDuringEnter == 1);
+    // 即時なのは反映だけで、更新はまだ走らない（最初の FixedUpdate から）。
+    CHECK(scene.spawned->updateCount == 0);
+
+    // Enter 後の通常フレームでは二重反映されず、普通に更新に参加する。
+    StepFrame(scene);
+    CHECK(scene.spawned->spawnCount == 1);
+    CHECK(scene.spawned->updateCount == 1);
+}
+
+TEST_CASE("OnSpawn sees constructor-arg state in both spawn modes", "[Scene]") {
+    // 即時モード（OnEnter 中）でも遅延モードでも、OnSpawn が見る状態は
+    // コンストラクタ引数由来で同一になる（自己完結契約が成立していること）。
+    class EnterScene : public Scene {
+    public:
+        ConfiguredObject* obj = nullptr;
+
+    protected:
+        void OnEnter() override { obj = Spawn<ConfiguredObject>(100.0f); }
+    };
+
+    EnterScene immediate;
+    immediate.Enter();
+    CHECK(immediate.obj->xSeenByOnSpawn == 100.0f);
+
+    Scene deferred;
+    auto* obj = deferred.Spawn<ConfiguredObject>(100.0f);
+    StepFrame(deferred);
+    CHECK(obj->xSeenByOnSpawn == 100.0f);
+}
+
+TEST_CASE("Nested Spawn inside OnSpawn during OnEnter is also immediate", "[Scene]") {
+    class EnterScene : public Scene {
+    public:
+        NestedSpawnObject* parent = nullptr;
+
+    protected:
+        void OnEnter() override { parent = Spawn<NestedSpawnObject>(); }
+    };
+
+    EnterScene scene;
+    scene.Enter();
+
+    REQUIRE(scene.parent->child != nullptr);
+    CHECK(scene.Find(scene.parent->child->Id()) == scene.parent->child);
+    CHECK(scene.parent->child->spawnCount == 1);
+}
+
+TEST_CASE("Components added after an immediate spawn join updates", "[Scene]") {
+    // 即時反映後の AddComponent は RegisterComponent の個別登録経路を通る。
+    // その経路でもスケジューラに載り、以降のフレームで普通に更新されること。
+    class EnterScene : public Scene {
+    public:
+        CountingComponent* comp = nullptr;
+        RenderCountingComponent* render = nullptr;
+
+    protected:
+        void OnEnter() override {
+            auto* obj = Spawn<ProbeObject>();
+            comp = obj->AddComponent<CountingComponent>();
+            render = obj->AddComponent<RenderCountingComponent>();
+        }
+    };
+
+    EnterScene scene;
+    scene.Enter();
+    StepFrame(scene);
+
+    CHECK(scene.comp->updateCount == 1);
+    CHECK(scene.render->updateCount == 1);
 }
 
 TEST_CASE("Destroy during a fixed step skips remaining phases and despawns once",
