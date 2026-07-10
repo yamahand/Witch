@@ -25,8 +25,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "WITCH_DEBUG_UI": "ON",
         "WITCH_MOUNT_DEV_CONTENT": "ON",
-        "WITCH_BUILD_TESTS": "ON",
-        "VCPKG_MANIFEST_FEATURES": "debug-ui;tests"
+        "WITCH_BUILD_TESTS": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "debug-ui"
       }
     },
     {
@@ -38,7 +38,18 @@
       "cacheVariables": {
         "WITCH_PROFILING": "ON",
         "WITCH_DEBUG_UI": "ON",
-        "VCPKG_MANIFEST_FEATURES": "profiling;debug-ui;tests"
+        "VCPKG_MANIFEST_FEATURES": "profiling;debug-ui"
+      }
+    },
+    {
+      "name": "debug-tests",
+      "displayName": "MSVC Debug + Tests (x64)",
+      "description": "debug と同じエンジン構成にユニットテストを追加。日常ビルド（debug）を軽く保つためテストはこの専用プリセットでビルドする。CI は独立した ci-windows-* を使う。",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/debug-tests",
+      "cacheVariables": {
+        "WITCH_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "debug-ui;tests"
       }
     },
     {
@@ -108,6 +119,12 @@
       "configuration": "Debug"
     },
     {
+      "name": "debug-tests",
+      "displayName": "Build Debug + Tests",
+      "configurePreset": "debug-tests",
+      "configuration": "Debug"
+    },
+    {
       "name": "release",
       "displayName": "Build Release",
       "configurePreset": "release",
@@ -130,7 +147,7 @@
     {
       "name": "test-debug",
       "displayName": "Test Debug",
-      "configurePreset": "debug",
+      "configurePreset": "debug-tests",
       "configuration": "Debug",
       "output": {
         "outputOnFailure": true

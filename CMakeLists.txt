@@ -255,9 +255,9 @@ if(MSVC)
 endif()
 
 # ─── Unit tests (Catch2 + ctest) ─────────────────────────────────────────────
-# 既定 OFF。debug / ci-* プリセットが ON にする（vcpkg 側も tests feature で catch2 を
-# 取得する。CMakePresets.json / vcpkg.json 参照）。配布用 release プリセットでは
-# find_package / ビルドを一切行わない。
+# 既定 OFF。debug-tests / ci-* プリセットが ON にする（vcpkg 側も tests feature で
+# catch2 を取得する。CMakePresets.json / vcpkg.json 参照）。日常開発用の debug /
+# debug-profiling と配布用 release ではテストの find_package / ビルドを一切行わない。
 option(WITCH_BUILD_TESTS "Build unit tests" OFF)
 if(WITCH_BUILD_TESTS)
     enable_testing()
