@@ -111,6 +111,7 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Graphics2D/LayerSortKey.h
     Engine/Include/WitchEngine/Graphics2D/SpriteComponent.h
     Engine/Include/WitchEngine/Input/IInput.h
+    Engine/Include/WitchEngine/Level/LevelData.h
     Engine/Include/WitchEngine/Input/Key.h
     Engine/Include/WitchEngine/Rhi/IRenderer.h
     Engine/Include/WitchEngine/Rhi/RhiTypes.h
@@ -218,6 +219,11 @@ endif()
 
 find_package(Stb REQUIRED)
 target_include_directories(WitchEngine PRIVATE ${Stb_INCLUDE_DIR})
+
+# LDtk レベルファイルのパースに使う。使用は Engine/Source/Level/LdtkLoader.cpp の
+# 1 TU に隔離し公開ヘッダへ漏らさないため PRIVATE（例外も同 TU 内で expected に翻訳）。
+find_package(nlohmann_json CONFIG REQUIRED)
+target_link_libraries(WitchEngine PRIVATE nlohmann_json::nlohmann_json)
 
 # ─── WitchGame (executable) ──────────────────────────────────────────────────
 add_executable(WitchGame
