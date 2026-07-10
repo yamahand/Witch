@@ -14,9 +14,16 @@ ObjectId Scene::NextId() {
 }
 
 void Scene::Enter() {
+    // inEnter_ の復帰は RAII で保証する。OnEnter から呼ばれる OSS アダプタ層に
+    // 例外→expected の翻訳漏れがあり例外がここまで伝播した場合でも、即時反映モードが
+    // 立ちっぱなしになるのを防ぐ（残ると以降の更新中 Spawn が objects_ の
+    // イテレーション中 push_back = UB に化けるため、手動復帰にしない）。
+    struct EnterGuard {
+        Scene& scene;
+        ~EnterGuard() { scene.inEnter_ = false; }
+    } guard{*this};
     inEnter_ = true;
     OnEnter();
-    inEnter_ = false;
 }
 
 void Scene::Exit() {
