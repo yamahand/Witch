@@ -217,19 +217,37 @@ TEST_CASE("ParseLdtk rejects absolute tileset paths", "[LdtkLoader]") {
     }
 }
 
-TEST_CASE("ParseLdtk skips hidden layers", "[LdtkLoader]") {
+TEST_CASE("ParseLdtk hides tiles of hidden layers but keeps gameplay data",
+          "[LdtkLoader]") {
+    // visible=false は描画タイルにのみ影響する。IntGrid（衝突）とエンティティは
+    // ゲームプレイデータなので、非表示のまま書き出されても保持される。
     const auto result = Parse(R"({
         "levels": [{
-            "identifier": "L", "pxWid": 8, "pxHei": 8,
-            "layerInstances": [{
-                "__identifier": "T", "__type": "Tiles", "__gridSize": 8, "visible": false,
-                "__tilesetRelPath": "a.png",
-                "gridTiles": [{"px": [0, 0], "src": [0, 0]}]
-            }]
+            "identifier": "L", "pxWid": 16, "pxHei": 8,
+            "layerInstances": [
+                {"__identifier": "T", "__type": "Tiles", "__gridSize": 8, "visible": false,
+                 "__tilesetRelPath": "a.png",
+                 "gridTiles": [{"px": [0, 0], "src": [0, 0]}]},
+                {"__identifier": "Collision", "__type": "IntGrid", "__gridSize": 8,
+                 "visible": false, "__cWid": 2, "__cHei": 1,
+                 "__tilesetRelPath": "a.png",
+                 "intGridCsv": [1, 0],
+                 "autoLayerTiles": [{"px": [0, 0], "src": [0, 0]}]},
+                {"__identifier": "Entities", "__type": "Entities", "__gridSize": 8,
+                 "visible": false,
+                 "entityInstances": [{"__identifier": "Enemy", "px": [8, 0],
+                                      "width": 8, "height": 8}]}
+            ]
         }]
     })");
     REQUIRE(result.has_value());
+    // 描画タイルは Tiles / IntGrid のオートタイルとも出力されない。
     CHECK(result->tileLayers.empty());
+    // IntGrid とエンティティは保持される。
+    REQUIRE(result->intGrids.size() == 1);
+    CHECK(result->intGrids[0].values == std::vector<int>{1, 0});
+    REQUIRE(result->entities.size() == 1);
+    CHECK(result->entities[0].identifier == "Enemy");
 }
 
 } // namespace

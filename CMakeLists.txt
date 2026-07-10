@@ -115,8 +115,8 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Graphics2D/SpriteComponent.h
     Engine/Include/WitchEngine/Graphics2D/TilemapComponent.h
     Engine/Include/WitchEngine/Input/IInput.h
-    Engine/Include/WitchEngine/Level/LevelData.h
     Engine/Include/WitchEngine/Input/Key.h
+    Engine/Include/WitchEngine/Level/LevelData.h
     Engine/Include/WitchEngine/Rhi/IRenderer.h
     Engine/Include/WitchEngine/Rhi/RhiTypes.h
     Engine/Include/WitchEngine/Scene/Component.h

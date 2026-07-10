@@ -133,11 +133,11 @@ std::expected<LevelData, std::string> ParseLdtk(std::span<const uint8_t> bytes,
             const json& li = *it;
             const std::string type = li.at("__type").get<std::string>();
             const std::string identifier = li.at("__identifier").get<std::string>();
-            if (!li.value("visible", true)) {
-                log::Info("LdtkLoader: layer '{}' is hidden — skipped ({})", identifier,
-                          sourceName);
-                continue;
-            }
+            // visible はエディタ上の表示フラグなので**描画タイルにのみ**反映する。
+            // IntGrid（衝突）とエンティティはゲームプレイデータであり、作業中に
+            // 表示を OFF にしたまま書き出されがちなため、非表示でも保持する
+            // （黙って衝突が消えて M7 で壊れるのを防ぐ）。
+            const bool visible = li.value("visible", true);
 
             if (type == "IntGrid" || type == "AutoLayer") {
                 if (type == "IntGrid") {
@@ -152,7 +152,10 @@ std::expected<LevelData, std::string> ParseLdtk(std::span<const uint8_t> bytes,
                 // IntGrid はオートタイルルール付きなら描画タイルも持つ。
                 const json& tiles = li.value("autoLayerTiles", json::array());
                 if (!tiles.empty()) {
-                    if (auto layer = ParseTileLayer(li, tiles, sourceName)) {
+                    if (!visible) {
+                        log::Info("LdtkLoader: layer '{}' is hidden — tiles skipped ({})",
+                                  identifier, sourceName);
+                    } else if (auto layer = ParseTileLayer(li, tiles, sourceName)) {
                         level.tileLayers.push_back(std::move(*layer));
                     } else {
                         log::Warn("LdtkLoader: layer '{}' has tiles but no tileset — "
@@ -161,6 +164,11 @@ std::expected<LevelData, std::string> ParseLdtk(std::span<const uint8_t> bytes,
                     }
                 }
             } else if (type == "Tiles") {
+                if (!visible) {
+                    log::Info("LdtkLoader: layer '{}' is hidden — tiles skipped ({})",
+                              identifier, sourceName);
+                    continue;
+                }
                 const json& tiles = li.value("gridTiles", json::array());
                 if (auto layer = ParseTileLayer(li, tiles, sourceName)) {
                     level.tileLayers.push_back(std::move(*layer));
