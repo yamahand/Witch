@@ -9,6 +9,7 @@ add_executable(WitchEngineTests
     ComponentTypeIdTests.cpp
     ComponentSchedulerTests.cpp
     FixedStepAccumulatorTests.cpp
+    LdtkLoaderTests.cpp
     VfsPathUtilTests.cpp
 )
 
@@ -16,6 +17,10 @@ target_link_libraries(WitchEngineTests PRIVATE WitchEngine Catch2::Catch2WithMai
 
 # 非公開ヘッダ（Engine/Source 下の VfsPathUtil.h 等）をホワイトボックステストするため。
 target_include_directories(WitchEngineTests PRIVATE ${CMAKE_SOURCE_DIR}/Engine/Source)
+
+# LdtkLoaderTests がリポジトリ直下 Content/ の実データをフィクスチャとして読む。
+target_compile_definitions(WitchEngineTests PRIVATE
+    WITCH_TEST_CONTENT_DIR="${CMAKE_SOURCE_DIR}/Content")
 
 if(MSVC)
     target_compile_options(WitchEngineTests PRIVATE /W4 /WX /utf-8)

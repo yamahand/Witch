@@ -63,6 +63,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Graphics2D/AsepriteLoader.cpp
     Engine/Source/Graphics2D/CameraManager.cpp
     Engine/Source/Graphics2D/SpriteComponent.cpp
+    Engine/Source/Level/LdtkLoader.cpp
     Engine/Source/Vfs/Vfs.cpp
     Engine/Source/Vfs/DiskSource.cpp
     Engine/Source/Vfs/VfsPathUtil.cpp
@@ -76,6 +77,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Platform/PlatformWindow.h
     Engine/Source/Platform/PlatformPaths.h
     Engine/Source/Graphics2D/AsepriteLoader.h
+    Engine/Source/Level/LdtkLoader.h
     Engine/Source/Vfs/VfsPathUtil.h
 
     Engine/Include/WitchEngine/Core/Engine.h
