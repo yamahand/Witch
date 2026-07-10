@@ -108,6 +108,7 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Graphics2D/AsepriteSheet.h
     Engine/Include/WitchEngine/Graphics2D/Camera2D.h
     Engine/Include/WitchEngine/Graphics2D/CameraManager.h
+    Engine/Include/WitchEngine/Graphics2D/LayerSortKey.h
     Engine/Include/WitchEngine/Graphics2D/SpriteComponent.h
     Engine/Include/WitchEngine/Input/IInput.h
     Engine/Include/WitchEngine/Input/Key.h

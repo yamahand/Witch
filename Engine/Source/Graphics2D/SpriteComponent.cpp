@@ -1,4 +1,5 @@
 #include "WitchEngine/Graphics2D/SpriteComponent.h"
+#include "WitchEngine/Graphics2D/LayerSortKey.h"
 #include "WitchEngine/Scene/GameObject.h"
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/Services.h"
@@ -34,12 +35,6 @@ void SpriteComponent::SetSourceRect(int x, int y, int width, int height) {
 
 void SpriteComponent::ClearSourceRect() {
     u0_ = 0.0f; v0_ = 0.0f; u1_ = 1.0f; v1_ = 1.0f;
-}
-
-uint32_t SpriteComponent::SortKey() const {
-    // int16_t を 0x8000 バイアスで昇順の uint16_t にしてから bits 8..23 に置く。
-    // 空間（World/Screen）は SpriteDrawDesc.space で渡す（RHI が space 主でソート）。
-    return static_cast<uint32_t>(static_cast<uint16_t>(layer_ + 0x8000)) << 8;
 }
 
 void SpriteComponent::Update([[maybe_unused]] float dt) {
@@ -82,7 +77,7 @@ void SpriteComponent::Update([[maybe_unused]] float dt) {
         .pivotX   = fx,
         .pivotY   = fy,
         .space    = space_,
-        .sortKey  = SortKey(),
+        .sortKey  = LayerToSortKey(layer_),
     });
 }
 

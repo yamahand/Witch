@@ -22,7 +22,10 @@ static constexpr uint32_t kMaxTextures        = 64;
 /// SRV ヒープ内の ImGui フォントテクスチャ用スロット（エンジンテクスチャの直後）。
 static constexpr uint32_t kImGuiSrvSlot       = kMaxTextures;
 /// 1 フレームのスプライト上限。超えたものは破棄される。
-static constexpr uint32_t kMaxSpritesPerFrame = 1024;
+/// タイルマップ（1 タイル = 1 スプライト提出）対応で 16384 に引き上げた。
+/// 頂点バッファは 16384 * 4 頂点 * 32B = 2 MiB / バックバッファで無害
+/// （RefactoringNotes §3）。超過は従来どおり 1 回だけ警告して破棄する。
+static constexpr uint32_t kMaxSpritesPerFrame = 16384;
 
 /// Direct3D 12 による IRenderer 実装。
 /// D3D12/DXGI 型はこのクラスの外に漏らさない（RHI 境界を守るため）。
