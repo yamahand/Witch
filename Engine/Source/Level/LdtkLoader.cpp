@@ -42,13 +42,18 @@ rhi::Color ParseHexColor(const std::string& hex, std::string_view sourceName) {
 }
 
 /// タイルセット relPath（.ldtk の所在ディレクトリ基準）を VFS パスへ解決する。
-/// 正規化後にマウントルートを脱出する（".." が残る）場合は空を返す。
+/// マウントルート内の相対パスにならない場合は空を返す:
+/// - relPath がルートを持つ（"C:/..." / "/..." / "C:foo"）— operator/ が dir を
+///   無視して置き換えるため ".." チェックをすり抜ける。相対パス以外はここで拒否
+/// - 正規化後にマウントルートを脱出する（".." が残る）
 std::string ResolveTilesetPath(std::string_view sourceName, const std::string& relPath) {
     namespace fs = std::filesystem;
+    const fs::path rel(relPath);
+    if (rel.has_root_path()) return {};
     const auto slash = sourceName.find_last_of("/\\");
     const std::string_view dir =
         (slash == std::string_view::npos) ? std::string_view{} : sourceName.substr(0, slash);
-    const std::string joined = (fs::path(dir) / relPath).lexically_normal().generic_string();
+    const std::string joined = (fs::path(dir) / rel).lexically_normal().generic_string();
     if (joined.starts_with("..")) return {};
     return joined;
 }
@@ -81,8 +86,8 @@ std::optional<LevelTileLayer> ParseTileLayer(const json& li, const json& tiles,
     if (relPath.empty()) return std::nullopt;
     std::string tilesetPath = ResolveTilesetPath(sourceName, relPath);
     if (tilesetPath.empty()) {
-        log::Warn("LdtkLoader: tileset path '{}' escapes mount root in {}", relPath,
-                  sourceName);
+        log::Warn("LdtkLoader: tileset path '{}' is absolute or escapes mount root in {}",
+                  relPath, sourceName);
         return std::nullopt;
     }
     LevelTileLayer layer;

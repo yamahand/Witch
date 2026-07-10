@@ -485,6 +485,39 @@ TEST_CASE("LoadLevel outside OnEnter defers entity spawn to the next update", "[
     CHECK(scene.Find(sLevelEntityCapture.id) != nullptr);
 }
 
+TEST_CASE("LoadLevel destroys the previous level's objects on reload", "[Scene]") {
+    ScopedFixtureVfs vfsGuard;
+    sLevelEntityCapture = {};
+
+    Scene scene;
+    REQUIRE(scene.LoadLevel("Entities.ldtk").has_value());
+    StepFrame(scene);
+    const ObjectId first = sLevelEntityCapture.id;
+    REQUIRE(scene.Find(first) != nullptr);
+
+    // 再ロード: 旧レベル由来のオブジェクトは Destroy され、フレーム末で回収される。
+    REQUIRE(scene.LoadLevel("Entities.ldtk").has_value());
+    StepFrame(scene);
+    CHECK(scene.Find(first) == nullptr);
+    CHECK(sLevelEntityCapture.id != first);
+    CHECK(scene.Find(sLevelEntityCapture.id) != nullptr);
+}
+
+TEST_CASE("LoadLevel reload also destroys still-pending objects", "[Scene]") {
+    ScopedFixtureVfs vfsGuard;
+    sLevelEntityCapture = {};
+
+    // 更新を挟まず 2 連続でロード: 1 回目のエンティティは pendingSpawn_ に
+    // いるうちに Destroy され、反映後のフレーム末で回収される。
+    Scene scene;
+    REQUIRE(scene.LoadLevel("Entities.ldtk").has_value());
+    REQUIRE(scene.LoadLevel("Entities.ldtk").has_value());
+    StepFrame(scene);
+    // 生き残るのは 2 回目のエンティティ 1 体だけ。
+    CHECK(scene.Find(sLevelEntityCapture.id) != nullptr);
+    CHECK(sLevelEntityCapture.spawnCount == 2);  // 両方 OnSpawn は通る（遅延破棄契約）
+}
+
 TEST_CASE("LoadLevel reports missing files as errors", "[Scene]") {
     ScopedFixtureVfs vfsGuard;
     Scene scene;

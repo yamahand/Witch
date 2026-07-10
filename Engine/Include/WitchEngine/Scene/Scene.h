@@ -80,6 +80,10 @@ public:
     /// （回復可能な失敗のためロード全体は止めない）。
     /// 通常は OnEnter 内で呼ぶ（Spawn が即時反映され、戻った時点で Find が通る）。
     /// 失敗（ファイル無し・パースエラー等）は expected で返し、シーンの状態は変えない。
+    /// 再呼び出し可: 前回の LoadLevel が生成したオブジェクト（タイルマップ・
+    /// エンティティ）は Destroy され、通常の遅延破棄契約どおりフレーム末に回収される
+    /// （呼び出し直後の同一フレーム内は新旧が併存しうる）。自前で Spawn した
+    /// オブジェクトは対象外なので、マップ遷移で消したいものはレベル側に寄せること。
     std::expected<void, std::string> LoadLevel(std::string_view path);
 
     /// LoadLevel が読み込んだレベルデータ。未ロードなら nullptr。
@@ -110,6 +114,11 @@ private:
     /// （型が実行時にしか分からず Spawn<T> を使えない）の両方がここへ集約される。
     GameObject* AdoptSpawn(std::unique_ptr<GameObject> obj);
 
+    /// 前回の LoadLevel が生成したオブジェクトを Destroy する（LoadLevel の
+    /// 再呼び出し時に新旧レベルが混在しないように）。反映済み（objects_）と
+    /// 保留中（pendingSpawn_）の両方を ObjectId で探す。回収は通常の遅延破棄契約。
+    void DestroyLevelObjects();
+
     /// 1 体分の反映処理: OnSpawn → scheduler 登録 → objects_ へ移す。
     /// FlushPendingSpawns と即時モードの Spawn の両方から使う（挙動の単一ソース）。
     void CommitSpawn(std::unique_ptr<GameObject> obj);
@@ -124,6 +133,9 @@ private:
     std::vector<std::unique_ptr<GameObject>> objects_;
     std::vector<std::unique_ptr<GameObject>> pendingSpawn_;
     std::unique_ptr<LevelData> level_;  ///< LoadLevel の結果（未ロードなら null）。
+    /// LoadLevel が生成したオブジェクトの弱参照。再呼び出し時の破棄対象
+    /// （所有は objects_ / pendingSpawn_ 側。参照は ObjectId 経由の規約どおり）。
+    std::vector<ObjectId> levelObjectIds_;
     /// 既定はエンジン従来のコーンフラワーブルー（LoadLevel が上書きするまでの値）。
     rhi::Color clearColor_{0.392f, 0.584f, 0.929f, 1.0f};
     bool inEnter_ = false;  ///< OnEnter 実行中（= Spawn 即時反映モード）。Enter() が管理。

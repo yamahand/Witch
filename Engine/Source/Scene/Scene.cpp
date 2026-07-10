@@ -129,6 +129,25 @@ void Scene::DrawDebugUI() {
 }
 #endif
 
+void Scene::DestroyLevelObjects() {
+    for (ObjectId id : levelObjectIds_) {
+        if (GameObject* obj = Find(id)) {
+            obj->Destroy();
+            continue;
+        }
+        // 直前の LoadLevel が更新外（保留モード）だった場合はまだ pendingSpawn_ に
+        // いる。Destroy フラグだけ立てておけば、反映（OnSpawn）後にフレーム末で
+        // 回収される（遅延破棄の通常契約に合流する）。
+        for (auto& pending : pendingSpawn_) {
+            if (pending->Id() == id) {
+                pending->Destroy();
+                break;
+            }
+        }
+    }
+    levelObjectIds_.clear();
+}
+
 GameObject* Scene::Find(ObjectId id) const {
     for (const auto& obj : objects_) {
         if (obj->Id() == id)
@@ -159,6 +178,10 @@ std::expected<void, std::string> Scene::LoadLevel(std::string_view path) {
     }
     auto level = std::make_unique<LevelData>(std::move(*parsed));
 
+    // 再呼び出し時: 前回のレベル由来オブジェクトを破棄してから新レベルを生成する
+    // （level_ だけ差し替わって描画・実体が新旧混在するのを防ぐ）。
+    DestroyLevelObjects();
+
     SetClearColor(level->bgColor);
 
     // タイルレイヤーを 1 つのルート GameObject へまとめて載せる（ヒエラルキーを
@@ -166,6 +189,7 @@ std::expected<void, std::string> Scene::LoadLevel(std::string_view path) {
     if (!level->tileLayers.empty()) {
         auto* root = Spawn<GameObject>();
         root->SetName(level->identifier);
+        levelObjectIds_.push_back(root->Id());
         auto* resources = Services::Instance().resources;
         for (size_t i = 0; i < level->tileLayers.size(); ++i) {
             const LevelTileLayer& layer = level->tileLayers[i];
@@ -201,7 +225,7 @@ std::expected<void, std::string> Scene::LoadLevel(std::string_view path) {
         obj->transform.x = entity.x;
         obj->transform.y = entity.y;
         obj->SetName(entity.identifier);
-        AdoptSpawn(std::move(obj));
+        levelObjectIds_.push_back(AdoptSpawn(std::move(obj))->Id());
     }
 
     level_ = std::move(level);

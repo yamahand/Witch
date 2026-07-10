@@ -195,6 +195,28 @@ TEST_CASE("ParseLdtk resolves tileset relPath against the ldtk directory", "[Ldt
     CHECK(escaped->tileLayers.empty());
 }
 
+TEST_CASE("ParseLdtk rejects absolute tileset paths", "[LdtkLoader]") {
+    // 絶対パスは fs::path::operator/ が基準ディレクトリを無視して丸ごと置き換える
+    // ため、".." チェックとは別に拒否する必要がある（レイヤーは警告スキップ）。
+    constexpr auto makeJson = [](std::string_view relPath) {
+        return std::string(R"({
+            "levels": [{
+                "identifier": "L", "pxWid": 8, "pxHei": 8,
+                "layerInstances": [{
+                    "__identifier": "T", "__type": "Tiles", "__gridSize": 8,
+                    "__tilesetRelPath": ")") +
+               std::string(relPath) + R"(", "gridTiles": []
+                }]
+            }]
+        })";
+    };
+    for (const std::string_view abs : {"C:/abs/tiles.png", "/abs/tiles.png"}) {
+        const auto result = Parse(makeJson(abs));
+        REQUIRE(result.has_value());
+        CHECK(result->tileLayers.empty());
+    }
+}
+
 TEST_CASE("ParseLdtk skips hidden layers", "[LdtkLoader]") {
     const auto result = Parse(R"({
         "levels": [{
