@@ -80,3 +80,5 @@ Testing/
 .cache/
 
 .vscode/
+# Unity-chan aseprite sources (license-restricted assets; keep local only)
+Content/Aseprite/Unitychan/Unitychan_*.ase
