@@ -83,10 +83,16 @@ Witch/                          ← リポジトリのルート
   `OnSpawn()` / `OnDespawn()` / `Update(float dt)`（固定ステップごとに Update フェーズ
   先頭で呼ばれるオブジェクト単位フック。dt は常に 1/60。
   Component の更新は ComponentScheduler が行う）。
+  **OnSpawn の自己完結契約**: OnSpawn はコンストラクタ引数と自分自身で完結する初期化
+  のみ書く（Spawn 後の外部設定に依存しない。即時/遅延どちらの反映モードでも同じ結果に
+  なるため）。コンストラクタでは `GetScene()` / `Id()` は未設定（OnSpawn から使える）。
   `Destroy()` は遅延フラグを立てるだけ。`ObjectId Id()`、`GetScene()` で所属シーンに弱参照。
 - **Scene**（Scene/Scene.h）: 所有ツリーの根。GameObject を `unique_ptr` で所有。
   ComponentScheduler を所有する。
-  `Spawn<T>()` は更新中に呼ばれても安全なよう保留リストに積む。
+  `Spawn<T>(args...)` は T のコンストラクタへ完全転送。更新中に呼ばれても安全なよう
+  保留リストに積む。ただし **OnEnter 中（`Enter()` 経由）は即時反映**され、
+  戻り時に OnSpawn 完了済みで `Find` が通る（LoadLevel 直後の配線を OnEnter 内で
+  書けるようにするため。更新イテレーション外なので即時でも安全）。
   更新は固定タイムステップ（アキュムレータ方式、60Hz）で 2 本立て（順序厳守）:
   `FixedUpdate(fixedDt)` = **生成反映 → 固定側フェーズ**（フレーム内 0〜N 回）、
   `FrameUpdate(dt)` = **生成反映 → 毎フレーム側フェーズ → 破棄回収**（必ず 1 回、
@@ -94,7 +100,8 @@ Witch/                          ← リポジトリのルート
   **エッジ入力（WasPressed 等）は FrameUpdate 側で読む**（入力世代がフレーム単位の
   ため、固定側だと多重ステップフレームで二重発火する）。
   `Find(ObjectId)` で弱参照を解決（今は線形で可）。
-  `OnEnter()` / `OnExit()`。`LoadLevel(path)` は ObjectRegistry 経由で実体化。
+  非仮想 `Enter()` / `Exit()`（Engine が呼ぶ）→ protected 仮想 `OnEnter()` / `OnExit()`。
+  `LoadLevel(path)` は ObjectRegistry 経由で実体化。
 - **ObjectRegistry**（Core/ObjectRegistry.h）: 文字列型名 → 生成関数のファクトリ。
   外部レベルエディタの "Enemy" 等から実体を作る（C++ にリフレクションが無いため必須）。
   登録マクロ `WITCH_REGISTER_OBJECT(Type)` を .cpp に 1 行で自動登録。Meyers Singleton で可。

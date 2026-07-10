@@ -194,7 +194,7 @@ void Engine::Shutdown() {
     // シーンはデバッグ UI より先に破棄する。ゲーム側の GameObject / Component が
     // DebugMenuItem（デストラクタで DebugMenu::RemoveItem を呼ぶ）を持てるようにするため。
     if (currentScene_) {
-        currentScene_->OnExit();
+        currentScene_->Exit();
         currentScene_.reset();
     }
     pendingScene_.reset();
@@ -246,7 +246,7 @@ void Engine::ApplyPendingSceneChange() {
         return;
 
     if (currentScene_) {
-        currentScene_->OnExit();
+        currentScene_->Exit();
         log::Info("Scene exited.");
     }
 
@@ -256,7 +256,8 @@ void Engine::ApplyPendingSceneChange() {
     // 全リソースを解放。新シーンが同じアセットを使う場合は再ロードされるだけ。
     resourceManager_->UnloadAll();
 
-    currentScene_->OnEnter();
+    // Enter() は OnEnter 中の Spawn を即時反映モードで回す（Scene.h の契約参照）。
+    currentScene_->Enter();
     log::Info("Scene entered.");
 }
 

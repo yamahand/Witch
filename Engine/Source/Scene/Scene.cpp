@@ -13,19 +13,41 @@ ObjectId Scene::NextId() {
     return sNextId.fetch_add(1, std::memory_order_relaxed);
 }
 
+void Scene::Enter() {
+    // inEnter_ の復帰は RAII で保証する。OnEnter から呼ばれる OSS アダプタ層に
+    // 例外→expected の翻訳漏れがあり例外がここまで伝播した場合でも、即時反映モードが
+    // 立ちっぱなしになるのを防ぐ（残ると以降の更新中 Spawn が objects_ の
+    // イテレーション中 push_back = UB に化けるため、手動復帰にしない）。
+    struct EnterGuard {
+        Scene& scene;
+        ~EnterGuard() { scene.inEnter_ = false; }
+    } guard{*this};
+    inEnter_ = true;
+    OnEnter();
+}
+
+void Scene::Exit() {
+    OnExit();
+}
+
+void Scene::CommitSpawn(std::unique_ptr<GameObject> obj) {
+    // OnSpawn 完了後に spawned_ を立てて components_ を一括登録する。OnSpawn 中の
+    // AddComponent は spawned_ が false なので個別登録されず、ここで漏れなく拾われる
+    // （spawned_ 以降の AddComponent は GameObject::RegisterComponent が個別登録する）。
+    obj->OnSpawn();
+    obj->spawned_ = true;
+    for (auto& comp : obj->components_) {
+        scheduler_.Register(comp.get());
+    }
+    objects_.push_back(std::move(obj));
+}
+
 void Scene::FlushPendingSpawns() {
     // Swap to local first: OnSpawn() may call Spawn(), which pushes to pendingSpawn_.
     // Iterating and push_back-ing the same vector causes reallocation UB.
-    // OnSpawn 完了後に spawned_ を立てて components_ を一括登録する。OnSpawn 中の
-    // AddComponent は spawned_ が false なので個別登録されず、ここで漏れなく拾われる。
     auto spawning = std::move(pendingSpawn_);
     for (auto& obj : spawning) {
-        obj->OnSpawn();
-        obj->spawned_ = true;
-        for (auto& comp : obj->components_) {
-            scheduler_.Register(comp.get());
-        }
-        objects_.push_back(std::move(obj));
+        CommitSpawn(std::move(obj));
     }
 }
 
