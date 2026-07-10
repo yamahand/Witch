@@ -65,7 +65,6 @@ void EmptyScene::OnEnter() {
     obj->transform.y = 0.0f;
     witchSprite_ = obj->AddComponent<SpriteComponent>(spriteTexture_, 128.0f, 128.0f);
     witchSprite_->SetLayer(1);
-    witchId_ = obj->Id(); // Update から弱参照で解決する。
 
     // レイヤー検証用の静止 Witch（操作対象と重なる位置、レイヤー 0）。
     auto* staticObj = Spawn<GameObject>();
@@ -124,10 +123,10 @@ void EmptyScene::FixedUpdate(float fixedDt) {
     // 移動・回転速度が描画レートに依存せず 60Hz 固定で決まる。
     IInput* input = Services::Instance().input;
     if (input) {
-        // 矢印キーで Witch スプライトを移動。
-        // 注: OnEnter の Spawn は pendingSpawn_ 行きのため、最初のステップでは
-        // まだ objects_ に反映されておらず Find は nullptr を返す（移動が1フレーム遅れる）。
-        if (GameObject* witch = Find(witchId_)) {
+        // 矢印キーで Witch スプライトを移動。オーナー GameObject はシーンと同寿命
+        // （Destroy しない）ので、Spawn 時に保持した witchSprite_ の Owner() から直接引く。
+        // Find(ObjectId) と違い OnEnter 直後の生成未反映ステップでも操作できる。
+        if (GameObject* witch = witchSprite_ ? witchSprite_->Owner() : nullptr) {
             float dx = 0.0f;
             float dy = 0.0f;
             if (input->IsDown(Key::Left))  dx -= 1.0f;

@@ -32,7 +32,7 @@ bool GameLoop::Tick(Scene* currentScene) {
 
     // 入力の世代を進める（previous_ = current_、wheel をリセット）。
     // 必ず PumpMessages の「前」に呼ぶこと。これにより PumpMessages が反映する
-    // 今フレームのキー／ホイールが current_ に積まれ、Scene::Update での
+    // 今フレームのキー／ホイールが current_ に積まれ、Scene::FrameUpdate での
     // WasPressed/WasReleased（current vs previous）と MouseWheelDelta が正しく出る。
     // 逆順にすると差分が即座に消えてエッジ検出が常に false になる。
     input_->Update();
@@ -48,8 +48,8 @@ bool GameLoop::Tick(Scene* currentScene) {
 
     // カメラのビューポートを仮想解像度（無効時はウィンドウ実サイズ）に同期する。
     // これにより「画面に見えるワールド範囲」がウィンドウサイズと切り離される。
-    // ScreenToWorld 系の CPU 変換（マウスピック等）が Scene::Update 内で
-    // 正しく動くよう、更新より前に行う。
+    // ScreenToWorld 系の CPU 変換（マウスピック等）がシーン更新
+    // （FixedUpdate / FrameUpdate）内で正しく動くよう、更新より前に行う。
     if (CameraManager* cameras = Services::Instance().cameras) {
         cameras->SetViewport(static_cast<float>(renderer_->VirtualWidth()),
                              static_cast<float>(renderer_->VirtualHeight()));

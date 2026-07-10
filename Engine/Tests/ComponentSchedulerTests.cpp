@@ -3,11 +3,11 @@
 // に実行し、GameObject::Update フックは Update フェーズの Component より前
 // （Scene.h / ComponentScheduler.h / UpdatePhase.h のコメントが仕様）。
 // 同一フェーズ内の GameObject 間の順序は契約上未規定のため、ここでは検証しない。
-#include "WitchEngine/Core/Time.h"
 #include "WitchEngine/Scene/Component.h"
 #include "WitchEngine/Scene/GameObject.h"
 #include "WitchEngine/Scene/Scene.h"
 #include "WitchEngine/Scene/UpdatePhase.h"
+#include "TestHelpers.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -17,20 +17,9 @@
 namespace {
 
 using namespace witch;
+using namespace witch::test;
 
 using StepLog = std::vector<std::string>;
-
-/// 固定ステップの dt。契約上 FixedUpdate には常にこの値を渡す。
-/// 1/60 を重複定義せず単一ソース（Time::kFixedDelta）を参照する。
-constexpr float kFixedDt = Time::kFixedDelta;
-
-/// 1 フレーム = 固定ステップ 1 回 + フレーム更新 1 回として回すヘルパ。
-/// 固定側（PreUpdate → Hook → Update → PostUpdate）と毎フレーム側
-/// （Animation → Camera → Render）を通しで実行する。
-void StepFrame(Scene& scene) {
-    scene.FixedUpdate(kFixedDt);
-    scene.FrameUpdate(kFixedDt);
-}
 
 /// 実行されたフェーズを共有ログに記録する Component。フェーズごとに別の型になるため
 /// 「フェーズは種類ごとに固定」の契約（Component.h）も満たす。

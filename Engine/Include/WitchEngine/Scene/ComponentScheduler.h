@@ -9,7 +9,8 @@ class Component;
 class GameObject;
 
 /// Component をフェーズ別リストで管理し、UpdatePhase の宣言順に更新するスケジューラ。
-/// Scene が 1 つ所有し、Scene::Update のフェーズ実行ステージから駆動される。
+/// Scene が 1 つ所有し、Scene::FixedUpdate（固定側フェーズ）と
+/// Scene::FrameUpdate（毎フレーム側フェーズ）から駆動される。
 /// Component の追加順に依存しないフェーズ間の順序保証（Animation → Render 等）を提供する。
 ///
 /// 【並列化契約】同一フェーズ内での GameObject 間の実行順は**未規定**。
@@ -17,7 +18,7 @@ class GameObject;
 /// これに依存したコードを書いてはならない（将来フェーズ単位で並列化するため）。
 ///
 /// 【ライフタイム】保持するのは非所有ポインタ（所有は GameObject → unique_ptr）。
-/// 除去は Scene::Update の破棄回収ステージからの UnregisterAll のみ。
+/// 除去は Scene::FrameUpdate の破棄回収ステージからの UnregisterAll のみ。
 /// ~Scene 経路（シーン破棄）ではスケジューラも一緒に破棄され以後走らないため、
 /// dangling を掃除する必要はなく、デストラクタから触ってはならない。
 class ComponentScheduler {
@@ -27,7 +28,7 @@ public:
     void Register(Component* component);
 
     /// obj が所有する全 Component をフェーズリストと保留リストから除去する。
-    /// Scene::Update の破棄回収ステージから、OnDespawn より前に呼ぶ。
+    /// Scene::FrameUpdate の破棄回収ステージから、OnDespawn より前に呼ぶ。
     void UnregisterAll(GameObject* obj);
 
     /// 保留を反映してから指定フェーズの全 Component を更新する。
