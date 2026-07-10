@@ -28,8 +28,12 @@ std::expected<LevelData, std::string> Parse(std::string_view jsonText,
 }
 
 TEST_CASE("ParseLdtk parses the Sample1_1 fixture", "[LdtkLoader]") {
+    // Content/ は git 管理外（ローカルにのみ存在）。CI などファイルが無い環境では
+    // このケースだけスキップする（合成 JSON のテストは常に走る）。
     std::ifstream file(WITCH_TEST_CONTENT_DIR "/Stage/Sample1_1.ldtk", std::ios::binary);
-    REQUIRE(file.is_open());
+    if (!file.is_open()) {
+        SKIP("Content/Stage/Sample1_1.ldtk not found (Content/ is managed outside git)");
+    }
     std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)),
                                std::istreambuf_iterator<char>());
 
