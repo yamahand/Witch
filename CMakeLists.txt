@@ -63,6 +63,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Graphics2D/AsepriteLoader.cpp
     Engine/Source/Graphics2D/CameraManager.cpp
     Engine/Source/Graphics2D/SpriteComponent.cpp
+    Engine/Source/Graphics2D/TilemapComponent.cpp
     Engine/Source/Level/LdtkLoader.cpp
     Engine/Source/Vfs/Vfs.cpp
     Engine/Source/Vfs/DiskSource.cpp
@@ -112,6 +113,7 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Graphics2D/CameraManager.h
     Engine/Include/WitchEngine/Graphics2D/LayerSortKey.h
     Engine/Include/WitchEngine/Graphics2D/SpriteComponent.h
+    Engine/Include/WitchEngine/Graphics2D/TilemapComponent.h
     Engine/Include/WitchEngine/Input/IInput.h
     Engine/Include/WitchEngine/Level/LevelData.h
     Engine/Include/WitchEngine/Input/Key.h
