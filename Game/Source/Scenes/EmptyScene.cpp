@@ -1,4 +1,5 @@
 #include "Scenes/EmptyScene.h"
+#include "Scenes/StageScene.h"
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/Services.h"
@@ -41,7 +42,7 @@ void EmptyScene::OnEnter() {
     log::Info("EmptyScene: OnEnter");
     log::Info("keys: arrows=move WASD=camera Q/E/wheel=zoom R=spin F=flip "
               "T=tint L=layer P=anim play/stop O=anim loop N=unitychan anim "
-              "G=reload scene Esc=quit");
+              "G=reload scene Tab=StageScene Esc=quit");
 
     auto* resources = Services::Instance().resources;
 
@@ -175,6 +176,12 @@ void EmptyScene::FrameUpdate(float dt) {
         if (input->WasPressed(Key::G)) {
             log::Info("G pressed — reloading EmptyScene.");
             Engine::Get().ChangeScene<EmptyScene>();
+        }
+
+        // Tab で M6 デモ（StageScene）へ遷移。
+        if (input->WasPressed(Key::Tab)) {
+            log::Info("Tab pressed — switching to StageScene.");
+            Engine::Get().ChangeScene<StageScene>();
         }
 
         // F/T/L で M5 描画機能を切り替え。

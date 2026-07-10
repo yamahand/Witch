@@ -80,3 +80,5 @@ Testing/
 .cache/
 
 .vscode/
+# Game content assets are managed outside git (art licenses, binary size)
+/Content/

@@ -3,11 +3,15 @@
 // 固定タイムステップ導入後は 1 フレーム = FixedUpdate × 0〜N 回 + FrameUpdate × 1 回。
 // 通常フレームの契約は StepFrame（Fixed + Frame 各 1 回）で、固定/毎フレーム分割固有の
 // 契約（0 ステップ・多重ステップ）は末尾の専用ケースで検証する。
+#include "WitchEngine/Core/ObjectRegistry.h"
+#include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Scene/Component.h"
 #include "WitchEngine/Scene/GameObject.h"
 #include "WitchEngine/Scene/Scene.h"
+#include "WitchEngine/Vfs/Vfs.h"
 #include "TestHelpers.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 namespace {
@@ -388,6 +392,137 @@ TEST_CASE("Destroy during a fixed step skips remaining phases and despawns once"
     // 以降のフレームでは何も起きない（二重 OnDespawn なし）。
     StepFrame(scene);
     CHECK(sDespawnCount == 1);
+}
+
+// ── LoadLevel（ObjectRegistry 経由の実体化 = AdoptSpawn 経路） ──────────────────
+
+/// TestLevelEntity::OnSpawn が観測した状態のキャプチャ。
+/// LoadLevel は transform / Name を AdoptSpawn（= OnSpawn）より前に設定する契約
+/// なので、OnSpawn 時点の値を検証できる。
+struct LevelEntitySpawnCapture {
+    int spawnCount = 0;
+    float x = 0.0f, y = 0.0f;
+    std::string name;
+    bool sceneSet = false;
+    ObjectId id = 0;
+};
+LevelEntitySpawnCapture sLevelEntityCapture;
+
+/// レベルファイルから ObjectRegistry 経由で実体化されるダミーエンティティ。
+class TestLevelEntity : public GameObject {
+public:
+    void OnSpawn() override {
+        ++sLevelEntityCapture.spawnCount;
+        sLevelEntityCapture.x = transform.x;
+        sLevelEntityCapture.y = transform.y;
+        sLevelEntityCapture.name = Name();
+        sLevelEntityCapture.sceneSet = GetScene() != nullptr;
+        sLevelEntityCapture.id = Id();
+    }
+};
+WITCH_REGISTER_OBJECT(TestLevelEntity);
+
+/// Engine/Tests/Fixtures/ をマウントした VFS を Services に差し込み、
+/// スコープ終了時に元へ戻す（他テストへの影響を残さない）。
+struct ScopedFixtureVfs {
+    vfs::Vfs vfs;
+    vfs::Vfs* prev;
+    ScopedFixtureVfs() {
+        REQUIRE(vfs.MountDisk(WITCH_TEST_FIXTURE_DIR).has_value());
+        vfs.Seal();
+        prev = Services::Instance().vfs;
+        Services::Instance().vfs = &vfs;
+    }
+    ~ScopedFixtureVfs() { Services::Instance().vfs = prev; }
+};
+
+TEST_CASE("LoadLevel spawns registered entities immediately during OnEnter", "[Scene]") {
+    ScopedFixtureVfs vfsGuard;
+    sLevelEntityCapture = {};
+
+    class LoadingScene : public Scene {
+    public:
+        std::expected<void, std::string> result;
+
+    protected:
+        void OnEnter() override { result = LoadLevel("Entities.ldtk"); }
+    };
+
+    LoadingScene scene;
+    scene.Enter();
+    REQUIRE(scene.result.has_value());
+
+    // 登録済みエンティティは 1 体だけ実体化され、未登録名（UnregisteredEntity）は
+    // クラッシュせずスキップされる。
+    CHECK(sLevelEntityCapture.spawnCount == 1);
+    // OnSpawn 時点で transform / Name / シーン参照 / Id が設定済み。
+    CHECK(sLevelEntityCapture.x == 24.0f);
+    CHECK(sLevelEntityCapture.y == 40.0f);
+    CHECK(sLevelEntityCapture.name == "TestLevelEntity");
+    CHECK(sLevelEntityCapture.sceneSet);
+    CHECK(sLevelEntityCapture.id != 0);
+    // OnEnter 中は即時反映なので、Enter 完了時点で Find が通る。
+    CHECK(scene.Find(sLevelEntityCapture.id) != nullptr);
+
+    // レベルデータの保持と背景クリア色（#102030）の反映。
+    REQUIRE(scene.CurrentLevel() != nullptr);
+    CHECK(scene.CurrentLevel()->identifier == "EntityLevel");
+    CHECK(scene.ClearColor().r == Catch::Approx(0x10 / 255.0f));
+    CHECK(scene.ClearColor().g == Catch::Approx(0x20 / 255.0f));
+    CHECK(scene.ClearColor().b == Catch::Approx(0x30 / 255.0f));
+}
+
+TEST_CASE("LoadLevel outside OnEnter defers entity spawn to the next update", "[Scene]") {
+    ScopedFixtureVfs vfsGuard;
+    sLevelEntityCapture = {};
+
+    Scene scene;
+    REQUIRE(scene.LoadLevel("Entities.ldtk").has_value());
+    CHECK(sLevelEntityCapture.spawnCount == 0);  // 保留リスト止まり
+
+    StepFrame(scene);
+    CHECK(sLevelEntityCapture.spawnCount == 1);
+    CHECK(scene.Find(sLevelEntityCapture.id) != nullptr);
+}
+
+TEST_CASE("LoadLevel destroys the previous level's objects on reload", "[Scene]") {
+    ScopedFixtureVfs vfsGuard;
+    sLevelEntityCapture = {};
+
+    Scene scene;
+    REQUIRE(scene.LoadLevel("Entities.ldtk").has_value());
+    StepFrame(scene);
+    const ObjectId first = sLevelEntityCapture.id;
+    REQUIRE(scene.Find(first) != nullptr);
+
+    // 再ロード: 旧レベル由来のオブジェクトは Destroy され、フレーム末で回収される。
+    REQUIRE(scene.LoadLevel("Entities.ldtk").has_value());
+    StepFrame(scene);
+    CHECK(scene.Find(first) == nullptr);
+    CHECK(sLevelEntityCapture.id != first);
+    CHECK(scene.Find(sLevelEntityCapture.id) != nullptr);
+}
+
+TEST_CASE("LoadLevel reload also destroys still-pending objects", "[Scene]") {
+    ScopedFixtureVfs vfsGuard;
+    sLevelEntityCapture = {};
+
+    // 更新を挟まず 2 連続でロード: 1 回目のエンティティは pendingSpawn_ に
+    // いるうちに Destroy され、反映後のフレーム末で回収される。
+    Scene scene;
+    REQUIRE(scene.LoadLevel("Entities.ldtk").has_value());
+    REQUIRE(scene.LoadLevel("Entities.ldtk").has_value());
+    StepFrame(scene);
+    // 生き残るのは 2 回目のエンティティ 1 体だけ。
+    CHECK(scene.Find(sLevelEntityCapture.id) != nullptr);
+    CHECK(sLevelEntityCapture.spawnCount == 2);  // 両方 OnSpawn は通る（遅延破棄契約）
+}
+
+TEST_CASE("LoadLevel reports missing files as errors", "[Scene]") {
+    ScopedFixtureVfs vfsGuard;
+    Scene scene;
+    CHECK_FALSE(scene.LoadLevel("DoesNotExist.ldtk").has_value());
+    CHECK(scene.CurrentLevel() == nullptr);
 }
 
 }  // namespace

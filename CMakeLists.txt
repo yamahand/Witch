@@ -63,6 +63,8 @@ add_library(WitchEngine STATIC
     Engine/Source/Graphics2D/AsepriteLoader.cpp
     Engine/Source/Graphics2D/CameraManager.cpp
     Engine/Source/Graphics2D/SpriteComponent.cpp
+    Engine/Source/Graphics2D/TilemapComponent.cpp
+    Engine/Source/Level/LdtkLoader.cpp
     Engine/Source/Vfs/Vfs.cpp
     Engine/Source/Vfs/DiskSource.cpp
     Engine/Source/Vfs/VfsPathUtil.cpp
@@ -76,6 +78,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Platform/PlatformWindow.h
     Engine/Source/Platform/PlatformPaths.h
     Engine/Source/Graphics2D/AsepriteLoader.h
+    Engine/Source/Level/LdtkLoader.h
     Engine/Source/Vfs/VfsPathUtil.h
 
     Engine/Include/WitchEngine/Core/Engine.h
@@ -108,9 +111,12 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Graphics2D/AsepriteSheet.h
     Engine/Include/WitchEngine/Graphics2D/Camera2D.h
     Engine/Include/WitchEngine/Graphics2D/CameraManager.h
+    Engine/Include/WitchEngine/Graphics2D/LayerSortKey.h
     Engine/Include/WitchEngine/Graphics2D/SpriteComponent.h
+    Engine/Include/WitchEngine/Graphics2D/TilemapComponent.h
     Engine/Include/WitchEngine/Input/IInput.h
     Engine/Include/WitchEngine/Input/Key.h
+    Engine/Include/WitchEngine/Level/LevelData.h
     Engine/Include/WitchEngine/Rhi/IRenderer.h
     Engine/Include/WitchEngine/Rhi/RhiTypes.h
     Engine/Include/WitchEngine/Scene/Component.h
@@ -218,13 +224,20 @@ endif()
 find_package(Stb REQUIRED)
 target_include_directories(WitchEngine PRIVATE ${Stb_INCLUDE_DIR})
 
+# LDtk レベルファイルのパースに使う。使用は Engine/Source/Level/LdtkLoader.cpp の
+# 1 TU に隔離し公開ヘッダへ漏らさないため PRIVATE（例外も同 TU 内で expected に翻訳）。
+find_package(nlohmann_json CONFIG REQUIRED)
+target_link_libraries(WitchEngine PRIVATE nlohmann_json::nlohmann_json)
+
 # ─── WitchGame (executable) ──────────────────────────────────────────────────
 add_executable(WitchGame
     Game/Source/Main.cpp
     Game/Source/Scenes/EmptyScene.cpp
+    Game/Source/Scenes/StageScene.cpp
 
     Game/Source/GameConfig.h
     Game/Source/Scenes/EmptyScene.h
+    Game/Source/Scenes/StageScene.h
 )
 
 # ─── WitchGame version ─────────────────────────────────────────────────────

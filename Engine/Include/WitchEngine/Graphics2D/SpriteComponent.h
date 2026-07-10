@@ -70,11 +70,6 @@ public:
     SpriteSpace Space() const { return space_; }
 
 private:
-    /// レイヤーを RHI の sortKey（同一 space 内の順序キー）に変換する。
-    /// 空間は SpriteDrawDesc.space で渡し、RHI が space 主・sortKey 副でソートする。
-    /// bits 8..23: layer（int16_t + 0x8000 バイアスで昇順化）。bits 0..7 は予約。
-    uint32_t SortKey() const;
-
     TextureInfo texture_;
     float width_;
     float height_;
