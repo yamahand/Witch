@@ -55,19 +55,33 @@ ImGui デバッグ UI / Tracy プロファイリング。
   フレーム側で読む規約。ジャンプ入力等を固定側ロジックで扱いたくなったら
   入力スナップショット（ステップ跨ぎのエッジ保持）の仕組みが要る。
 
-## 4. タイルマップ + レベルロード（エンジン / 新モジュール）
+## 4. タイルマップ + レベルロード（エンジン / 新モジュール）— ✅ 実装済み（2026-07-10）
 
-- [ ] **レベルファイル形式**: 【決定: **Tiled または LDtk の JSON エクスポート**】
-      どちらのエディタも JSON で出力できるため、パーサは nlohmann-json (vcpkg) 前提。
-      エディタをどちらにするかはマップ制作開始時に両方触って決める
-      （ローダを 1 形式に絞って実装するのはその決定後）。
-- [ ] **TilemapComponent（または専用描画パス）**: タイル ID の 2D 配列 +
-      タイルセットテクスチャから描画。カメラ範囲外のタイルはカリングする。
-      ※ 現状 `kMaxSpritesPerFrame = 1024` なので 1 タイル = 1 SubmitSprite 方式は
-      すぐ上限に当たる（RefactoringNotes.md 参照）。
-- [ ] **Scene::LoadLevel 実装（M6 予定）**: レベルファイル → タイルマップ +
-      ObjectRegistry 経由のエンティティ配置（"Enemy" 等の文字列型名から Spawn）。
-- [ ] **マップ属性**: タイルごとの衝突種別（空 / 壁 / 坂 / ダメージ / 水）。
+- [x] **レベルファイル形式**: 【決定: **Tiled または LDtk の JSON エクスポート**】
+      パーサは nlohmann-json (vcpkg)。**LDtk ローダを実装済み**
+      （`Engine/Source/Level/LdtkLoader.{h,cpp}`。JSON 型・例外はこの 1 TU に隔離し
+      `std::expected` へ翻訳）。公開データ型 `LevelData`
+      （`Engine/Include/WitchEngine/Level/LevelData.h`）はフォーマット中立の中間表現
+      なので、**エディタ選定（Tiled / LDtk）自体はまだ未決定のまま**。Tiled に決まれば
+      ローダを並置するだけで載る（`Scene::LoadLevel` は拡張子で分岐）。
+      未対応で明示エラー: externalLevels（レベル別ファイル保存）。levels[0] のみ読む
+      （複数レベル選択は §11 マップ遷移で必要になってから）。
+- [x] **TilemapComponent**（`Graphics2D/TilemapComponent.{h,cpp}`）: 1 コンポーネント =
+      LDtk の 1 タイルレイヤー。ctor で UV / フリップ / 不透明度を全解決し、
+      Update はカメラ可視矩形カリング + SubmitSprite のみ。
+      `kMaxSpritesPerFrame` は 16384 へ引き上げ済み（RefactoringNotes §3 完了）。
+      ※ レイヤー描画順の正規化（LDtk 先頭 = 最前面 → LevelData 奥→手前）は
+      サンプルが 1 レイヤーのため実害未検証。複数レイヤーのマップ作成時に目視確認する。
+- [x] **Scene::LoadLevel 実装**: vfs → ParseLdtk → 背景色（Scene::ClearColor）→
+      タイルレイヤーをルート GameObject + TilemapComponent 群で生成 →
+      ObjectRegistry 経由のエンティティ配置（未登録名は警告スキップ。
+      transform / Name は OnSpawn 前に設定）。返り値は `std::expected<void, std::string>`。
+      LDtk の fieldInstances（エンティティのカスタムフィールド）注入はスコープ外
+      （Factory が nullary のため。必要になったら設計）。px はピボット位置の生値を
+      transform に入れる。デモ: `Game/Source/Scenes/StageScene`（Tab で EmptyScene と行き来）。
+- [x] **マップ属性**: IntGrid（intGridCsv）を `LevelIntGrid` として保存済み
+      （`Scene::CurrentLevel()` から取得。行優先・0 = 空）。衝突種別としての解釈は
+      M7 物理側で行う。
 
 ## 5. 衝突判定 + プラットフォーマー物理（エンジン / 新モジュール Physics2D 等）
 
@@ -151,7 +165,7 @@ ImGui デバッグ UI / Tracy プロファイリング。
 | M | 内容 | 対応節 |
 |---|------|--------|
 | ~~M5~~ | ✅ 完了: 描画拡張（ソースレクト・flip・tint・レイヤー・回転・HUD・仮想解像度）+ アニメーション | 1, 2 |
-| M6 | ~~固定タイムステップ~~✅ + エディタ選定(Tiled/LDtk) + タイルマップ描画 + LoadLevel | 3, 4 |
+| ~~M6~~ | ✅ 完了: ~~固定タイムステップ~~ + タイルマップ描画 + LoadLevel（LDtk ローダ。エディタ選定は未決定のまま持ち越し = マップ制作開始時） | 3, 4 |
 | M7 | タイル衝突 + AABB + プレイヤー移動（ジャンプの手触りまで） | 5 |
 | M8 | オーディオ（SE + ループ BGM） | 6 |
 | M9 | パッド + アクションマッピング / 追従カメラ + 境界クランプ | 7, 8 |
@@ -163,7 +177,7 @@ ImGui デバッグ UI / Tracy プロファイリング。
 
 | 項目 | 決定 |
 |------|------|
-| レベルファイル形式 | Tiled または LDtk の **JSON エクスポート**（エディタ選定はマップ制作開始時） |
+| レベルファイル形式 | Tiled または LDtk の **JSON エクスポート**（エディタ選定はマップ制作開始時。**現状は LDtk ローダのみ実装済み**・中間表現 LevelData はフォーマット中立） |
 | イベントスクリプト | **当面 C++ 直書き**（イベント量が見えたらデータ駆動化を再検討） |
 | オーディオバックエンド | **miniaudio**（vcpkg。アダプタ層に閉じ込める） |
 | 画面方式 | **ネイティブ解像度描画 + 仮想解像度（固定視界）カメラ**。レトロ風の低解像度 RT + 整数倍拡大は不採用（当初の 480x270 決定は撤回） |

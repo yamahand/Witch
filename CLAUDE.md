@@ -29,13 +29,15 @@ Witch/                          ← リポジトリのルート
 │   ├── Include/WitchEngine/    ← 公開ヘッダ。include は "WitchEngine/..." で始まる
 │   │   ├── Core/               ← Engine, Services, ObjectRegistry, Time, Logger
 │   │   ├── Scene/              ← Scene, GameObject, Component
+│   │   ├── Level/              ← LevelData（フォーマット中立のレベルデータ型のみ）
 │   │   ├── Rhi/                ← IRenderer 等のインターフェースのみ
-│   │   └── Graphics2D/         ← SpriteComponent 等
+│   │   └── Graphics2D/         ← SpriteComponent, TilemapComponent 等
 │   └── Source/                 ← 実装と非公開ヘッダ
 │       ├── Core/
 │       ├── Platform/Windows/   ← Win32。OS 差はここのファイル分割で吸収
 │       ├── Rhi/D3D12/          ← D3D12 実装。D3D12 / dxgi 型はここから出さない
 │       ├── Scene/
+│       ├── Level/              ← レベルローダ（LDtk）。JSON ライブラリと例外はここから出さない
 │       └── Graphics2D/
 └── Game/
     └── Source/
@@ -101,7 +103,10 @@ Witch/                          ← リポジトリのルート
   ため、固定側だと多重ステップフレームで二重発火する）。
   `Find(ObjectId)` で弱参照を解決（今は線形で可）。
   非仮想 `Enter()` / `Exit()`（Engine が呼ぶ）→ protected 仮想 `OnEnter()` / `OnExit()`。
-  `LoadLevel(path)` は ObjectRegistry 経由で実体化。
+  `LoadLevel(path)` は `std::expected<void, std::string>` を返す。レベルファイル
+  （拡張子で分岐、現状 .ldtk）→ 背景クリア色（`SetClearColor` / `ClearColor()`、
+  GameLoop が毎フレーム参照）→ タイルレイヤー（TilemapComponent）→ エンティティを
+  ObjectRegistry 経由で実体化（未登録名は警告スキップ）。結果は `CurrentLevel()` で保持。
 - **ObjectRegistry**（Core/ObjectRegistry.h）: 文字列型名 → 生成関数のファクトリ。
   外部レベルエディタの "Enemy" 等から実体を作る（C++ にリフレクションが無いため必須）。
   登録マクロ `WITCH_REGISTER_OBJECT(Type)` を .cpp に 1 行で自動登録。Meyers Singleton で可。
@@ -142,7 +147,9 @@ Witch/                          ← リポジトリのルート
   大量に壊れるのを防ぐため、ここは機械的に厳守する。
 
 ## まだ決めていないこと（勝手に決めない・必要時に相談）
-- レベルエディタを Tiled と LDtk のどちらにするか（形式は JSON エクスポートで決定済み）
+- レベルエディタを Tiled と LDtk のどちらにするか（形式は JSON エクスポートで決定済み。
+  現状 LDtk ローダのみ実装済みだが、中間表現 LevelData はフォーマット中立で
+  Tiled ローダを並置できる形。エディタ確定はマップ制作開始時）
 - アートの方向性（HD / ドット絵の別、基準視界の具体値、1 タイルの px 相当）
 - オブジェクト間参照の高速化（今は線形 Find で良い）
 
