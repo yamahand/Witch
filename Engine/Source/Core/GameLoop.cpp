@@ -17,6 +17,8 @@
 
 namespace witch {
 
+/// シーンが無い間のフォールバック背景色。シーンがあれば Scene::ClearColor()
+/// （既定は同色。LoadLevel がレベルの背景色で上書きする）を使う。
 static constexpr rhi::Color kCornflowerBlue{0.392f, 0.584f, 0.929f, 1.0f};
 
 GameLoop::GameLoop(Time* time, IInput* input, rhi::IRenderer* renderer)
@@ -106,7 +108,7 @@ bool GameLoop::Tick(Scene* currentScene) {
     {
         WITCH_PROFILE_SCOPE_N("Render");
         auto* cmdList = renderer_->BeginFrame();
-        cmdList->Clear({kCornflowerBlue});
+        cmdList->Clear({currentScene ? currentScene->ClearColor() : kCornflowerBlue});
         cmdList->FlushSprites();
 #ifdef WITCH_DEBUG_UI
         renderer_->RenderDebugUI();

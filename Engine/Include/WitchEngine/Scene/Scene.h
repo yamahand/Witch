@@ -1,8 +1,12 @@
 #pragma once
+#include "WitchEngine/Level/LevelData.h"
+#include "WitchEngine/Rhi/RhiTypes.h"
 #include "WitchEngine/Scene/ComponentScheduler.h"
 #include "WitchEngine/Scene/DebugUI.h"
 #include "WitchEngine/Scene/GameObject.h"
+#include <expected>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 #ifdef WITCH_DEBUG_UI
@@ -70,8 +74,22 @@ public:
     /// 見つからなければ nullptr を返す。
     GameObject* Find(ObjectId id) const;
 
-    /// ObjectRegistry 経由でレベルファイルを実体化する（M6 実装予定）。
-    void LoadLevel(std::string_view path);
+    /// レベルファイルを実体化する。パース（現状 .ldtk のみ）→ 背景クリア色の反映 →
+    /// タイルレイヤーを載せたルート GameObject の生成 → エンティティを ObjectRegistry
+    /// 経由で Spawn、の順に行う。未登録のエンティティ名は警告してスキップする
+    /// （回復可能な失敗のためロード全体は止めない）。
+    /// 通常は OnEnter 内で呼ぶ（Spawn が即時反映され、戻った時点で Find が通る）。
+    /// 失敗（ファイル無し・パースエラー等）は expected で返し、シーンの状態は変えない。
+    std::expected<void, std::string> LoadLevel(std::string_view path);
+
+    /// LoadLevel が読み込んだレベルデータ。未ロードなら nullptr。
+    /// IntGrid（衝突属性等）の消費側（M7 物理）がここから読む。
+    const LevelData* CurrentLevel() const { return level_.get(); }
+
+    /// フレーム冒頭の背景クリア色（GameLoop が毎フレーム参照する）。
+    /// LoadLevel がレベルの背景色で上書きする。既定はコーンフラワーブルー。
+    void SetClearColor(const rhi::Color& color) { clearColor_ = color; }
+    const rhi::Color& ClearColor() const { return clearColor_; }
 
 protected:
     /// シーンがアクティブになる直前に呼ばれる（Enter() 経由。直接呼ばない）。
@@ -86,6 +104,12 @@ private:
 
     static ObjectId NextId();
 
+    /// 構築済み GameObject をシーンへ養子縁組する（Spawn 反映の単一ソース）。
+    /// id とシーン参照を設定し、反映モード（OnEnter 中は即時 / それ以外は保留）に
+    /// 従って登録する。テンプレート Spawn<T> と、ObjectRegistry 経由の LoadLevel
+    /// （型が実行時にしか分からず Spawn<T> を使えない）の両方がここへ集約される。
+    GameObject* AdoptSpawn(std::unique_ptr<GameObject> obj);
+
     /// 1 体分の反映処理: OnSpawn → scheduler 登録 → objects_ へ移す。
     /// FlushPendingSpawns と即時モードの Spawn の両方から使う（挙動の単一ソース）。
     void CommitSpawn(std::unique_ptr<GameObject> obj);
@@ -99,6 +123,9 @@ private:
     ComponentScheduler scheduler_;
     std::vector<std::unique_ptr<GameObject>> objects_;
     std::vector<std::unique_ptr<GameObject>> pendingSpawn_;
+    std::unique_ptr<LevelData> level_;  ///< LoadLevel の結果（未ロードなら null）。
+    /// 既定はエンジン従来のコーンフラワーブルー（LoadLevel が上書きするまでの値）。
+    rhi::Color clearColor_{0.392f, 0.584f, 0.929f, 1.0f};
     bool inEnter_ = false;  ///< OnEnter 実行中（= Spawn 即時反映モード）。Enter() が管理。
 };
 
@@ -109,16 +136,8 @@ T* Scene::Spawn(Args&&... args) {
     static_assert(std::is_base_of_v<GameObject, T>,
                   "T must derive from witch::GameObject");
     auto obj = std::make_unique<T>(std::forward<Args>(args)...);
-    obj->id_ = NextId();
-    obj->scene_ = this;
     T* ptr = obj.get();
-    if (inEnter_) {
-        // OnEnter 中は更新イテレーションが走っていないため即時反映できる。
-        // OnSpawn 内の入れ子 Spawn はここへ同期再帰する（イテレーション無しで安全）。
-        CommitSpawn(std::move(obj));
-    } else {
-        pendingSpawn_.push_back(std::move(obj));
-    }
+    AdoptSpawn(std::move(obj));
     return ptr;
 }
 

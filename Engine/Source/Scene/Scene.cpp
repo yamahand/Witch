@@ -1,12 +1,25 @@
 #include "WitchEngine/Scene/Scene.h"
 #include "WitchEngine/Core/Logger.h"
+#include "WitchEngine/Core/ObjectRegistry.h"
+#include "WitchEngine/Core/ResourceManager.h"
+#include "WitchEngine/Core/Services.h"
+#include "WitchEngine/Graphics2D/TilemapComponent.h"
+#include "WitchEngine/Vfs/Vfs.h"
+#include "Level/LdtkLoader.h"
 #include <algorithm>
 #include <atomic>
+#include <format>
+#include <utility>
 
 namespace witch {
 
 namespace {
 std::atomic<ObjectId> sNextId{1};
+
+/// タイルマップのルート GameObject に割り当てる描画レイヤーの基点。
+/// 奥のレイヤーから kTilemapBaseLayer + i を割り当てるため、ゲームスプライトの
+/// 既定 layer 0 より必ず奥に描かれる（レイヤー数が 100 を超える想定はしない）。
+constexpr int16_t kTilemapBaseLayer = -100;
 } // namespace
 
 ObjectId Scene::NextId() {
@@ -28,6 +41,20 @@ void Scene::Enter() {
 
 void Scene::Exit() {
     OnExit();
+}
+
+GameObject* Scene::AdoptSpawn(std::unique_ptr<GameObject> obj) {
+    obj->id_ = NextId();
+    obj->scene_ = this;
+    GameObject* ptr = obj.get();
+    if (inEnter_) {
+        // OnEnter 中は更新イテレーションが走っていないため即時反映できる。
+        // OnSpawn 内の入れ子 Spawn はここへ同期再帰する（イテレーション無しで安全）。
+        CommitSpawn(std::move(obj));
+    } else {
+        pendingSpawn_.push_back(std::move(obj));
+    }
+    return ptr;
 }
 
 void Scene::CommitSpawn(std::unique_ptr<GameObject> obj) {
@@ -110,8 +137,77 @@ GameObject* Scene::Find(ObjectId id) const {
     return nullptr;
 }
 
-void Scene::LoadLevel(std::string_view /*path*/) {
-    log::Warn("Scene::LoadLevel not implemented yet (M6).");
+std::expected<void, std::string> Scene::LoadLevel(std::string_view path) {
+    auto* vfs = Services::Instance().vfs;
+    if (!vfs) {
+        return std::unexpected("Scene::LoadLevel: VFS service is not available");
+    }
+    auto file = vfs->Read(path);
+    if (!file) {
+        return std::unexpected(file.error());
+    }
+
+    // 拡張子で形式を選ぶ。現状 .ldtk のみ（Tiled 対応時はここに分岐を足す）。
+    const std::string ext = vfs::Vfs::Extension(path);
+    if (ext != ".ldtk") {
+        return std::unexpected(
+            std::format("Scene::LoadLevel: unsupported level format '{}' ({})", ext, path));
+    }
+    auto parsed = ldtk::ParseLdtk(file->bytes, path);
+    if (!parsed) {
+        return std::unexpected(parsed.error());
+    }
+    auto level = std::make_unique<LevelData>(std::move(*parsed));
+
+    SetClearColor(level->bgColor);
+
+    // タイルレイヤーを 1 つのルート GameObject へまとめて載せる（ヒエラルキーを
+    // 散らかさない）。テクスチャロードに失敗したレイヤーは警告してスキップする。
+    if (!level->tileLayers.empty()) {
+        auto* root = Spawn<GameObject>();
+        root->SetName(level->identifier);
+        auto* resources = Services::Instance().resources;
+        for (size_t i = 0; i < level->tileLayers.size(); ++i) {
+            const LevelTileLayer& layer = level->tileLayers[i];
+            if (!resources) {
+                log::Warn("Scene::LoadLevel: ResourceManager not available — tile layer "
+                          "'{}' skipped",
+                          layer.identifier);
+                continue;
+            }
+            auto texture = resources->LoadTexture(layer.tilesetPath);
+            if (!texture) {
+                log::Warn("Scene::LoadLevel: failed to load tileset '{}': {} — tile "
+                          "layer '{}' skipped",
+                          layer.tilesetPath, texture.error(), layer.identifier);
+                continue;
+            }
+            auto* tilemap = root->AddComponent<TilemapComponent>(*texture, layer);
+            // 奥のレイヤーから順に割り当て、ゲームスプライト（layer 0）より奥に描く。
+            tilemap->SetLayer(static_cast<int16_t>(kTilemapBaseLayer + static_cast<int>(i)));
+        }
+    }
+
+    // エンティティは ObjectRegistry で実体化する。transform / Name の設定は
+    // AdoptSpawn（= OnSpawn）より前に行い、即時/遅延どちらの反映モードでも
+    // OnSpawn が見る状態を同じにする（GameObject.h の自己完結契約と両立）。
+    for (const LevelEntity& entity : level->entities) {
+        auto obj = ObjectRegistry::Instance().Create(entity.identifier);
+        if (!obj) {
+            log::Warn("Scene::LoadLevel: entity type '{}' is not registered — skipped",
+                      entity.identifier);
+            continue;
+        }
+        obj->transform.x = entity.x;
+        obj->transform.y = entity.y;
+        obj->SetName(entity.identifier);
+        AdoptSpawn(std::move(obj));
+    }
+
+    level_ = std::move(level);
+    log::Info("Scene::LoadLevel: '{}' loaded ({} tile layers, {} entities)",
+              level_->identifier, level_->tileLayers.size(), level_->entities.size());
+    return {};
 }
 
 } // namespace witch

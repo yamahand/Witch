@@ -1,0 +1,24 @@
+{
+  "__comment": "LoadLevel のエンティティ実体化テスト用の最小 LDtk。SceneTests.cpp が読む。",
+  "jsonVersion": "1.5.3",
+  "externalLevels": false,
+  "levels": [
+    {
+      "identifier": "EntityLevel",
+      "pxWid": 64,
+      "pxHei": 64,
+      "__bgColor": "#102030",
+      "layerInstances": [
+        {
+          "__identifier": "Entities",
+          "__type": "Entities",
+          "__gridSize": 8,
+          "entityInstances": [
+            { "__identifier": "TestLevelEntity", "px": [24, 40], "width": 8, "height": 8 },
+            { "__identifier": "UnregisteredEntity", "px": [0, 0], "width": 8, "height": 8 }
+          ]
+        }
+      ]
+    }
+  ]
+}
