@@ -9,6 +9,15 @@ CollisionComponent::CollisionComponent(float width, float height,
                                        float offsetX, float offsetY)
     : width_(width), height_(height), offsetX_(offsetX), offsetY_(offsetY) {}
 
+void CollisionComponent::OnDetach() {
+    // ~GameObject 経由で呼ばれる。Scene のメンバ宣言順（collision_ が objects_ より前 =
+    // 破棄は objects_ より後）により、この時点で CollisionWorld は必ず生存している。
+    if (registered_) {
+        Owner()->GetScene()->Collision().Unregister(this);
+        registered_ = false;
+    }
+}
+
 Aabb CollisionComponent::WorldAabb() const {
     const Transform& t = Owner()->transform;
     return Aabb{t.x + offsetX_ - width_ * 0.5f,
@@ -26,6 +35,11 @@ void CollisionComponent::RefreshGridCache() {
 }
 
 void CollisionComponent::Update(float dt) {
+    if (!registered_) {
+        // OnAttach 時点では未スポーン（GetScene() 不可）の場合があるため遅延登録。
+        Owner()->GetScene()->Collision().Register(this);
+        registered_ = true;
+    }
     RefreshGridCache();
 
     Aabb box = WorldAabb();

@@ -157,6 +157,153 @@ TEST_CASE("SetSolidVsTiles(false) passes through tiles but still integrates",
     CHECK_FALSE(body->collision->OnGround());
 }
 
+// ── エンティティ同士の重なり（CollisionWorld） ──────────────────────────────
+
+namespace {
+
+/// PostUpdate フェーズで兄弟 CollisionComponent の接触数を記録する観測用 Component。
+/// 「PostUpdate から同一ステップの接触が読める」契約の検証に使う。
+class ContactProbeComponent : public Component {
+public:
+    WITCH_COMPONENT(ContactProbeComponent, Component)
+    UpdatePhase Phase() const override { return UpdatePhase::PostUpdate; }
+    void Update(float) override {
+        lastContactCount =
+            static_cast<int>(Owner()->GetComponent<CollisionComponent>()->Contacts().size());
+    }
+    int lastContactCount = -1;
+};
+
+} // namespace
+
+TEST_CASE("Overlapping bodies appear in each other's contact list", "[Collision]") {
+    Scene scene;
+    auto* a = scene.Spawn<BodyObject>(10.0f, 10.0f);
+    auto* b = scene.Spawn<BodyObject>(12.0f, 10.0f);  // AABB [9..15] と [7..13] が重なる
+    StepFrame(scene);
+    StepFrame(scene);  // 初回 Update で遅延登録 → この検出から接触が載る
+
+    REQUIRE(a->collision->Contacts().size() == 1);
+    REQUIRE(b->collision->Contacts().size() == 1);
+    CHECK(a->collision->Contacts()[0].otherId == b->Id());
+    CHECK(a->collision->Contacts()[0].other == b->collision);
+    CHECK(b->collision->Contacts()[0].otherId == a->Id());
+}
+
+TEST_CASE("Layer/mask filtering is asymmetric", "[Collision]") {
+    Scene scene;
+    auto* bullet = scene.Spawn<BodyObject>(10.0f, 10.0f);
+    auto* enemy = scene.Spawn<BodyObject>(12.0f, 10.0f);
+    StepFrame(scene);
+
+    // 弾は敵に当たりたい（mask に敵ビット）が、敵は弾を無視する（mask 0）。
+    constexpr uint32_t kEnemyLayer = 1u << 1;
+    bullet->collision->SetLayer(1u << 2);
+    bullet->collision->SetMask(kEnemyLayer);
+    enemy->collision->SetLayer(kEnemyLayer);
+    enemy->collision->SetMask(0u);
+
+    StepFrame(scene);
+    CHECK(bullet->collision->Contacts().size() == 1);
+    CHECK(enemy->collision->Contacts().empty());
+}
+
+TEST_CASE("Contacts disappear on the step after separation", "[Collision]") {
+    Scene scene;
+    auto* a = scene.Spawn<BodyObject>(10.0f, 10.0f);
+    auto* b = scene.Spawn<BodyObject>(12.0f, 10.0f);
+    StepFrame(scene);
+    StepFrame(scene);
+    REQUIRE(a->collision->Contacts().size() == 1);
+
+    b->transform.x = 100.0f;  // 引き離す
+    StepFrame(scene);
+    CHECK(a->collision->Contacts().empty());
+    CHECK(b->collision->Contacts().empty());
+}
+
+TEST_CASE("Overlap callbacks fire after detection has fully completed", "[Collision]") {
+    Scene scene;
+    auto* a = scene.Spawn<BodyObject>(10.0f, 10.0f);
+    auto* b = scene.Spawn<BodyObject>(12.0f, 10.0f);
+    StepFrame(scene);
+
+    // A のコールバック内から相手（B）の接触リストを読む。検出パスが完了してから
+    // dispatch される契約なので、B 側にも既に A が載っているはず。
+    int callbackCount = 0;
+    bool partnerSawMe = false;
+    a->collision->SetOverlapCallback([&](const CollisionContact& contact) {
+        ++callbackCount;
+        for (const CollisionContact& c : contact.other->Contacts()) {
+            if (c.otherId == a->Id()) {
+                partnerSawMe = true;
+            }
+        }
+    });
+
+    StepFrame(scene);
+    CHECK(callbackCount == 1);
+    CHECK(partnerSawMe);
+    REQUIRE(a->collision->Contacts().size() == 1);
+    CHECK(a->collision->Contacts()[0].otherId == b->Id());
+}
+
+TEST_CASE("Destroy inside an overlap callback is safe and both sides still fire",
+          "[Collision]") {
+    Scene scene;
+    auto* bullet = scene.Spawn<BodyObject>(10.0f, 10.0f);
+    auto* enemy = scene.Spawn<BodyObject>(12.0f, 10.0f);
+    StepFrame(scene);
+
+    // 弾はヒットで自壊。敵側の被弾コールバックも同ステップで発火する
+    // （dispatch は破棄フラグをスキップしない契約）。
+    int bulletHits = 0;
+    int enemyHits = 0;
+    bullet->collision->SetOverlapCallback([&](const CollisionContact&) {
+        ++bulletHits;
+        bullet->Destroy();
+    });
+    enemy->collision->SetOverlapCallback([&](const CollisionContact&) { ++enemyHits; });
+
+    StepFrame(scene);
+    CHECK(bulletHits == 1);
+    CHECK(enemyHits == 1);
+
+    // 弾はフレーム末で回収済み。以降の検出でクラッシュせず、接触も発生しない。
+    const ObjectId bulletId = bullet->Id();
+    StepFrame(scene);
+    CHECK(scene.Find(bulletId) == nullptr);
+    CHECK(enemy->collision->Contacts().empty());
+    CHECK(enemyHits == 1);
+}
+
+TEST_CASE("PostUpdate phase reads contacts from the same fixed step", "[Collision]") {
+    Scene scene;
+    auto* a = scene.Spawn<BodyObject>(10.0f, 10.0f);
+    auto* b = scene.Spawn<BodyObject>(12.0f, 10.0f);
+    StepFrame(scene);
+    auto* probe = a->AddComponent<ContactProbeComponent>();
+
+    StepFrame(scene);
+    CHECK(probe->lastContactCount == 1);
+
+    b->transform.x = 100.0f;
+    StepFrame(scene);
+    CHECK(probe->lastContactCount == 0);
+}
+
+TEST_CASE("Colliders on the same GameObject do not contact each other", "[Collision]") {
+    Scene scene;
+    auto* body = scene.Spawn<BodyObject>(10.0f, 10.0f);
+    StepFrame(scene);
+    auto* second = body->AddComponent<CollisionComponent>(4.0f, 4.0f);
+
+    StepFrame(scene);
+    StepFrame(scene);
+    CHECK(body->collision->Contacts().empty());
+    CHECK(second->Contacts().empty());
+}
+
 TEST_CASE("CollisionComponent re-resolves the grid after LoadLevel reload",
           "[Collision]") {
     ScopedFixtureVfs vfsGuard;

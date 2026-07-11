@@ -105,6 +105,12 @@ void Scene::FixedUpdate(float fixedDt) {
     }
     scheduler_.RunPhase(UpdatePhase::Update, fixedDt);
     scheduler_.RunPhase(UpdatePhase::Physics, fixedDt);
+    // 重なり検出は全コライダーの移動確定後に 1 回だけ走る全体パスなので、
+    // per-object のフェーズではなくここで直接呼ぶ（FlushPendingSpawns と同格の
+    // シーン内ステージ）。検出（記録）と発火（ゲームロジック）を分離した 2 段構え。
+    // PostUpdate は接触確定後なので、同一ステップ内で接触へ反応できる。
+    collision_.DetectOverlaps();
+    collision_.DispatchCallbacks();
     scheduler_.RunPhase(UpdatePhase::PostUpdate, fixedDt);
 }
 
