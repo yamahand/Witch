@@ -239,10 +239,14 @@ target_link_libraries(WitchEngine PRIVATE nlohmann_json::nlohmann_json)
 # ─── WitchGame (executable) ──────────────────────────────────────────────────
 add_executable(WitchGame
     Game/Source/Main.cpp
+    Game/Source/Components/PlayerControllerComponent.cpp
+    Game/Source/Entities/PlayerObject.cpp
     Game/Source/Scenes/EmptyScene.cpp
     Game/Source/Scenes/StageScene.cpp
 
     Game/Source/GameConfig.h
+    Game/Source/Components/PlayerControllerComponent.h
+    Game/Source/Entities/PlayerObject.h
     Game/Source/Scenes/EmptyScene.h
     Game/Source/Scenes/StageScene.h
 )
