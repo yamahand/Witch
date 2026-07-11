@@ -104,6 +104,7 @@ void Scene::FixedUpdate(float fixedDt) {
         }
     }
     scheduler_.RunPhase(UpdatePhase::Update, fixedDt);
+    scheduler_.RunPhase(UpdatePhase::Physics, fixedDt);
     scheduler_.RunPhase(UpdatePhase::PostUpdate, fixedDt);
 }
 

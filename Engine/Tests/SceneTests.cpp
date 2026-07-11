@@ -422,19 +422,7 @@ public:
 };
 WITCH_REGISTER_OBJECT(TestLevelEntity);
 
-/// Engine/Tests/Fixtures/ をマウントした VFS を Services に差し込み、
-/// スコープ終了時に元へ戻す（他テストへの影響を残さない）。
-struct ScopedFixtureVfs {
-    vfs::Vfs vfs;
-    vfs::Vfs* prev;
-    ScopedFixtureVfs() {
-        REQUIRE(vfs.MountDisk(WITCH_TEST_FIXTURE_DIR).has_value());
-        vfs.Seal();
-        prev = Services::Instance().vfs;
-        Services::Instance().vfs = &vfs;
-    }
-    ~ScopedFixtureVfs() { Services::Instance().vfs = prev; }
-};
+// ScopedFixtureVfs（Fixtures/ マウントの差し込み）は TestHelpers.h の共通ヘルパを使う。
 
 TEST_CASE("LoadLevel spawns registered entities immediately during OnEnter", "[Scene]") {
     ScopedFixtureVfs vfsGuard;

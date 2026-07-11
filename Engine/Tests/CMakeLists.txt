@@ -7,6 +7,7 @@ add_executable(WitchEngineTests
     TestHelpers.h
     SceneTests.cpp
     ComponentTypeIdTests.cpp
+    CollisionComponentTests.cpp
     ComponentSchedulerTests.cpp
     FixedStepAccumulatorTests.cpp
     LdtkLoaderTests.cpp

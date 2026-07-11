@@ -33,8 +33,7 @@ public:
 
     /// 固定タイムステップ 1 回分の更新。GameLoop がフレーム内で 0〜N 回呼ぶ
     /// （dt は常に Time::FixedDeltaTime）。順序は厳守:
-    /// 生成反映 → PreUpdate → GameObject::Update フック → Update → PostUpdate。
-    /// ゲームロジック（と将来の Physics 系フェーズ）はこちらで回す。
+    /// 生成反映 → PreUpdate → GameObject::Update フック → Update → Physics → PostUpdate。
     /// サブクラスがオーバーライドする場合は必ず Scene::FixedUpdate(fixedDt) を呼ぶ。
     /// 注: エッジ入力（WasPressed 等）は多重ステップフレームで二重発火するため
     /// FrameUpdate 側で読むこと（入力世代の更新はフレームに 1 回のため）。

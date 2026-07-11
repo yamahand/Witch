@@ -65,6 +65,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Graphics2D/SpriteComponent.cpp
     Engine/Source/Graphics2D/TilemapComponent.cpp
     Engine/Source/Level/LdtkLoader.cpp
+    Engine/Source/Physics2D/CollisionComponent.cpp
     Engine/Source/Physics2D/TileCollision.cpp
     Engine/Source/Vfs/Vfs.cpp
     Engine/Source/Vfs/DiskSource.cpp
@@ -119,6 +120,7 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Input/Key.h
     Engine/Include/WitchEngine/Level/LevelData.h
     Engine/Include/WitchEngine/Physics2D/Aabb.h
+    Engine/Include/WitchEngine/Physics2D/CollisionComponent.h
     Engine/Include/WitchEngine/Physics2D/TileCollision.h
     Engine/Include/WitchEngine/Rhi/IRenderer.h
     Engine/Include/WitchEngine/Rhi/RhiTypes.h
