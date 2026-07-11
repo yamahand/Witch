@@ -10,6 +10,7 @@ add_executable(WitchEngineTests
     ComponentSchedulerTests.cpp
     FixedStepAccumulatorTests.cpp
     LdtkLoaderTests.cpp
+    TileCollisionTests.cpp
     VfsPathUtilTests.cpp
 )
 
