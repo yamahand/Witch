@@ -1,6 +1,7 @@
 #include "WitchEngine/Core/GameLoop.h"
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Core/Time.h"
+#include "WitchEngine/Debug/DebugDraw.h"
 #include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Input/IInput.h"
 #include "WitchEngine/Rhi/IRenderer.h"
@@ -71,12 +72,16 @@ bool GameLoop::Tick(Scene* currentScene) {
         WITCH_PROFILE_SCOPE_N("SceneUpdate");
         // シーンが無い間もステップは消費する（アキュムレータに溜め込んで
         // シーン設定直後にまとめて走るのを防ぐ）。
+        debug::DebugDraw* debugDraw = Services::Instance().debugDraw;
         while (time_->ConsumeFixedStep()) {
             if (currentScene) {
                 WITCH_PROFILE_SCOPE_N("FixedStep");
+                // ステップごとに固定側デバッグ描画を積み直す（DebugDraw.h の契約参照）。
+                if (debugDraw) debugDraw->BeginFixedStep();
                 currentScene->FixedUpdate(time_->FixedDeltaTime());
             }
         }
+        if (debugDraw) debugDraw->EndFixedSteps();
         if (currentScene) currentScene->FrameUpdate(time_->DeltaTime());
     }
 
@@ -103,6 +108,12 @@ bool GameLoop::Tick(Scene* currentScene) {
         if (debugMenu_) debugMenu_->Draw();
     }
 #endif
+
+    // デバッグプリミティブを RHI へ提出する。DrawDebugUI（インスペクター等）からの
+    // 提出も拾えるよう、デバッグ UI の後・描画の前に行う。
+    if (debug::DebugDraw* debugDraw = Services::Instance().debugDraw) {
+        debugDraw->Flush();
+    }
 
     // 4) 描画。
     {

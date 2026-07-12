@@ -15,13 +15,14 @@ namespace witch::log {
 class Logger;
 } // namespace witch::log
 
-#ifdef WITCH_DEBUG_UI
 namespace witch::debug {
+class DebugDraw;
+#ifdef WITCH_DEBUG_UI
 class LogViewerWindow;
 class HierarchyWindow;
 class DebugMenu;
-} // namespace witch::debug
 #endif
+} // namespace witch::debug
 
 namespace witch {
 
@@ -77,6 +78,7 @@ private:
     std::unique_ptr<IInput>          input_;
     std::unique_ptr<ResourceManager> resourceManager_;
     std::unique_ptr<CameraManager>   cameraManager_;
+    std::unique_ptr<debug::DebugDraw> debugDraw_;
     std::unique_ptr<GameLoop>        gameLoop_;
 #ifdef WITCH_DEBUG_UI
     std::unique_ptr<debug::LogViewerWindow> logViewer_;

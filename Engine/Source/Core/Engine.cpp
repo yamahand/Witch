@@ -11,6 +11,7 @@
 #include "WitchEngine/Rhi/IRenderer.h"
 #include "WitchEngine/Vfs/Vfs.h"
 #include "WitchEngine/Core/Version.h"
+#include "WitchEngine/Debug/DebugDraw.h"
 #ifdef WITCH_DEBUG_UI
 #include "WitchEngine/Debug/DebugMenu.h"
 #include "WitchEngine/Debug/HierarchyWindow.h"
@@ -127,6 +128,11 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     cameraManager_ = std::make_unique<CameraManager>();
     Services::Instance().cameras = cameraManager_.get();
 
+    // デバッグプリミティブ描画。クラスは常に生成する
+    //（WITCH_DEBUG_DRAW OFF では全メソッド no-op。呼び出し側の #ifdef を不要にするため）。
+    debugDraw_ = std::make_unique<debug::DebugDraw>(renderer_.get());
+    Services::Instance().debugDraw = debugDraw_.get();
+
     // フレーム位相のオーケストレータ。全サービス生成後に、依存を注入して作る。
     // Init が成功して返る以上、time_/input_/renderer_ は必ず有効。
     gameLoop_ = std::make_unique<GameLoop>(time_.get(), input_.get(), renderer_.get());
@@ -206,6 +212,10 @@ void Engine::Shutdown() {
 #endif
 
     // Destroy services in reverse creation order.
+    // DebugDraw は白テクスチャの解放で renderer を使うため、renderer より先に破棄する。
+    Services::Instance().debugDraw = nullptr;
+    debugDraw_.reset();
+
     Services::Instance().cameras = nullptr;
     cameraManager_.reset();
 

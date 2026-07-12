@@ -60,6 +60,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Core/ObjectRegistry.cpp
     Engine/Source/Core/ResourceManager.cpp
     Engine/Source/Core/Time.cpp
+    Engine/Source/Debug/DebugDraw.cpp
     Engine/Source/Scene/ComponentScheduler.cpp
     Engine/Source/Scene/GameObject.cpp
     Engine/Source/Scene/Scene.cpp
@@ -110,6 +111,7 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Core/Services.h
     Engine/Include/WitchEngine/Core/TextureInfo.h
     Engine/Include/WitchEngine/Core/Time.h
+    Engine/Include/WitchEngine/Debug/DebugDraw.h
     Engine/Include/WitchEngine/Graphics2D/Anchor.h
     Engine/Include/WitchEngine/Graphics2D/AnimationComponent.h
     Engine/Include/WitchEngine/Graphics2D/AsepriteComponent.h
