@@ -6,6 +6,7 @@
 #include "WitchEngine/Scene/Scene.h"
 #include "TestHelpers.h"
 
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
@@ -155,6 +156,61 @@ TEST_CASE("SetSolidVsTiles(false) passes through tiles but still integrates",
     }
     CHECK(body->transform.y > 48.0f);  // 床（レベル外まで）すり抜け
     CHECK_FALSE(body->collision->OnGround());
+}
+
+// ── 45° 坂の統合（CollisionSlope.ldtk = 地面 y=32、'/' 坂 x32..40、高台 y=24） ──
+
+TEST_CASE("Body walks up the ramp onto the plateau and back down a ledge, "
+          "staying grounded",
+          "[Collision][Slope]") {
+    ScopedFixtureVfs vfsGuard;
+    Scene scene;
+    REQUIRE(scene.LoadLevel("CollisionSlope.ldtk").has_value());
+
+    // 地面（下端 32 → transform.y = 29）から右へ 1px/ステップで歩く。
+    // 重力役として毎ステップ下向き速度を与える（コントローラと同じ使い方）。
+    auto* body = scene.Spawn<BodyObject>(20.0f, 29.0f);
+    StepFrame(scene);  // 生成反映
+    body->collision->SetVelocityY(300.0f);  // 重力相当を与えて着地させる
+    StepFrame(scene);
+    REQUIRE(body->collision->OnGround());
+
+    bool allGrounded = true;
+    float minY = body->transform.y;
+    for (int i = 0; i < 36; ++i) {
+        body->collision->SetVelocity(60.0f, 300.0f);  // 1px/step 右 + 重力相当
+        StepFrame(scene);
+        allGrounded = allGrounded && body->collision->OnGround();
+        minY = std::min(minY, body->transform.y);
+    }
+    // 坂を登り（y が下がる = 高くなる）、高台（下端 24 → y=21）を経て
+    // 右の段差（8px）を吸着で降り、地面（y=29）へ戻って右壁で止まる。
+    // 全ステップ接地維持（登坂・乗り移り・段差降りのどこでも浮かない）。
+    CHECK(allGrounded);
+    CHECK(minY == Catch::Approx(21.0f));  // 高台の上に居た瞬間がある
+    CHECK(body->collision->HitRight());   // 右壁（x=56）到達
+    CHECK(body->transform.x == Catch::Approx(53.0f));
+    CHECK(body->transform.y == Catch::Approx(29.0f));
+}
+
+TEST_CASE("Jump from a slope is not cancelled by ground snapping",
+          "[Collision][Slope]") {
+    ScopedFixtureVfs vfsGuard;
+    Scene scene;
+    REQUIRE(scene.LoadLevel("CollisionSlope.ldtk").has_value());
+
+    // 坂の中腹（中心 36、表面 28 → y=25）に立たせる。
+    auto* body = scene.Spawn<BodyObject>(36.0f, 25.0f);
+    StepFrame(scene);
+    body->collision->SetVelocityY(300.0f);
+    StepFrame(scene);
+    REQUIRE(body->collision->OnGround());
+
+    // 上向き速度（ジャンプ）を与えたステップでは吸着されず離陸する。
+    body->collision->SetVelocityY(-300.0f);  // -5px/step
+    StepFrame(scene);
+    CHECK_FALSE(body->collision->OnGround());
+    CHECK(body->transform.y < 25.0f - 4.0f);  // 上昇している
 }
 
 // ── エンティティ同士の重なり（CollisionWorld） ──────────────────────────────
