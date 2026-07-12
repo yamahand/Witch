@@ -26,6 +26,11 @@ static constexpr uint32_t kImGuiSrvSlot       = kMaxTextures;
 /// 頂点バッファは 16384 * 4 頂点 * 32B = 2 MiB / バックバッファで無害
 /// （RefactoringNotes §3）。超過は従来どおり 1 回だけ警告して破棄する。
 static constexpr uint32_t kMaxSpritesPerFrame = 16384;
+#ifdef WITCH_DEBUG_DRAW
+/// 1 フレームのデバッグ線分上限。超えたものは破棄される（スプライトと同じ方針）。
+/// 頂点バッファは 16384 * 2 頂点 * 24B = 768 KiB / バックバッファ。
+static constexpr uint32_t kMaxLinesPerFrame = 16384;
+#endif
 
 /// Direct3D 12 による IRenderer 実装。
 /// D3D12/DXGI 型はこのクラスの外に漏らさない（RHI 境界を守るため）。
@@ -56,6 +61,9 @@ public:
         const uint8_t* pixels, int width, int height) override;
     void DestroyTexture(rhi::TextureHandle handle) override;
     void SubmitSprite(const rhi::SpriteDrawDesc& desc) override;
+#ifdef WITCH_DEBUG_DRAW
+    void SubmitLine(const rhi::LineDrawDesc& desc) override;
+#endif
 
     void SetCamera(float scale, float offsetX, float offsetY) override {
         camScale_   = scale;
@@ -71,6 +79,13 @@ public:
     /// D3D12CommandList::FlushSprites から呼ばれる。
     /// スプライトバッチを頂点バッファに書き込んでドローコールを発行する。
     void DoFlushSprites(ID3D12GraphicsCommandList* cl);
+
+#ifdef WITCH_DEBUG_DRAW
+    /// D3D12CommandList::FlushLines から呼ばれる。
+    /// デバッグ線分バッチを頂点バッファに書き込んでドローコールを発行する
+    /// （World / Screen で最大 2 コール）。
+    void DoFlushLines(ID3D12GraphicsCommandList* cl);
+#endif
 
     /// D3D12CommandList::Clear から呼ばれる。
     /// 仮想解像度有効時は全面黒 → レターボックス内側のみ指定色の 2 段クリア。
@@ -94,6 +109,14 @@ private:
     void WaitForFrame(uint32_t frameIdx);
     void WaitIdle();
     bool InitSpritePipeline();
+#ifdef WITCH_DEBUG_DRAW
+    bool InitLinePipeline();
+#endif
+    /// FrameCB の 2 リージョン（World / Screen）を現フレームの CB へ書き込む。
+    /// DoFlushSprites / DoFlushLines が共用する（同値の二重書き込みは無害）。
+    void WriteFrameConstants();
+    /// レターボックス内側矩形にビューポートとシザーを設定する。
+    void SetLetterboxViewport(ID3D12GraphicsCommandList* cl) const;
 
     /// ダブルバッファリング用フレームコンテキスト。
     struct FrameCtx {
@@ -155,6 +178,23 @@ private:
         kMaxSpritesPerFrame * 4 * sizeof(SpriteVertex);
     ComPtr<ID3D12Resource>            vbUpload_[kBackBufferCount];
     uint8_t*                          vbMapped_[kBackBufferCount]{};
+
+#ifdef WITCH_DEBUG_DRAW
+    // ── Debug line pipeline ─────────────────────────────────────────────────────
+    /// テクスチャ不要のため専用ルートシグネチャ（b0 の Root CBV のみ）を持つ。
+    /// FrameCB はスプライトと同じ cbUpload_ の 2 リージョンを共有する。
+    ComPtr<ID3D12RootSignature>       lineRootSig_;
+    ComPtr<ID3D12PipelineState>       linePSO_;
+
+    struct LineVertex { float x, y; float r, g, b, a; };
+    static constexpr uint32_t kLineVBSize =
+        kMaxLinesPerFrame * 2 * sizeof(LineVertex);
+    ComPtr<ID3D12Resource>            lineVbUpload_[kBackBufferCount];
+    uint8_t*                          lineVbMapped_[kBackBufferCount]{};
+
+    /// このフレームで蓄積したデバッグ線分。DoFlushLines でクリアされる。
+    std::vector<rhi::LineDrawDesc>    pendingLines_;
+#endif
 
     // ── Texture management ──────────────────────────────────────────────────────
     ComPtr<ID3D12DescriptorHeap>      srvHeap_;

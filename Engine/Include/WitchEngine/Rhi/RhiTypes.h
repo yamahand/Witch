@@ -23,6 +23,15 @@ enum class SpriteSpace : uint8_t {
                  ///< カメラ変換を受けず、常に World 全体の手前に描かれる（RHI の契約）。
 };
 
+/// デバッグ線分 1 本の描画パラメータ（WITCH_DEBUG_DRAW 用）。
+/// 座標はスプライトと同じ（World = カメラ変換あり / Screen = 仮想スクリーン直接）。
+/// 線幅は常に 1px（ラスタライザの線描画。ズームしても太らない）。
+struct LineDrawDesc {
+    float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    Color color = {1.0f, 1.0f, 1.0f, 1.0f};
+    SpriteSpace space = SpriteSpace::World;
+};
+
 /// スプライト 1 枚の描画パラメータ。UV は正規化テクスチャ座標（0.0〜1.0）。
 /// 全フィールドにデフォルト値を持たせ、既存呼び出しはそのまま従来と同じ描画になる。
 struct SpriteDrawDesc {

@@ -110,6 +110,10 @@ bool GameLoop::Tick(Scene* currentScene) {
         auto* cmdList = renderer_->BeginFrame();
         cmdList->Clear({currentScene ? currentScene->ClearColor() : kCornflowerBlue});
         cmdList->FlushSprites();
+#ifdef WITCH_DEBUG_DRAW
+        // デバッグ線分は全スプライトの手前・ImGui（RenderDebugUI）の奥に描く。
+        cmdList->FlushLines();
+#endif
 #ifdef WITCH_DEBUG_UI
         renderer_->RenderDebugUI();
 #endif

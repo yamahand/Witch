@@ -24,6 +24,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "WITCH_DEBUG_UI": "ON",
+        "WITCH_DEBUG_DRAW": "ON",
         "WITCH_MOUNT_DEV_CONTENT": "ON",
         "WITCH_BUILD_TESTS": "OFF",
         "VCPKG_MANIFEST_FEATURES": "debug-ui"
@@ -59,7 +60,8 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "WITCH_DEBUG_UI": "OFF"
+        "WITCH_DEBUG_UI": "OFF",
+        "WITCH_DEBUG_DRAW": "OFF"
       }
     },
     {
@@ -86,6 +88,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "WITCH_DEBUG_UI": "ON",
+        "WITCH_DEBUG_DRAW": "ON",
         "WITCH_MOUNT_DEV_CONTENT": "ON",
         "WITCH_BUILD_TESTS": "ON",
         "VCPKG_MANIFEST_FEATURES": "debug-ui;tests"
@@ -100,6 +103,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "WITCH_DEBUG_UI": "OFF",
+        "WITCH_DEBUG_DRAW": "OFF",
         "WITCH_BUILD_TESTS": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests"
       }
