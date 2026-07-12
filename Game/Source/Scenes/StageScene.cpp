@@ -26,6 +26,9 @@ bool FindStandableCell(const LevelIntGrid& grid, int& outCx, int& outCy) {
         if (cx < 0 || cy < 0 || cx >= grid.width || cy >= grid.height) return false;
         const size_t i = static_cast<size_t>(cy) * static_cast<size_t>(grid.width) +
                          static_cast<size_t>(cx);
+        // width/height と values のサイズ不整合（壊れたデータ）は空扱い
+        // （TileCollision.cpp の IsSolid と同じ防御）。
+        if (i >= grid.values.size()) return false;
         return physics2d::ShapeFromValue(grid.values[i]) != physics2d::TileShape::Empty;
     };
     const int center = grid.width / 2;
