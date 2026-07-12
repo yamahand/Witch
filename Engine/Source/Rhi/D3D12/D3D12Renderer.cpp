@@ -51,6 +51,12 @@ void D3D12CommandList::FlushSprites() {
     renderer->DoFlushSprites(raw);
 }
 
+#ifdef WITCH_DEBUG_DRAW
+void D3D12CommandList::FlushLines() {
+    renderer->DoFlushLines(raw);
+}
+#endif
+
 // ── D3D12Renderer ────────────────────────────────────────────────────────────
 
 bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
@@ -171,6 +177,12 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     // 12. Sprite pipeline (shaders, root sig, PSO, per-frame buffers, SRV heap)
     if (!InitSpritePipeline())
         return false;
+
+#ifdef WITCH_DEBUG_DRAW
+    // 12b. Debug line pipeline (shaders, root sig, PSO, per-frame VB)
+    if (!InitLinePipeline())
+        return false;
+#endif
 
     // 13. Dear ImGui (Win32 + DX12 backend)
 #ifdef WITCH_DEBUG_UI
@@ -322,6 +334,9 @@ void D3D12Renderer::Shutdown() {
     for (uint32_t i = 0; i < kBackBufferCount; ++i) {
         if (cbMapped_[i] && cbUpload_[i]) { cbUpload_[i]->Unmap(0, nullptr); cbMapped_[i] = nullptr; }
         if (vbMapped_[i] && vbUpload_[i]) { vbUpload_[i]->Unmap(0, nullptr); vbMapped_[i] = nullptr; }
+#ifdef WITCH_DEBUG_DRAW
+        if (lineVbMapped_[i] && lineVbUpload_[i]) { lineVbUpload_[i]->Unmap(0, nullptr); lineVbMapped_[i] = nullptr; }
+#endif
     }
 
     if (fenceEvent_) {
@@ -592,34 +607,11 @@ void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
         }
     }
 
-    // Write frame constants (2 regions).
-    // 仮想解像度有効時は CB に仮想サイズを書き、ビューポートをレターボックス
-    // 内側矩形に絞る。VS の スクリーン→NDC 変換がそのまま仮想→内側矩形の
-    // 写像になるため、シェーダ変更なしで一様スケールが成立する。
-    // リージョン 0 = World（SetCamera のビュー変換）、リージョン 1 = Screen（恒等）。
-    // screenSize は両リージョンに必要（NDC 変換は space によらず同じ）。
-    const Letterbox lb = ComputeLetterbox();
-    // フィールド順・サイズは Sprite.hlsl の cbuffer FrameCB と手動一致（要同期）。
-    struct FrameCB { float screenW, screenH; float camScaleX, camScaleY;
-                     float camOffsetX, camOffsetY; float pad[2]; };
-    static_assert(sizeof(FrameCB) <= kCBAlignedSize,
-                  "FrameCB must fit in one CB region (no overlap with the identity region)");
-    const float vw = (float)VirtualWidth(), vh = (float)VirtualHeight();
-    *reinterpret_cast<FrameCB*>(cbMapped_[frameIndex_]) =
-        {vw, vh, camScale_, camScale_, camOffsetX_, camOffsetY_, 0.0f, 0.0f};
-    *reinterpret_cast<FrameCB*>(cbMapped_[frameIndex_] + kCBAlignedSize) =
-        {vw, vh, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-
-    // Set up pipeline state.
+    // Write frame constants (2 regions) and set up pipeline state.
+    WriteFrameConstants();
     cl->SetPipelineState(spritePSO_.Get());
     cl->SetGraphicsRootSignature(spriteRootSig_.Get());
-
-    D3D12_VIEWPORT vp{(float)lb.offsetX, (float)lb.offsetY,
-                      (float)lb.innerW, (float)lb.innerH, 0.0f, 1.0f};
-    D3D12_RECT scissor{(LONG)lb.offsetX, (LONG)lb.offsetY,
-                       (LONG)(lb.offsetX + lb.innerW), (LONG)(lb.offsetY + lb.innerH)};
-    cl->RSSetViewports(1, &vp);
-    cl->RSSetScissorRects(1, &scissor);
+    SetLetterboxViewport(cl);
 
     D3D12_VERTEX_BUFFER_VIEW vbv{};
     vbv.BufferLocation = vbUpload_[frameIndex_]->GetGPUVirtualAddress();
@@ -656,7 +648,103 @@ void D3D12Renderer::DoFlushSprites(ID3D12GraphicsCommandList* cl) {
     pendingSprites_.clear();
 }
 
+#ifdef WITCH_DEBUG_DRAW
+
+void D3D12Renderer::SubmitLine(const rhi::LineDrawDesc& desc) {
+    if (pendingLines_.size() < kMaxLinesPerFrame) {
+        pendingLines_.push_back(desc);
+    } else {
+        static bool warnedOnce = false;
+        if (!warnedOnce) {
+            log::Warn("SubmitLine: kMaxLinesPerFrame ({}) exceeded; lines dropped.", kMaxLinesPerFrame);
+            warnedOnce = true;
+        }
+    }
+}
+
+void D3D12Renderer::DoFlushLines(ID3D12GraphicsCommandList* cl) {
+    if (pendingLines_.empty()) return;
+
+    // World → Screen の順に描く（スプライトと同じ space 契約）。同 space 内は提出順を維持。
+    std::stable_sort(pendingLines_.begin(), pendingLines_.end(),
+                     [](const rhi::LineDrawDesc& a, const rhi::LineDrawDesc& b) {
+                         return a.space < b.space;
+                     });
+
+    // Write 2 vertices per line into the current frame's upload VB.
+    auto* vbData = reinterpret_cast<LineVertex*>(lineVbMapped_[frameIndex_]);
+    uint32_t worldVerts = 0;
+    const uint32_t lineCount = static_cast<uint32_t>(pendingLines_.size());
+    for (uint32_t i = 0; i < lineCount; ++i) {
+        const auto& l = pendingLines_[i];
+        const auto& c = l.color;
+        vbData[i * 2 + 0] = {l.x0, l.y0, c.r, c.g, c.b, c.a};
+        vbData[i * 2 + 1] = {l.x1, l.y1, c.r, c.g, c.b, c.a};
+        if (l.space == rhi::SpriteSpace::World) worldVerts += 2;
+    }
+
+    // FrameCB はスプライトと同じ 2 リージョンを使う。スプライト 0 枚のフレームでは
+    // DoFlushSprites が書かないため、ここでも書く（同値の二重書き込みは無害）。
+    WriteFrameConstants();
+
+    cl->SetPipelineState(linePSO_.Get());
+    cl->SetGraphicsRootSignature(lineRootSig_.Get());
+    SetLetterboxViewport(cl);
+
+    D3D12_VERTEX_BUFFER_VIEW vbv{};
+    vbv.BufferLocation = lineVbUpload_[frameIndex_]->GetGPUVirtualAddress();
+    vbv.SizeInBytes    = kLineVBSize;
+    vbv.StrideInBytes  = sizeof(LineVertex);
+    cl->IASetVertexBuffers(0, 1, &vbv);
+    cl->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+
+    // space ソート済みなので World 分・Screen 分それぞれ 1 コールで描ける。
+    const D3D12_GPU_VIRTUAL_ADDRESS cbBase = cbUpload_[frameIndex_]->GetGPUVirtualAddress();
+    const uint32_t totalVerts = lineCount * 2;
+    if (worldVerts > 0) {
+        cl->SetGraphicsRootConstantBufferView(0, cbBase);
+        cl->DrawInstanced(worldVerts, 1, 0, 0);
+    }
+    if (totalVerts > worldVerts) {
+        cl->SetGraphicsRootConstantBufferView(0, cbBase + kCBAlignedSize);
+        cl->DrawInstanced(totalVerts - worldVerts, 1, worldVerts, 0);
+    }
+
+    pendingLines_.clear();
+}
+
+#endif // WITCH_DEBUG_DRAW
+
 // ── Private helpers ──────────────────────────────────────────────────────────
+
+void D3D12Renderer::WriteFrameConstants() {
+    // 仮想解像度有効時は CB に仮想サイズを書き、ビューポートをレターボックス
+    // 内側矩形に絞る。VS の スクリーン→NDC 変換がそのまま仮想→内側矩形の
+    // 写像になるため、シェーダ変更なしで一様スケールが成立する。
+    // リージョン 0 = World（SetCamera のビュー変換）、リージョン 1 = Screen（恒等）。
+    // screenSize は両リージョンに必要（NDC 変換は space によらず同じ）。
+    // フィールド順・サイズは Sprite.hlsl / DebugLine.hlsl の cbuffer FrameCB と
+    // 手動一致（要同期）。
+    struct FrameCB { float screenW, screenH; float camScaleX, camScaleY;
+                     float camOffsetX, camOffsetY; float pad[2]; };
+    static_assert(sizeof(FrameCB) <= kCBAlignedSize,
+                  "FrameCB must fit in one CB region (no overlap with the identity region)");
+    const float vw = (float)VirtualWidth(), vh = (float)VirtualHeight();
+    *reinterpret_cast<FrameCB*>(cbMapped_[frameIndex_]) =
+        {vw, vh, camScale_, camScale_, camOffsetX_, camOffsetY_, 0.0f, 0.0f};
+    *reinterpret_cast<FrameCB*>(cbMapped_[frameIndex_] + kCBAlignedSize) =
+        {vw, vh, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+}
+
+void D3D12Renderer::SetLetterboxViewport(ID3D12GraphicsCommandList* cl) const {
+    const Letterbox lb = ComputeLetterbox();
+    D3D12_VIEWPORT vp{(float)lb.offsetX, (float)lb.offsetY,
+                      (float)lb.innerW, (float)lb.innerH, 0.0f, 1.0f};
+    D3D12_RECT scissor{(LONG)lb.offsetX, (LONG)lb.offsetY,
+                       (LONG)(lb.offsetX + lb.innerW), (LONG)(lb.offsetY + lb.innerH)};
+    cl->RSSetViewports(1, &vp);
+    cl->RSSetScissorRects(1, &scissor);
+}
 
 void D3D12Renderer::CreateBackBufferRTVs() {
     D3D12_CPU_DESCRIPTOR_HANDLE handle =
@@ -853,5 +941,132 @@ bool D3D12Renderer::InitSpritePipeline() {
     log::Info("Sprite pipeline initialized.");
     return true;
 }
+
+#ifdef WITCH_DEBUG_DRAW
+
+bool D3D12Renderer::InitLinePipeline() {
+    // ── Compile HLSL shaders ─────────────────────────────────────────────────
+    UINT compileFlags = 0;
+#ifdef _DEBUG
+    compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
+    auto shaderPath = ExeRelativePath(L"Shaders\\DebugLine.hlsl");
+
+    ComPtr<ID3DBlob> vsBlob, psBlob, errBlob;
+    HRESULT hr = D3DCompileFromFile(shaderPath.c_str(), nullptr, nullptr,
+        "VSMain", "vs_5_0", compileFlags, 0, &vsBlob, &errBlob);
+    if (FAILED(hr)) {
+        if (errBlob)
+            log::Error("DebugLine VS compile error: {}",
+                static_cast<const char*>(errBlob->GetBufferPointer()));
+        log::Error("Failed to compile DebugLine.hlsl (VS). HRESULT=0x{:08X}", static_cast<uint32_t>(hr));
+        return false;
+    }
+
+    errBlob.Reset();
+    hr = D3DCompileFromFile(shaderPath.c_str(), nullptr, nullptr,
+        "PSMain", "ps_5_0", compileFlags, 0, &psBlob, &errBlob);
+    if (FAILED(hr)) {
+        if (errBlob)
+            log::Error("DebugLine PS compile error: {}",
+                static_cast<const char*>(errBlob->GetBufferPointer()));
+        log::Error("Failed to compile DebugLine.hlsl (PS). HRESULT=0x{:08X}", static_cast<uint32_t>(hr));
+        return false;
+    }
+
+    // ── Root signature ────────────────────────────────────────────────────────
+    // テクスチャを使わないため b0 の Root CBV（FrameCB）だけの専用シグネチャ。
+    D3D12_ROOT_PARAMETER param{};
+    param.ParameterType             = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    param.Descriptor.ShaderRegister = 0;
+    param.Descriptor.RegisterSpace  = 0;
+    param.ShaderVisibility          = D3D12_SHADER_VISIBILITY_VERTEX;
+
+    D3D12_ROOT_SIGNATURE_DESC rsDesc{};
+    rsDesc.NumParameters = 1;
+    rsDesc.pParameters   = &param;
+    rsDesc.Flags         = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    ComPtr<ID3DBlob> sigBlob, sigErr;
+    if (!Check(D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+                                          &sigBlob, &sigErr), "SerializeRootSignature (line)"))
+        return false;
+    if (!Check(device_->CreateRootSignature(0, sigBlob->GetBufferPointer(),
+                                            sigBlob->GetBufferSize(),
+                                            IID_PPV_ARGS(&lineRootSig_)),
+               "CreateRootSignature (line)"))
+        return false;
+
+    // ── PSO ──────────────────────────────────────────────────────────────────
+    // トポロジ以外（ブレンド・ラスタ・深度）はスプライト PSO と同一設定。
+    D3D12_INPUT_ELEMENT_DESC inputElems[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 8,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+    };
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
+    psoDesc.pRootSignature        = lineRootSig_.Get();
+    psoDesc.VS                    = {vsBlob->GetBufferPointer(), vsBlob->GetBufferSize()};
+    psoDesc.PS                    = {psBlob->GetBufferPointer(), psBlob->GetBufferSize()};
+    psoDesc.InputLayout           = {inputElems, 2};
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+    psoDesc.NumRenderTargets      = 1;
+    psoDesc.RTVFormats[0]         = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.SampleDesc.Count      = 1;
+    psoDesc.SampleMask            = UINT_MAX;
+
+    psoDesc.RasterizerState.FillMode        = D3D12_FILL_MODE_SOLID;
+    psoDesc.RasterizerState.CullMode        = D3D12_CULL_MODE_NONE;
+    psoDesc.RasterizerState.DepthClipEnable = TRUE;
+
+    auto& rtBlend                 = psoDesc.BlendState.RenderTarget[0];
+    rtBlend.BlendEnable           = TRUE;
+    rtBlend.SrcBlend              = D3D12_BLEND_SRC_ALPHA;
+    rtBlend.DestBlend             = D3D12_BLEND_INV_SRC_ALPHA;
+    rtBlend.BlendOp               = D3D12_BLEND_OP_ADD;
+    rtBlend.SrcBlendAlpha         = D3D12_BLEND_ONE;
+    rtBlend.DestBlendAlpha        = D3D12_BLEND_INV_SRC_ALPHA;
+    rtBlend.BlendOpAlpha          = D3D12_BLEND_OP_ADD;
+    rtBlend.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+    psoDesc.DepthStencilState.DepthEnable   = FALSE;
+    psoDesc.DepthStencilState.StencilEnable = FALSE;
+
+    if (!Check(device_->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&linePSO_)),
+               "CreateGraphicsPipelineState (line)"))
+        return false;
+
+    // ── Per-frame upload VB (persistently mapped) ────────────────────────────
+    D3D12_HEAP_PROPERTIES uploadHeap{};
+    uploadHeap.Type = D3D12_HEAP_TYPE_UPLOAD;
+
+    D3D12_RESOURCE_DESC bufDesc{};
+    bufDesc.Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER;
+    bufDesc.Width            = kLineVBSize;
+    bufDesc.Height           = 1;
+    bufDesc.DepthOrArraySize = 1;
+    bufDesc.MipLevels        = 1;
+    bufDesc.Format           = DXGI_FORMAT_UNKNOWN;
+    bufDesc.SampleDesc.Count = 1;
+    bufDesc.Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+    D3D12_RANGE readRange{0, 0};
+    for (uint32_t i = 0; i < kBackBufferCount; ++i) {
+        if (!Check(device_->CreateCommittedResource(
+                &uploadHeap, D3D12_HEAP_FLAG_NONE, &bufDesc,
+                D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&lineVbUpload_[i])),
+                   "CreateCommittedResource (line VB)"))
+            return false;
+        lineVbUpload_[i]->Map(0, &readRange, reinterpret_cast<void**>(&lineVbMapped_[i]));
+    }
+
+    log::Info("Debug line pipeline initialized.");
+    return true;
+}
+
+#endif // WITCH_DEBUG_DRAW
 
 } // namespace witch

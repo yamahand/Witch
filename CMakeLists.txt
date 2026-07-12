@@ -36,6 +36,11 @@ if(WITCH_DEBUG_UI)
     find_package(imgui CONFIG REQUIRED)
 endif()
 
+# デバッグプリミティブ描画（DebugDraw + RHI ラインパイプライン）の有効化。
+# WITCH_DEBUG_UI とは独立。OFF ではラインパイプラインごとコンパイルアウトされ、
+# DebugDraw API は no-op になる（呼び出し側に #ifdef は不要）。追加依存なし。
+option(WITCH_DEBUG_DRAW "Enable debug primitive drawing" OFF)
+
 # ─── WitchEngine (STATIC) ────────────────────────────────────────────────────
 # ヘッダも target_sources に加えているのは機能上必須ではなく、Visual Studio の
 # ソリューションエクスプローラー（フィルター）にヘッダを表示させ、単独 IDE 編集を
@@ -55,6 +60,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Core/ObjectRegistry.cpp
     Engine/Source/Core/ResourceManager.cpp
     Engine/Source/Core/Time.cpp
+    Engine/Source/Debug/DebugDraw.cpp
     Engine/Source/Scene/ComponentScheduler.cpp
     Engine/Source/Scene/GameObject.cpp
     Engine/Source/Scene/Scene.cpp
@@ -108,6 +114,7 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Core/Services.h
     Engine/Include/WitchEngine/Core/TextureInfo.h
     Engine/Include/WitchEngine/Core/Time.h
+    Engine/Include/WitchEngine/Debug/DebugDraw.h
     Engine/Include/WitchEngine/Graphics2D/Anchor.h
     Engine/Include/WitchEngine/Graphics2D/AnimationComponent.h
     Engine/Include/WitchEngine/Graphics2D/AsepriteComponent.h
@@ -194,6 +201,12 @@ if(WITCH_DEBUG_UI)
         Engine/Include/WitchEngine/Debug/DebugMenu.h
         Engine/Include/WitchEngine/Debug/DebugMenuItem.h
     )
+endif()
+
+if(WITCH_DEBUG_DRAW)
+    # WITCH_DEBUG_UI と同様 PUBLIC 定義。Game 側 TU が高コストなデバッグ描画の
+    # 準備計算を #ifdef WITCH_DEBUG_DRAW で丸ごと省けるようにする。
+    target_compile_definitions(WitchEngine PUBLIC WITCH_DEBUG_DRAW)
 endif()
 
 # Visual Studio のソリューションエクスプローラーで実ディレクトリ階層通りの

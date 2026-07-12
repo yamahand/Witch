@@ -1,6 +1,7 @@
 #include "WitchEngine/Core/GameLoop.h"
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Core/Time.h"
+#include "WitchEngine/Debug/DebugDraw.h"
 #include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Input/IInput.h"
 #include "WitchEngine/Rhi/IRenderer.h"
@@ -69,14 +70,18 @@ bool GameLoop::Tick(Scene* currentScene) {
     //    固定側で読むと多重ステップフレームで二重発火する。FrameUpdate 側で読むこと。
     {
         WITCH_PROFILE_SCOPE_N("SceneUpdate");
+        debug::DebugDraw* debugDraw = Services::Instance().debugDraw;
         // シーンが無い間もステップは消費する（アキュムレータに溜め込んで
         // シーン設定直後にまとめて走るのを防ぐ）。
         while (time_->ConsumeFixedStep()) {
             if (currentScene) {
                 WITCH_PROFILE_SCOPE_N("FixedStep");
+                // ステップごとに固定側デバッグ描画を積み直す（DebugDraw.h の契約参照）。
+                if (debugDraw) debugDraw->BeginFixedStep();
                 currentScene->FixedUpdate(time_->FixedDeltaTime());
             }
         }
+        if (debugDraw) debugDraw->EndFixedSteps();
         if (currentScene) currentScene->FrameUpdate(time_->DeltaTime());
     }
 
@@ -104,12 +109,22 @@ bool GameLoop::Tick(Scene* currentScene) {
     }
 #endif
 
+    // デバッグプリミティブを RHI へ提出する。DrawDebugUI（インスペクター等）からの
+    // 提出も拾えるよう、デバッグ UI の後・描画の前に行う。
+    if (debug::DebugDraw* debugDraw = Services::Instance().debugDraw) {
+        debugDraw->Flush();
+    }
+
     // 4) 描画。
     {
         WITCH_PROFILE_SCOPE_N("Render");
         auto* cmdList = renderer_->BeginFrame();
         cmdList->Clear({currentScene ? currentScene->ClearColor() : kCornflowerBlue});
         cmdList->FlushSprites();
+#ifdef WITCH_DEBUG_DRAW
+        // デバッグ線分は全スプライトの手前・ImGui（RenderDebugUI）の奥に描く。
+        cmdList->FlushLines();
+#endif
 #ifdef WITCH_DEBUG_UI
         renderer_->RenderDebugUI();
 #endif

@@ -16,6 +16,12 @@ public:
 
     /// IRenderer::SubmitSprite で蓄積したスプライトを描画コマンドに変換する。
     virtual void FlushSprites() = 0;
+
+#ifdef WITCH_DEBUG_DRAW
+    /// IRenderer::SubmitLine で蓄積したデバッグ線分を描画コマンドに変換する。
+    /// FlushSprites の後（= 全スプライトの手前）・RenderDebugUI の前に呼ぶ。
+    virtual void FlushLines() {}
+#endif
 };
 
 /// RHI 抽象インターフェース。D3D12 等の実装詳細をこの境界で完全に隠蔽する。
@@ -69,6 +75,12 @@ public:
     /// 変換は FlushSprites 時に頂点シェーダで適用されるため、そのフレームの
     /// SubmitSprite の前後どちらで呼んでもよい。フレームを跨いで持続するステート。
     virtual void SetCamera(float scale, float offsetX, float offsetY) = 0;
+
+#ifdef WITCH_DEBUG_DRAW
+    /// デバッグ線分を描画キューに積む。ICommandList::FlushLines で実際のコマンドに変換される。
+    /// カメラ変換の扱いは SubmitSprite と同じ（World のみ SetCamera を受ける）。
+    virtual void SubmitLine(const LineDrawDesc& /*desc*/) {}
+#endif
 
 #ifdef WITCH_DEBUG_UI
     /// デバッグ UI のフレームを開始する。入力ポンプ後・BeginFrame の前に呼ぶ

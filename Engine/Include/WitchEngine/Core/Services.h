@@ -12,6 +12,10 @@ namespace witch::log {
 class Logger;
 } // namespace witch::log
 
+namespace witch::debug {
+class DebugDraw;
+} // namespace witch::debug
+
 namespace witch {
 
 class Time;
@@ -30,6 +34,8 @@ struct Services {
     IInput*          input     = nullptr;
     CameraManager*   cameras   = nullptr;
     vfs::Vfs*        vfs       = nullptr;
+    /// デバッグプリミティブ描画。常に存在する（WITCH_DEBUG_DRAW OFF では全メソッド no-op）。
+    debug::DebugDraw* debugDraw = nullptr;
 
     static Services& Instance() {
         static Services s;

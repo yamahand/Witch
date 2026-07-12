@@ -13,6 +13,9 @@ class D3D12CommandList : public rhi::ICommandList {
 public:
     void Clear(const rhi::ClearDesc& desc) override;
     void FlushSprites() override;
+#ifdef WITCH_DEBUG_DRAW
+    void FlushLines() override;
+#endif
 
     /// D3D12Renderer::BeginFrame が返す前に設定する。
     ID3D12GraphicsCommandList* raw      = nullptr;
