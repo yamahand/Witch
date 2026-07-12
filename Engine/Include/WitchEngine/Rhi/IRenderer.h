@@ -79,7 +79,7 @@ public:
 #ifdef WITCH_DEBUG_DRAW
     /// デバッグ線分を描画キューに積む。ICommandList::FlushLines で実際のコマンドに変換される。
     /// カメラ変換の扱いは SubmitSprite と同じ（World のみ SetCamera を受ける）。
-    virtual void SubmitLine(const LineDrawDesc& desc) { (void)desc; }
+    virtual void SubmitLine(const LineDrawDesc& /*desc*/) {}
 #endif
 
 #ifdef WITCH_DEBUG_UI

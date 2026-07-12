@@ -152,6 +152,12 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     debugMenu_->AddItem("Hierarchy", [this] {
         hierarchyWindow_->SetOpen(!hierarchyWindow_->IsOpen());
     });
+#ifdef WITCH_DEBUG_DRAW
+    // DebugDraw の動作確認用テストパターン（全プリミティブ 1 セット）の表示切替。
+    debugMenu_->AddItem("DebugDraw Test", [this] {
+        debugDraw_->SetTestPattern(!debugDraw_->TestPatternEnabled());
+    });
+#endif
     gameLoop_->SetDebugMenu(debugMenu_.get());
 #endif
 

@@ -70,9 +70,9 @@ bool GameLoop::Tick(Scene* currentScene) {
     //    固定側で読むと多重ステップフレームで二重発火する。FrameUpdate 側で読むこと。
     {
         WITCH_PROFILE_SCOPE_N("SceneUpdate");
+        debug::DebugDraw* debugDraw = Services::Instance().debugDraw;
         // シーンが無い間もステップは消費する（アキュムレータに溜め込んで
         // シーン設定直後にまとめて走るのを防ぐ）。
-        debug::DebugDraw* debugDraw = Services::Instance().debugDraw;
         while (time_->ConsumeFixedStep()) {
             if (currentScene) {
                 WITCH_PROFILE_SCOPE_N("FixedStep");

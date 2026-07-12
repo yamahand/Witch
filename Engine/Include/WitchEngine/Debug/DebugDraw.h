@@ -30,6 +30,27 @@ public:
     /// 線分。線幅は常に 1px（ズームしても太らない）。
     void Line(float x0, float y0, float x1, float y1, rhi::Color color,
               rhi::SpriteSpace space = rhi::SpriteSpace::World);
+    /// 矩形の輪郭（左上 + サイズ）。当たり判定 AABB の可視化などに。
+    void Rect(float x, float y, float width, float height, rhi::Color color,
+              rhi::SpriteSpace space = rhi::SpriteSpace::World);
+    /// 塗りつぶし矩形（左上 + サイズ）。半透明色で範囲のハイライトなどに。
+    /// 線と違いスプライトとして描かれるため、同 space の全スプライトの最前面
+    ///（ただし線プリミティブと Screen 空間 HUD よりは奥）になる。
+    void FilledRect(float x, float y, float width, float height, rhi::Color color,
+                    rhi::SpriteSpace space = rhi::SpriteSpace::World);
+    /// 円の輪郭（線分近似）。segments は 3 以上にクランプされる。
+    void Circle(float centerX, float centerY, float radius, rhi::Color color,
+                int segments = 24, rhi::SpriteSpace space = rhi::SpriteSpace::World);
+    /// ＋印の位置マーカー。size は中心から先端までの長さ。
+    void Cross(float x, float y, float size, rhi::Color color,
+               rhi::SpriteSpace space = rhi::SpriteSpace::World);
+    /// 矢印（線分 + 矢頭 2 本）。速度・向きの可視化などに。
+    void Arrow(float x0, float y0, float x1, float y1, rhi::Color color,
+               rhi::SpriteSpace space = rhi::SpriteSpace::World);
+
+    /// 動作確認用テストパターンの表示切替（DebugMenu の "DebugDraw Test"）。
+    void SetTestPattern(bool enabled) { testPattern_ = enabled; }
+    bool TestPatternEnabled() const { return testPattern_; }
 
     // ── フレーム制御（GameLoop 専用。ゲームコードは呼ばない）─────────────────
     /// 固定ステップ開始: 固定リストをクリアし、以降の提出を固定側へ積む。
@@ -52,6 +73,9 @@ private:
 
     void Push(const Prim& prim);
     void Submit(const std::vector<Prim>& prims);
+    /// FilledRect 用 1x1 白テクスチャを遅延生成する。失敗したら以降は再試行しない。
+    void EnsureWhiteTexture();
+    void EmitTestPattern();
 
     rhi::IRenderer* renderer_ = nullptr;
     /// 固定ステップ（FixedUpdate）からの提出分。BeginFixedStep ごとにクリア。
@@ -59,6 +83,9 @@ private:
     /// 毎フレーム側（FrameUpdate / Render フェーズ / DrawDebugUI）からの提出分。Flush でクリア。
     std::vector<Prim> framePrims_;
     bool inFixedStep_ = false;
+    bool testPattern_ = false;
+    rhi::TextureHandle whiteTexture_;
+    bool whiteTextureFailed_ = false;
 };
 
 } // namespace witch::debug
