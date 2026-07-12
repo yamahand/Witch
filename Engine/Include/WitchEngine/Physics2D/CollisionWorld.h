@@ -4,6 +4,12 @@
 namespace witch {
 
 class CollisionComponent;
+struct LevelIntGrid;
+
+/// 衝突デバッグ表示（コライダー AABB + IntGrid の衝突形状）のグローバルスイッチ。
+/// DebugMenu の "Show Collision" が切り替える。既定は OFF。
+void SetCollisionDebugDrawEnabled(bool enabled);
+bool CollisionDebugDrawEnabled();
 
 /// シーン内の全 CollisionComponent の非所有レジストリと、エンティティ同士の
 /// 重なり検出（トリガー。物理的押し戻しはしない）。Scene が値で 1 つ所有する。
@@ -33,6 +39,13 @@ public:
     /// 接触の発火はスキップしない（弾が自壊しても敵側の被弾処理は同ステップで走る）。
     /// 発火順は未規定（フェーズ内順序未規定の契約と同型。順序に依存しないこと）。
     void DispatchCallbacks();
+
+    /// 衝突デバッグ表示（"Show Collision"）。全コライダーの AABB と、grid の
+    /// 衝突形状（ソリッド = 矩形、坂 = 対角線）をカメラ可視範囲だけ DebugDraw で
+    /// 描く。Scene::FrameUpdate が毎フレーム呼ぶ（トグル OFF 時は即 return。
+    /// WITCH_DEBUG_DRAW が OFF のビルドでは DebugDraw 側が no-op）。
+    /// @param grid 衝突用 IntGrid（無ければ nullptr = コライダーのみ描く）
+    void DrawDebug(const LevelIntGrid* grid) const;
 
 private:
     std::vector<CollisionComponent*> colliders_;  ///< 非所有（所有は GameObject 側）。
