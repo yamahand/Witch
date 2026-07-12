@@ -29,11 +29,15 @@ private:
 
 } // namespace witch
 
-/// 型を定義している .cpp に 1 行書くだけで ObjectRegistry へ自動登録する。
+/// クラス名と異なる登録名で ObjectRegistry へ自動登録する。レベルエディタ上の
+/// identifier（例: "Player"）と C++ クラス名（例: PlayerObject）を分離したいときに使う。
 /// static 変数の初期化（main より前）を利用してプログラム起動時に登録が完了する。
-#define WITCH_REGISTER_OBJECT(Type)                                         \
+#define WITCH_REGISTER_OBJECT_AS(Type, Name)                                \
     static const bool kRegistered_##Type = [] {                             \
         witch::ObjectRegistry::Instance().Register(                         \
-            #Type, [] { return std::make_unique<Type>(); });                \
+            Name, [] { return std::make_unique<Type>(); });                 \
         return true;                                                         \
     }()
+
+/// 型を定義している .cpp に 1 行書くだけで、クラス名そのままの登録名で自動登録する。
+#define WITCH_REGISTER_OBJECT(Type) WITCH_REGISTER_OBJECT_AS(Type, #Type)

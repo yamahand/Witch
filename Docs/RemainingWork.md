@@ -83,19 +83,43 @@ ImGui デバッグ UI / Tracy プロファイリング。
       （`Scene::CurrentLevel()` から取得。行優先・0 = 空）。衝突種別としての解釈は
       M7 物理側で行う。
 
-## 5. 衝突判定 + プラットフォーマー物理（エンジン / 新モジュール Physics2D 等）
+## 5. 衝突判定 + プラットフォーマー物理（エンジン / 新モジュール Physics2D）
 
 洞窟物語の核。ここの手触りがゲームの品質を決める。
+**M7-a 実装済み（2026-07-11）**: 坂タイルを除く全項目。モジュールは
+`Engine/Include/WitchEngine/Physics2D/`（Aabb / TileCollision / CollisionComponent /
+CollisionWorld）。UpdatePhase に Physics（固定側、Update の後）を追加し、
+Scene::FixedUpdate が Physics → 重なり検出 → コールバック発火 → PostUpdate で回す。
 
-- [ ] **AABB vs タイルマップの衝突解決**: 移動 → 軸ごとに押し戻し。
-      接地判定（onGround）を上位へ公開する。
+- [x] **AABB vs タイルマップの衝突解決**: 移動 → 軸ごとに押し戻し（X 掃引 → Y 掃引の
+      純関数 `physics2d::MoveAabb`。セル境界を順に検査しトンネリングしない）。
+      接地判定（onGround）は CollisionComponent が公開。衝突タイルは
+      `CurrentLevel()` の**先頭 IntGrid**（`FindCollisionGrid` の規約）、0 = 空・
+      それ以外 = ソリッド（解釈は `ShapeFromValue` に集約 = 坂対応の拡張点）。
+      移動は**速度自動積分方式**: CollisionComponent が velocity を持ち、Physics
+      フェーズで積分 + 押し戻し + transform 書き戻し。コントローラは速度の
+      読み書きのみで制御する。
 - [ ] **坂タイル対応**: 洞窟物語は 45° 坂が多用される。タイル衝突種別に坂を含める。
-- [ ] **エンティティ同士の重なり判定**: プレイヤー vs 敵 / 弾 vs 敵 / プレイヤー vs アイテム。
-      物理的押し戻しは不要、トリガー（重なった通知）だけでよい。
-      レイヤー / マスクで組み合わせをフィルタする。
-- [ ] **CollisionComponent（AABB）+ 衝突通知**（コールバック or 今フレームの接触リスト）。
-- [ ] キャラクターコントローラ（重力・ジャンプ・空中制御）はゲーム側
-      （`Game/Source/Components/`）に置く。エンジンは衝突解決までを提供する。
+      【次の PR。ShapeFromValue に値 2/3（床坂）を足し、Y パスに足元中心点の
+      坂スナップ + 下り吸着を追加、X パスは坂セル無視。LDtk 側の IntGrid 値定義と
+      マップ編集を伴う】
+- [x] **エンティティ同士の重なり判定**: CollisionWorld（Scene が所有、O(n²) 総当たり
+      = 数十体想定で意図的に許容）。トリガーのみで押し戻しなし。
+      layer / mask の uint32 で (自 mask & 相手 layer) の非対称フィルタ。
+- [x] **CollisionComponent（AABB）+ 衝突通知**: 通知は 2 段構え —
+      `Contacts()`（接触リスト = 一次ソース、PostUpdate から同一ステップ可読）+
+      `SetOverlapCallback`（検出完了後の dispatch 段で発火。コールバック内の
+      Destroy / Spawn は遅延契約で安全）。
+- [x] キャラクターコントローラ: `Game/Source/Components/PlayerControllerComponent`
+      （重力・左右加減速・Z ジャンプ + 可変ジャンプ高）。ジャンプのエッジ入力は
+      固定ステップ内の IsDown 自前ラッチ（WasPressed の二重発火を回避。
+      1 フレーム未満のタップは取りこぼしうる — 問題化したら §3 注記の入力
+      スナップショットを設計）。`Game/Source/Entities/PlayerObject` を
+      `WITCH_REGISTER_OBJECT_AS(PlayerObject, "Player")` で登録済み
+      （レベルに Player エンティティを置けば LoadLevel から実体化される。
+      現状サンプルには無いため StageScene が「立てるセル」を探して暫定 Spawn）。
+      手触り定数（速度・重力・ジャンプ初速等）は WITCH_DEBUG_UI の
+      DrawInspector でライブ調整できる。調整値の確定は坂 PR までに行う。
 
 ## 6. オーディオ（エンジン / 新モジュール Audio）
 
@@ -166,7 +190,7 @@ ImGui デバッグ UI / Tracy プロファイリング。
 |---|------|--------|
 | ~~M5~~ | ✅ 完了: 描画拡張（ソースレクト・flip・tint・レイヤー・回転・HUD・仮想解像度）+ アニメーション | 1, 2 |
 | ~~M6~~ | ✅ 完了: ~~固定タイムステップ~~ + タイルマップ描画 + LoadLevel（LDtk ローダ。エディタ選定は未決定のまま持ち越し = マップ制作開始時） | 3, 4 |
-| M7 | タイル衝突 + AABB + プレイヤー移動（ジャンプの手触りまで） | 5 |
+| M7 | △ M7-a 完了（2026-07-11）: タイル衝突 + AABB + トリガー + プレイヤー移動・ジャンプ。**残: 45° 坂（M7-b、次の PR）+ 手触り定数の確定** | 5 |
 | M8 | オーディオ（SE + ループ BGM） | 6 |
 | M9 | パッド + アクションマッピング / 追従カメラ + 境界クランプ | 7, 8 |
 | M10 | フォント + メッセージウィンドウ + イベントスクリプト最小版 | 9 |

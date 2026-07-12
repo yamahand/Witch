@@ -1,8 +1,11 @@
 #pragma once
 // テスト共通ヘルパ。固定/毎フレーム分割後の Scene を「1 フレーム」単位で回す。
 // 複数のテスト .cpp から include されるためヘッダオンリー（inline）で定義する。
+#include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Core/Time.h"
 #include "WitchEngine/Scene/Scene.h"
+#include "WitchEngine/Vfs/Vfs.h"
+#include <catch2/catch_test_macros.hpp>
 
 namespace witch::test {
 
@@ -16,5 +19,19 @@ inline void StepFrame(Scene& scene, float frameDt = kFixedDt) {
     scene.FixedUpdate(kFixedDt);
     scene.FrameUpdate(frameDt);
 }
+
+/// Engine/Tests/Fixtures/ をマウントした VFS を Services に差し込み、
+/// スコープ終了時に元へ戻す（他テストへの影響を残さない）。
+struct ScopedFixtureVfs {
+    vfs::Vfs vfs;
+    vfs::Vfs* prev;
+    ScopedFixtureVfs() {
+        REQUIRE(vfs.MountDisk(WITCH_TEST_FIXTURE_DIR).has_value());
+        vfs.Seal();
+        prev = Services::Instance().vfs;
+        Services::Instance().vfs = &vfs;
+    }
+    ~ScopedFixtureVfs() { Services::Instance().vfs = prev; }
+};
 
 } // namespace witch::test

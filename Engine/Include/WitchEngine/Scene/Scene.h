@@ -1,5 +1,6 @@
 #pragma once
 #include "WitchEngine/Level/LevelData.h"
+#include "WitchEngine/Physics2D/CollisionWorld.h"
 #include "WitchEngine/Rhi/RhiTypes.h"
 #include "WitchEngine/Scene/ComponentScheduler.h"
 #include "WitchEngine/Scene/DebugUI.h"
@@ -33,8 +34,7 @@ public:
 
     /// 固定タイムステップ 1 回分の更新。GameLoop がフレーム内で 0〜N 回呼ぶ
     /// （dt は常に Time::FixedDeltaTime）。順序は厳守:
-    /// 生成反映 → PreUpdate → GameObject::Update フック → Update → PostUpdate。
-    /// ゲームロジック（と将来の Physics 系フェーズ）はこちらで回す。
+    /// 生成反映 → PreUpdate → GameObject::Update フック → Update → Physics → PostUpdate。
     /// サブクラスがオーバーライドする場合は必ず Scene::FixedUpdate(fixedDt) を呼ぶ。
     /// 注: エッジ入力（WasPressed 等）は多重ステップフレームで二重発火するため
     /// FrameUpdate 側で読むこと（入力世代の更新はフレームに 1 回のため）。
@@ -95,6 +95,11 @@ public:
     void SetClearColor(const rhi::Color& color) { clearColor_ = color; }
     const rhi::Color& ClearColor() const { return clearColor_; }
 
+    /// エンティティ同士の重なり検出レジストリ。CollisionComponent が登録/解除に使う
+    /// （通常のゲームコードが直接触る必要はない）。検出は FixedUpdate が
+    /// Physics フェーズ直後に行う。
+    CollisionWorld& Collision() { return collision_; }
+
 protected:
     /// シーンがアクティブになる直前に呼ばれる（Enter() 経由。直接呼ばない）。
     /// ここでの Spawn は即時反映される（Spawn の項参照）。
@@ -130,6 +135,10 @@ private:
     void CollectDestroyed();
 
     ComponentScheduler scheduler_;
+    /// objects_ より前に宣言すること（メンバ破棄は宣言の逆順のため、~Scene で
+    /// objects_ → ~GameObject → CollisionComponent::OnDetach → Unregister が
+    /// 走る時点で collision_ が生存している）。
+    CollisionWorld collision_;
     std::vector<std::unique_ptr<GameObject>> objects_;
     std::vector<std::unique_ptr<GameObject>> pendingSpawn_;
     std::unique_ptr<LevelData> level_;  ///< LoadLevel の結果（未ロードなら null）。

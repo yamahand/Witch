@@ -65,6 +65,9 @@ add_library(WitchEngine STATIC
     Engine/Source/Graphics2D/SpriteComponent.cpp
     Engine/Source/Graphics2D/TilemapComponent.cpp
     Engine/Source/Level/LdtkLoader.cpp
+    Engine/Source/Physics2D/CollisionComponent.cpp
+    Engine/Source/Physics2D/CollisionWorld.cpp
+    Engine/Source/Physics2D/TileCollision.cpp
     Engine/Source/Vfs/Vfs.cpp
     Engine/Source/Vfs/DiskSource.cpp
     Engine/Source/Vfs/VfsPathUtil.cpp
@@ -117,6 +120,10 @@ add_library(WitchEngine STATIC
     Engine/Include/WitchEngine/Input/IInput.h
     Engine/Include/WitchEngine/Input/Key.h
     Engine/Include/WitchEngine/Level/LevelData.h
+    Engine/Include/WitchEngine/Physics2D/Aabb.h
+    Engine/Include/WitchEngine/Physics2D/CollisionComponent.h
+    Engine/Include/WitchEngine/Physics2D/CollisionWorld.h
+    Engine/Include/WitchEngine/Physics2D/TileCollision.h
     Engine/Include/WitchEngine/Rhi/IRenderer.h
     Engine/Include/WitchEngine/Rhi/RhiTypes.h
     Engine/Include/WitchEngine/Scene/Component.h
@@ -232,10 +239,14 @@ target_link_libraries(WitchEngine PRIVATE nlohmann_json::nlohmann_json)
 # ─── WitchGame (executable) ──────────────────────────────────────────────────
 add_executable(WitchGame
     Game/Source/Main.cpp
+    Game/Source/Components/PlayerControllerComponent.cpp
+    Game/Source/Entities/PlayerObject.cpp
     Game/Source/Scenes/EmptyScene.cpp
     Game/Source/Scenes/StageScene.cpp
 
     Game/Source/GameConfig.h
+    Game/Source/Components/PlayerControllerComponent.h
+    Game/Source/Entities/PlayerObject.h
     Game/Source/Scenes/EmptyScene.h
     Game/Source/Scenes/StageScene.h
 )

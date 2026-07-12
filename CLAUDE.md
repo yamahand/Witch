@@ -30,6 +30,7 @@ Witch/                          ← リポジトリのルート
 │   │   ├── Core/               ← Engine, Services, ObjectRegistry, Time, Logger
 │   │   ├── Scene/              ← Scene, GameObject, Component
 │   │   ├── Level/              ← LevelData（フォーマット中立のレベルデータ型のみ）
+│   │   ├── Physics2D/          ← Aabb, TileCollision, CollisionComponent, CollisionWorld
 │   │   ├── Rhi/                ← IRenderer 等のインターフェースのみ
 │   │   └── Graphics2D/         ← SpriteComponent, TilemapComponent 等
 │   └── Source/                 ← 実装と非公開ヘッダ
@@ -72,11 +73,12 @@ Witch/                          ← リポジトリのルート
   `Owner()` で所有 GameObject に弱参照（所有しない。owner は必ず自分より長生き）。
 - **ComponentScheduler**（Scene/ComponentScheduler.h）: Scene が 1 つ所有。
   Component をフェーズ別リストで管理し、`UpdatePhase` の宣言順
-  （PreUpdate → Update → PostUpdate → Animation → Camera → Render）に更新する。
-  フェーズは消費者が現れてから enum に足す（Physics 系は M7、Input は必要時）。
-  **固定/毎フレームの所属**: PreUpdate / Update / PostUpdate は固定ステップ側
+  （PreUpdate → Update → Physics → PostUpdate → Animation → Camera → Render）に更新する。
+  フェーズは消費者が現れてから enum に足す（Physics は M7 で追加済み =
+  CollisionComponent。PrePhysics / PostPhysics は消費者が出たら、Input は必要時）。
+  **固定/毎フレームの所属**: PreUpdate / Update / Physics / PostUpdate は固定ステップ側
   （dt = 1/60 固定、フレーム内 0〜N 回）、Animation / Camera / Render は
-  毎フレーム側（dt = 可変、必ず 1 回）。Physics 系は固定側に足す。
+  毎フレーム側（dt = 可変、必ず 1 回）。
   **並列化契約**: 同一フェーズ内での GameObject 間の実行順は未規定。順序が必要なら
   別フェーズに分ける。現実装は逐次だが、将来フェーズ単位で並列化できるよう
   この契約に依存しないコードを書く。
@@ -96,7 +98,8 @@ Witch/                          ← リポジトリのルート
   戻り時に OnSpawn 完了済みで `Find` が通る（LoadLevel 直後の配線を OnEnter 内で
   書けるようにするため。更新イテレーション外なので即時でも安全）。
   更新は固定タイムステップ（アキュムレータ方式、60Hz）で 2 本立て（順序厳守）:
-  `FixedUpdate(fixedDt)` = **生成反映 → 固定側フェーズ**（フレーム内 0〜N 回）、
+  `FixedUpdate(fixedDt)` = **生成反映 → 固定側フェーズ**（フレーム内 0〜N 回。
+  Physics フェーズの直後に CollisionWorld の重なり検出 → コールバック発火を挟む）、
   `FrameUpdate(dt)` = **生成反映 → 毎フレーム側フェーズ → 破棄回収**（必ず 1 回、
   全 FixedUpdate の後）。while ループは GameLoop が Time のアキュムレータで回す。
   **エッジ入力（WasPressed 等）は FrameUpdate 側で読む**（入力世代がフレーム単位の
@@ -109,7 +112,9 @@ Witch/                          ← リポジトリのルート
   ObjectRegistry 経由で実体化（未登録名は警告スキップ）。結果は `CurrentLevel()` で保持。
 - **ObjectRegistry**（Core/ObjectRegistry.h）: 文字列型名 → 生成関数のファクトリ。
   外部レベルエディタの "Enemy" 等から実体を作る（C++ にリフレクションが無いため必須）。
-  登録マクロ `WITCH_REGISTER_OBJECT(Type)` を .cpp に 1 行で自動登録。Meyers Singleton で可。
+  登録マクロ `WITCH_REGISTER_OBJECT(Type)` を .cpp に 1 行で自動登録。クラス名と
+  エディタ上の名前を分けたいときは `WITCH_REGISTER_OBJECT_AS(Type, "Name")`
+  （例: PlayerObject を "Player" で登録）。Meyers Singleton で可。
 - **Services**（Core/Services.h）: サービスロケーター。動的 map にせず固定メンバ
   （renderer / audio / input / resources / time）。インターフェース越しに引く。
 - **Engine**（Core/Engine.h）: 本体。サービス実体を `unique_ptr` で所有し生成順を握る。

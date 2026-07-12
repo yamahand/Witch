@@ -1,0 +1,30 @@
+{
+  "__comment": "CollisionComponent のタイル衝突テスト用の最小 LDtk。外周 1 セルが壁の 8x6 セル箱部屋（gridSize 8px、内側は x:8-56, y:8-40）。CollisionComponentTests.cpp が読む。",
+  "jsonVersion": "1.5.3",
+  "externalLevels": false,
+  "levels": [
+    {
+      "identifier": "CollisionLevel",
+      "pxWid": 64,
+      "pxHei": 48,
+      "__bgColor": "#000000",
+      "layerInstances": [
+        {
+          "__identifier": "IntGrid_layer",
+          "__type": "IntGrid",
+          "__cWid": 8,
+          "__cHei": 6,
+          "__gridSize": 8,
+          "intGridCsv": [
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 0, 0, 0, 0, 0, 0, 1,
+            1, 0, 0, 0, 0, 0, 0, 1,
+            1, 0, 0, 0, 0, 0, 0, 1,
+            1, 0, 0, 0, 0, 0, 0, 1,
+            1, 1, 1, 1, 1, 1, 1, 1
+          ]
+        }
+      ]
+    }
+  ]
+}
