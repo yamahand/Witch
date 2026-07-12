@@ -10,7 +10,9 @@ namespace witch::debug {
 
 /// immediate-mode のデバッグプリミティブ描画サービス。
 /// 表示したいフレームごとに毎回呼び直す（呼ばなくなれば消える）。
-/// 全スプライトの手前・ImGui の奥に描かれる。Services::Instance().debugDraw で引く。
+/// 線プリミティブは全スプライトの手前・ImGui の奥に描かれる
+/// （スプライトとして描かれる FilledRect は例外。同メソッドのコメント参照）。
+/// Services::Instance().debugDraw で引く。
 ///
 /// WITCH_DEBUG_DRAW が OFF のビルドでは全メソッドが no-op になる
 /// （API 自体は常に存在するため、呼び出し側に #ifdef は不要）。
@@ -34,8 +36,9 @@ public:
     void Rect(float x, float y, float width, float height, rhi::Color color,
               rhi::SpriteSpace space = rhi::SpriteSpace::World);
     /// 塗りつぶし矩形（左上 + サイズ）。半透明色で範囲のハイライトなどに。
-    /// 線と違いスプライトとして描かれるため、同 space の全スプライトの最前面
-    ///（ただし線プリミティブと Screen 空間 HUD よりは奥）になる。
+    /// 線と違いスプライトとして描かれ、sortKey 最大値で同 space 内の最前面になる。
+    /// World 指定時は Screen 空間 HUD より奥、Screen 指定時は HUD 含む全スプライト
+    /// より手前。線プリミティブと ImGui はどちらの場合もさらに手前。
     void FilledRect(float x, float y, float width, float height, rhi::Color color,
                     rhi::SpriteSpace space = rhi::SpriteSpace::World);
     /// 円の輪郭（線分近似）。segments は 3 以上にクランプされる。

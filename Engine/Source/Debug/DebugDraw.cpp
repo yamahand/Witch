@@ -122,7 +122,7 @@ void DebugDraw::Submit(const std::vector<Prim>& prims) {
             desc.height  = p.y1;
             desc.color   = p.color;
             desc.space   = p.space;
-            desc.sortKey = 0xFFFFFFFFu; // 同 space 内の最前面（線と HUD よりは奥）
+            desc.sortKey = 0xFFFFFFFFu; // 同 space 内の最前面（線と ImGui はさらに手前）
             renderer_->SubmitSprite(desc);
             break;
         }
