@@ -5,6 +5,7 @@
 #include "WitchGame/Version.h"
 #include "GameConfig.h"
 #include "Scenes/StageScene.h"
+#include "Scenes/EmptyScene.h"
 
 namespace witch {
 class WitchGame : public witch::Application {
@@ -18,7 +19,7 @@ public:
 
     void OnStart() override {
         // 初期シーン: M6 タイルマップデモ（Tab で M5 デモの EmptyScene と行き来できる）
-        witch::Engine::Get().ChangeScene<witch::StageScene>();
+        witch::Engine::Get().ChangeScene<witch::EmptyScene>();
     }
 
     void OnShutdown() override {

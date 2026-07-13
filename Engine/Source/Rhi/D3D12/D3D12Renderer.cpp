@@ -96,6 +96,7 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
             }
         }
     }
+    log::Info("DXGI tearing (vsync-off) support: {}.", allowTearing_ ? "yes" : "no");
 
     // 3. Device (default adapter, feature level 12.0)
     if (!Check(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device_)),
