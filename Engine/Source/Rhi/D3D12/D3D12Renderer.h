@@ -150,6 +150,11 @@ private:
     HANDLE                            fenceEvent_   = nullptr;
     uint64_t                          fenceCounter_ = 0;
 
+    /// waitable swapchain のフレームレイテンシ待機オブジェクト。BeginFrame 先頭で待つことで
+    /// Present のキュー詰まりブロックを明示待ちへ移し、Present 自体を即座に返させる。
+    /// スワップチェイン所有（ResizeBuffers では作り直し不要）。Shutdown で CloseHandle する。
+    HANDLE                            frameLatencyWaitable_ = nullptr;
+
     /// テクスチャアップロード専用コマンドリスト。cmdList_（フレーム描画用）とは完全に分離。
     ComPtr<ID3D12GraphicsCommandList> uploadCmdList_;
 

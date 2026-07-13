@@ -127,6 +127,11 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     scDesc.BufferCount = kBackBufferCount;
     scDesc.SampleDesc  = {1, 0};
     scDesc.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    // waitable swapchain。Present をキューへ積んだあと、次フレーム先頭で待機可能
+    // オブジェクトを待つことで「Present の内部同期ブロック」を BeginFrame の明示待ちへ
+    // 移し、Present 自体を即座に返させる。これが無いと GPU が速いとき Present がキュー
+    // 詰まりで数十 ms ブロックし、フレーム時間がスパイクする。ALLOW_TEARING と併用可。
+    scDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
     // ティアリング対応環境では ALLOW_TEARING フラグを付けておく。これが無いと
     // Present(0, DXGI_PRESENT_ALLOW_TEARING) が失敗するため、vsync OFF に必須。
     if (allowTearing_) {
@@ -141,6 +146,13 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
     if (!Check(sc1.As(&swapChain_), "SwapChain → IDXGISwapChain3")) return false;
     frameIndex_ = swapChain_->GetCurrentBackBufferIndex();
+
+    // waitable オブジェクトを取得。フレームレイテンシはトリプルバッファに合わせ 2 とし、
+    // CPU が GPU より最大 2 フレーム先行できるようにする（キューを浅くしすぎると VSync OFF で
+    // GPU を待たせてしまう）。VSync ON 時は BeginFrame でこのオブジェクトを待って遅延を抑え、
+    // VSync OFF 時は待たずに GPU 速度いっぱいまで回す（BeginFrame の分岐を参照）。
+    swapChain_->SetMaximumFrameLatency(2);
+    frameLatencyWaitable_ = swapChain_->GetFrameLatencyWaitableObject();
 
     // 6. RTV descriptor heap
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
@@ -263,6 +275,17 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
 }
 
 rhi::ICommandList* D3D12Renderer::BeginFrame() {
+    // waitable swapchain: 「次フレームを描き始めてよい」= 直前フレームの表示が
+    // 進んだことを DXGI が知らせるまで待つ。これで Present 側のブロックが消え、
+    // フレーム時間のスパイク（Present が数十 ms 詰まる現象）が解消される。
+    //
+    // ただし待つのは VSync ON のときだけ。VSync OFF はモニタ更新に律速されず GPU
+    // 速度いっぱいまで出すのが目的なので、ここで待つと逆にリフレッシュレート付近へ
+    // 張り付いてしまう（フレームレイテンシ待ちが実質 vsync 待ちとして効くため）。
+    // OFF 時は待たず、フレーム進行の安全は GPU フェンス待ち（WaitForFrame）に任せる。
+    if (frameLatencyWaitable_ && vsync_) {
+        WaitForSingleObject(frameLatencyWaitable_, INFINITE);
+    }
     WaitForFrame(frameIndex_);
 
     frames_[frameIndex_].allocator->Reset();
@@ -321,10 +344,16 @@ void D3D12Renderer::OnResize(int width, int height) {
 
     for (auto& buf : backBuffers_) buf.Reset();
 
+    // 作成時と同じフラグを渡す。waitable は維持（外すと GetFrameLatencyWaitableObject が
+    // 無効化される）。ALLOW_TEARING も作成時に付けたなら維持する必要がある。
+    UINT resizeFlags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    if (allowTearing_) {
+        resizeFlags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+    }
     HRESULT hr = swapChain_->ResizeBuffers(0,
         static_cast<UINT>(width), static_cast<UINT>(height),
         DXGI_FORMAT_UNKNOWN,
-        allowTearing_ ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0);
+        resizeFlags);
     if (FAILED(hr)) {
         log::Error("ResizeBuffers failed (0x{:08X})", static_cast<uint32_t>(hr));
         return;
@@ -369,6 +398,12 @@ void D3D12Renderer::Shutdown() {
     if (fenceEvent_) {
         CloseHandle(fenceEvent_);
         fenceEvent_ = nullptr;
+    }
+    // waitable オブジェクトはスワップチェイン所有だが、ハンドル自体は自前で閉じる
+    //（GetFrameLatencyWaitableObject が返すのは複製ハンドル）。
+    if (frameLatencyWaitable_) {
+        CloseHandle(frameLatencyWaitable_);
+        frameLatencyWaitable_ = nullptr;
     }
     log::Info("D3D12Renderer shutdown complete.");
 }
