@@ -243,6 +243,24 @@ TEST_CASE("Slope cell does not block horizontal movement", "[TileCollision][Slop
     CHECK(r.onGround);
 }
 
+TEST_CASE("Foot-row exclusion does not disable wall checks for a 1-row-tall AABB",
+          "[TileCollision][Slope]") {
+    // 足元中心セル (col4, row2) が坂で、その右 (col5, row2) が通常のソリッド壁。
+    // AABB が縦 1 行にしか跨がらない（h <= gs）とき、足元行除外で検査行が空に
+    // なって壁がすり抜けてはならない（レビュー指摘の回帰）。
+    const LevelIntGrid grid = MakeGrid({
+        "......",
+        "......",
+        "..../#",  // row2: col4 = 坂, col5 = ソリッド壁
+        "######",
+    });
+    // box: x=33,y=18,w=6,h=6 → rowMin=rowMax=2, footCol=4(坂)。
+    const Aabb box{33.0f, 18.0f, 6.0f, 6.0f};
+    const MoveResult r = MoveAabb(grid, box, 4.0f, 0.0f);
+    CHECK(r.x == 34.0f);  // 右端 = 40（col5 の左辺）で停止（すり抜けない）
+    CHECK(r.hitRight);
+}
+
 TEST_CASE("Walking up the ramp follows the surface step by step",
           "[TileCollision][Slope]") {
     const LevelIntGrid grid = MakeRampGrid();

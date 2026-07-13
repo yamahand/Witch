@@ -87,8 +87,12 @@ float SweepX(const LevelIntGrid& g, const Aabb& box, float dx,
     int rowMax = LastCell(box.y + box.h, gs);
     // 足元中心セルが坂なら足元の行を側面判定から除外する（登坂中に頂上の平地
     // セルの角で引っかからないため。TileCollision.h の坂の契約参照）。
+    // ただし AABB が縦 1 行にしか跨がないとき（rowMin == rowMax）は除外しない:
+    // 除外すると rowMax < rowMin になり、その X 掃引の壁判定が全カラムで
+    // 無効化され、隣接する通常の壁もすり抜けてしまうため（足元行しか無いので
+    // 除外すべき「頂上の平地セルの角」も存在せず、除外の必要がない）。
     const int footCol = FloorCell(box.x + box.w * 0.5f, gs);
-    if (IsSlope(ShapeAt(g, footCol, rowMax))) {
+    if (rowMax > rowMin && IsSlope(ShapeAt(g, footCol, rowMax))) {
         --rowMax;
     }
     if (dx > 0.0f) {
