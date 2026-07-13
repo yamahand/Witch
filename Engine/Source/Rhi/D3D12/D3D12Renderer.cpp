@@ -84,6 +84,19 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     if (!Check(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory)), "CreateDXGIFactory2"))
         return false;
 
+    // ティアリング（vsync OFF）サポートを問い合わせる。対応 GPU/OS でのみ vsync を
+    // 実際に切れる。未対応環境では SetVSync(false) を無視して常に vsync ON のままにする。
+    {
+        ComPtr<IDXGIFactory5> factory5;
+        if (SUCCEEDED(factory.As(&factory5))) {
+            BOOL allow = FALSE;
+            if (SUCCEEDED(factory5->CheckFeatureSupport(
+                    DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allow, sizeof(allow)))) {
+                allowTearing_ = (allow == TRUE);
+            }
+        }
+    }
+
     // 3. Device (default adapter, feature level 12.0)
     if (!Check(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device_)),
                "D3D12CreateDevice"))
@@ -113,6 +126,11 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     scDesc.BufferCount = kBackBufferCount;
     scDesc.SampleDesc  = {1, 0};
     scDesc.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    // ティアリング対応環境では ALLOW_TEARING フラグを付けておく。これが無いと
+    // Present(0, DXGI_PRESENT_ALLOW_TEARING) が失敗するため、vsync OFF に必須。
+    if (allowTearing_) {
+        scDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+    }
 
     ComPtr<IDXGISwapChain1> sc1;
     if (!Check(factory->CreateSwapChainForHwnd(queue_.Get(), hwnd, &scDesc,
@@ -279,7 +297,14 @@ void D3D12Renderer::EndFrame([[maybe_unused]] rhi::ICommandList* cmdList) {
     ID3D12CommandList* lists[] = {cmdList_.Get()};
     queue_->ExecuteCommandLists(1, lists);
 
-    swapChain_->Present(1, 0);
+    // vsync ON: SyncInterval=1 でモニタ更新に同期。
+    // vsync OFF: SyncInterval=0。ティアリング対応環境では ALLOW_TEARING を付ける
+    //（スワップチェインに同フラグが必要。未対応なら vsync_ は false にできない）。
+    if (vsync_) {
+        swapChain_->Present(1, 0);
+    } else {
+        swapChain_->Present(0, allowTearing_ ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    }
 
     ++fenceCounter_;
     queue_->Signal(fence_.Get(), fenceCounter_);
@@ -297,7 +322,8 @@ void D3D12Renderer::OnResize(int width, int height) {
 
     HRESULT hr = swapChain_->ResizeBuffers(0,
         static_cast<UINT>(width), static_cast<UINT>(height),
-        DXGI_FORMAT_UNKNOWN, 0);
+        DXGI_FORMAT_UNKNOWN,
+        allowTearing_ ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0);
     if (FAILED(hr)) {
         log::Error("ResizeBuffers failed (0x{:08X})", static_cast<uint32_t>(hr));
         return;

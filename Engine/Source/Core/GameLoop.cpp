@@ -118,19 +118,33 @@ bool GameLoop::Tick(Scene* currentScene) {
     }
 
     // 4) 描画。
+    // ゾーンを細分化して「GPU/vsync 待ち」と「CPU 側の描画コマンド構築」を分離する。
+    // BeginFrame は次フレームのバックバッファが空くまで GPU 完了を待つ（vsync 同期を含む）
+    // ため、フレームレートが GPU/vsync 律速のときは "Render.WaitGpu" が支配的になる。
+    // その場合 40ms 等の大半は CPU の描画処理ではなく「待ち」で、CPU 最適化では縮まない。
     {
         WITCH_PROFILE_SCOPE_N("Render");
-        auto* cmdList = renderer_->BeginFrame();
-        cmdList->Clear({currentScene ? currentScene->ClearColor() : kCornflowerBlue});
-        cmdList->FlushSprites();
+        rhi::ICommandList* cmdList = nullptr;
+        {
+            WITCH_PROFILE_SCOPE_N("Render.WaitGpu");
+            cmdList = renderer_->BeginFrame(); // 前フレーム GPU 完了 + vsync 待ち
+        }
+        {
+            WITCH_PROFILE_SCOPE_N("Render.Build");
+            cmdList->Clear({currentScene ? currentScene->ClearColor() : kCornflowerBlue});
+            cmdList->FlushSprites();
 #ifdef WITCH_DEBUG_DRAW
-        // デバッグ線分は全スプライトの手前・ImGui（RenderDebugUI）の奥に描く。
-        cmdList->FlushLines();
+            // デバッグ線分は全スプライトの手前・ImGui（RenderDebugUI）の奥に描く。
+            cmdList->FlushLines();
 #endif
 #ifdef WITCH_DEBUG_UI
-        renderer_->RenderDebugUI();
+            renderer_->RenderDebugUI();
 #endif
-        renderer_->EndFrame(cmdList);
+        }
+        {
+            WITCH_PROFILE_SCOPE_N("Render.Present");
+            renderer_->EndFrame(cmdList); // ExecuteCommandLists + Present
+        }
     }
 
     return true;

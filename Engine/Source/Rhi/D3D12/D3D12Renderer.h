@@ -15,8 +15,12 @@ namespace witch {
 
 using Microsoft::WRL::ComPtr;
 
-/// ダブルバッファリングのバックバッファ数。
-static constexpr uint32_t kBackBufferCount    = 2;
+/// トリプルバッファリングのバックバッファ数。
+/// 3 面にすることで CPU が GPU を 1 フレーム先行して積め、vsync 時に軽いフレームで
+/// 生じる待ちバブル（CPU が Present 直後のバッファ解放を待って余分な vsync 1 回分
+/// ブロックする現象）を解消する。フェンス同期・per-frame リソース配列・ImGui の
+/// NumFramesInFlight はすべてこの定数で回るため、値の変更だけで面数が揃う。
+static constexpr uint32_t kBackBufferCount    = 3;
 /// SRV ヒープのエンジンテクスチャ用スロット数。実行時に動的拡張はしない。
 static constexpr uint32_t kMaxTextures        = 64;
 /// SRV ヒープ内の ImGui フォントテクスチャ用スロット（エンジンテクスチャの直後）。
@@ -41,6 +45,11 @@ public:
     void EndFrame(rhi::ICommandList* cmdList) override;
     void OnResize(int width, int height) override;
     void Shutdown() override;
+    // ティアリング未対応環境では vsync を切れない（Present(0, ALLOW_TEARING) が使えず、
+    // SyncInterval=0 でもドライバが vsync を強制することがある）。その場合は要求を
+    // 無視して vsync ON のままにする。VSync() で実際の状態を確認できる。
+    void SetVSync(bool enabled) override { vsync_ = enabled || !allowTearing_; }
+    bool VSync() const override { return vsync_; }
     int Width() const override { return width_; }
     int Height() const override { return height_; }
 
@@ -149,6 +158,8 @@ private:
     int                               height_       = 0;
     int                               virtualWidth_  = 0;  ///< 0 = 仮想解像度無効
     int                               virtualHeight_ = 0;
+    bool                              vsync_        = true; ///< Present の SyncInterval（true=1, false=0）
+    bool                              allowTearing_ = false; ///< DXGI がティアリングを許可するか（vsync OFF に必須）
 
     D3D12CommandList                  cmdListWrapper_;
 
