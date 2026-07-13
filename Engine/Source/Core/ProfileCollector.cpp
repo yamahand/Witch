@@ -35,18 +35,23 @@ void Collector::BeginFrame() {
     for (auto& a : accum_) {
         const double frameMs = static_cast<double>(a.totalNs) / 1'000'000.0;
 
-        // 指数移動平均。初回（avgMs==0 かつ呼ばれた）は素直に今回値で埋める。
-        if (a.avgMs <= 0.0) {
-            a.avgMs = frameMs;
-        } else {
-            a.avgMs += (frameMs - a.avgMs) * kAvgSmoothing;
-        }
-        if (frameMs > a.maxMs) {
-            a.maxMs = frameMs;
+        // このフレームに一度も現れなかったスコープ（calls==0）は平均/最大を更新せず
+        // 保持する。frameMs=0 を EMA へ流すと、条件付きゾーン（毎フレームは呼ばれない
+        // スコープ）の平均が 0 方向へ減衰し、実際の実行コストより低い値が HUD に出て
+        // しまうため。表示は下で行うが値は前フレームの avgMs/maxMs を引き継ぐ。
+        if (a.calls > 0) {
+            // 指数移動平均。初回（avgMs==0 かつ呼ばれた）は素直に今回値で埋める。
+            if (a.avgMs <= 0.0) {
+                a.avgMs = frameMs;
+            } else {
+                a.avgMs += (frameMs - a.avgMs) * kAvgSmoothing;
+            }
+            if (frameMs > a.maxMs) {
+                a.maxMs = frameMs;
+            }
         }
 
-        // このフレームに一度も現れなかったスコープは calls==0。表示はするが、
-        // 蓄積のみリセットして平均/最大は保持する（一時的に消えても履歴を残す）。
+        // calls==0 のスコープも行としては表示する（一時的に消えても履歴を残す）。
         snapshot_.push_back(ZoneStat{
             .name = a.name,
             .calls = a.calls,

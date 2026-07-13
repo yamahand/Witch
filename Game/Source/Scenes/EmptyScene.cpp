@@ -235,7 +235,7 @@ void EmptyScene::FrameUpdate(float dt) {
                 camera.SetZoom(camera.Zoom() + wheel * kWheelZoomStep);
         }
     }
-#if 0
+
     if (frameCount_ % 60 == 1 && input) {
         // マウス座標の 3 系統: ウィンドウ実ピクセル → 仮想解像度 → ワールド。
         // IInput はウィンドウ座標のまま。仮想・ワールドへの変換はゲーム側で明示する。
@@ -254,7 +254,6 @@ void EmptyScene::FrameUpdate(float dt) {
                   "virt=({:.0f},{:.0f}) world=({:.0f},{:.0f})",
                   frameCount_, dt, mx, my, vx, vy, wx, wy);
     }
-#endif
     Scene::FrameUpdate(dt);
 }
 

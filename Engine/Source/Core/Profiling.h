@@ -53,6 +53,12 @@
 
 // 名前付きスコープ: Tracy とインプロセス集約の両方へ流す。
 // name は文字列リテラルを渡すこと（集約側がコピーせずポインタ保持するため）。
+//
+// 注意: このマクロは 2 文（Tracy スコープ + 集約 RAII スコープ）に展開される。
+// RAII オブジェクトの寿命をブロック終端まで伸ばす必要があり do{}while(0) で
+// 包めないため、必ずブレース付きブロック内で使うこと。波括弧なしの if/for 直後で
+// 使うと片方の文だけが条件の対象になる（例: `if (c) WITCH_PROFILE_SCOPE_N("X");`
+// は集約スコープが常に生成される）。
 #if defined(TRACY_ENABLE) || defined(WITCH_PROFILE_COLLECT)
 #define WITCH_PROFILE_SCOPE_N(name)              \
     WITCH_PROFILE_TRACY_SCOPE_N_(name);          \

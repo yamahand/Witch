@@ -108,16 +108,18 @@ void ProfilerHud::Draw() {
 
     auto sortZones = [&](int column, bool ascending) {
         auto cmp = [&](const profile::ZoneStat& a, const profile::ZoneStat& b) {
-            bool less;
+            // strict-weak-ordering を保つため、降順は !less ではなく引数を入れ替えて
+            // 評価する（!less だと等値で true を返し std::sort が未定義動作になる）。
+            const profile::ZoneStat& lhs = ascending ? a : b;
+            const profile::ZoneStat& rhs = ascending ? b : a;
             switch (column) {
-            case 0:  less = a.name < b.name; break;
-            case 1:  less = a.calls < b.calls; break;
-            case 2:  less = a.lastMs < b.lastMs; break;
-            case 3:  less = a.avgMs < b.avgMs; break;
-            case 4:  less = a.maxMs < b.maxMs; break;
-            default: less = a.lastMs < b.lastMs; break;
+            case 0:  return lhs.name   < rhs.name;
+            case 1:  return lhs.calls  < rhs.calls;
+            case 2:  return lhs.lastMs < rhs.lastMs;
+            case 3:  return lhs.avgMs  < rhs.avgMs;
+            case 4:  return lhs.maxMs  < rhs.maxMs;
+            default: return lhs.lastMs < rhs.lastMs;
             }
-            return ascending ? less : !less;
         };
         std::sort(zones.begin(), zones.end(), cmp);
     };

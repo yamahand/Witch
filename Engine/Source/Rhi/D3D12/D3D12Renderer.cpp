@@ -147,11 +147,12 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     if (!Check(sc1.As(&swapChain_), "SwapChain → IDXGISwapChain3")) return false;
     frameIndex_ = swapChain_->GetCurrentBackBufferIndex();
 
-    // waitable オブジェクトを取得。フレームレイテンシはトリプルバッファに合わせ 2 とし、
-    // CPU が GPU より最大 2 フレーム先行できるようにする（キューを浅くしすぎると VSync OFF で
-    // GPU を待たせてしまう）。VSync ON 時は BeginFrame でこのオブジェクトを待って遅延を抑え、
-    // VSync OFF 時は待たずに GPU 速度いっぱいまで回す（BeginFrame の分岐を参照）。
-    swapChain_->SetMaximumFrameLatency(2);
+    // waitable オブジェクトを取得。フレームレイテンシはバックバッファ数から導出し
+    // （kBackBufferCount - 1 = 2）、CPU が GPU より最大その枚数ぶん先行できるようにする
+    //（キューを浅くしすぎると VSync OFF で GPU を待たせてしまう）。kBackBufferCount を
+    // 変えたとき値がズレないようここで一元的に導出する。VSync ON 時は BeginFrame で
+    // このオブジェクトを待って遅延を抑え、VSync OFF 時は待たずに GPU 速度いっぱいまで回す。
+    swapChain_->SetMaximumFrameLatency(kBackBufferCount - 1);
     frameLatencyWaitable_ = swapChain_->GetFrameLatencyWaitableObject();
 
     // 6. RTV descriptor heap
