@@ -73,11 +73,11 @@ void ProfilerHud::DrawBody() {
     ImGui::SameLine();
     bool spikeLog = collector.SpikeLogEnabled();
     if (ImGui::Checkbox("Spike log", &spikeLog)) {
-        // 閾値は Collector 側が「直近平均 * 2.0」と下限 33.3ms（vsync 2 周期 =
-        // カクつきとして体感できる領域）の大きい方を毎フレーム動的計算する。倍率と
-        // 下限だけ渡し、平均は Collector が追跡する（ON にした瞬間の平均で固定すると
-        // 長時間プレイで平均が変動したとき閾値が乖離するため）。
-        profile::Collector::Instance().SetSpikeLog(spikeLog, 2.0, 33.3);
+        // 閾値の倍率・下限は Collector 側の既定値（kDefaultSpikeMultiplier /
+        // kDefaultSpikeFloorMs）に一元化されている。ここでは有効/無効だけを切り替え、
+        // 実際の閾値は Collector が「直近平均 * 倍率と下限の大きい方」を毎フレーム
+        // 動的計算する（ON にした瞬間の平均で固定しないため乖離しない）。
+        profile::Collector::Instance().SetSpikeLog(spikeLog);
     }
 
     // ── フレーム時間グラフ ──
@@ -126,8 +126,12 @@ void ProfilerHud::DrawBody() {
         ImGui::TableSetupColumn("Zone", ImGuiTableColumnFlags_WidthStretch |
                                             ImGuiTableColumnFlags_NoSort);
         ImGui::TableSetupColumn("Calls", ImGuiTableColumnFlags_WidthFixed, 48.0f);
+        // DefaultSort だけだと初回のソート方向が昇順になり、「既定 Last の降順」
+        // （重いゾーンを上に出す）と食い違うため PreferSortDescending を併せて指定する。
         ImGui::TableSetupColumn("Last(ms)", ImGuiTableColumnFlags_WidthFixed |
-                                                ImGuiTableColumnFlags_DefaultSort, 70.0f);
+                                                ImGuiTableColumnFlags_DefaultSort |
+                                                ImGuiTableColumnFlags_PreferSortDescending,
+                                70.0f);
         ImGui::TableSetupColumn("Avg(ms)", ImGuiTableColumnFlags_WidthFixed, 70.0f);
         ImGui::TableSetupColumn("Max(ms)", ImGuiTableColumnFlags_WidthFixed, 70.0f);
         ImGui::TableHeadersRow();

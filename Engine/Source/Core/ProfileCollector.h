@@ -71,6 +71,10 @@ public:
         spikeMultiplier_    = multiplier;
         spikeFloorMs_       = floorMs;
     }
+    /// 倍率・下限は現在値（既定 kDefaultSpikeMultiplier / kDefaultSpikeFloorMs）を
+    /// 保ったまま有効/無効だけを切り替える。HUD のチェックボックス用。閾値の
+    /// 定数を呼び出し側に持たせず Collector 一箇所へ寄せるためのオーバーロード。
+    void SetSpikeLog(bool enabled) { spikeLogEnabled_ = enabled; }
     bool SpikeLogEnabled() const { return spikeLogEnabled_; }
     /// 現在の動的スパイク閾値 [ms]。直近フレーム履歴の平均 * multiplier と
     /// floorMs の大きい方。履歴が空のうちは floorMs を返す。
@@ -98,9 +102,14 @@ private:
     Clock::time_point lastFrameStart_{};
     bool hasFrameStart_ = false;
 
+    /// スパイク閾値の既定パラメータ。閾値の決め打ち値を Collector 一箇所へ寄せる
+    /// （HUD 側で同じ数値を二重に持たない）。
+    static constexpr double kDefaultSpikeMultiplier = 2.0;  ///< 直近平均に対する倍率。
+    static constexpr double kDefaultSpikeFloorMs    = 33.3; ///< 閾値の下限 [ms]（vsync 2 周期）。
+
     bool   spikeLogEnabled_ = false;
-    double spikeMultiplier_ = 2.0;  ///< 平均に対する倍率。直近平均 * これ を閾値の基準にする。
-    double spikeFloorMs_    = 33.3; ///< 閾値の下限 [ms]（vsync 2 周期）。平均が小さくてもここまでは拾わない。
+    double spikeMultiplier_ = kDefaultSpikeMultiplier; ///< 平均に対する倍率。直近平均 * これ を閾値の基準にする。
+    double spikeFloorMs_    = kDefaultSpikeFloorMs;    ///< 閾値の下限 [ms]。平均が小さくてもここまでは拾わない。
 
     static constexpr double kAvgSmoothing = 0.05; ///< 指数移動平均の係数（小さいほど滑らか）。
 };

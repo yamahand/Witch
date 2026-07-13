@@ -152,8 +152,17 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     //（キューを浅くしすぎると VSync OFF で GPU を待たせてしまう）。kBackBufferCount を
     // 変えたとき値がズレないようここで一元的に導出する。VSync ON 時は BeginFrame で
     // このオブジェクトを待って遅延を抑え、VSync OFF 時は待たずに GPU 速度いっぱいまで回す。
-    swapChain_->SetMaximumFrameLatency(kBackBufferCount - 1);
+    // 失敗しても致命的ではない（待機オブジェクトが得られなければ BeginFrame の待機を
+    // スキップし、従来どおり GPU フェンス待ちだけで進む）。原因切り分けのためログは残す。
+    if (HRESULT hr = swapChain_->SetMaximumFrameLatency(kBackBufferCount - 1); FAILED(hr)) {
+        log::Warn("SetMaximumFrameLatency failed (0x{:08X}); waitable latency disabled.",
+                  static_cast<uint32_t>(hr));
+    }
     frameLatencyWaitable_ = swapChain_->GetFrameLatencyWaitableObject();
+    if (!frameLatencyWaitable_) {
+        log::Warn("GetFrameLatencyWaitableObject returned null; "
+                  "BeginFrame latency wait disabled (fence-only sync).");
+    }
 
     // 6. RTV descriptor heap
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
@@ -285,7 +294,16 @@ rhi::ICommandList* D3D12Renderer::BeginFrame() {
     // 張り付いてしまう（フレームレイテンシ待ちが実質 vsync 待ちとして効くため）。
     // OFF 時は待たず、フレーム進行の安全は GPU フェンス待ち（WaitForFrame）に任せる。
     if (frameLatencyWaitable_ && vsync_) {
-        WaitForSingleObject(frameLatencyWaitable_, INFINITE);
+        // WAIT_OBJECT_0 以外（WAIT_FAILED 等）は異常。フレーム進行自体は下の
+        // GPU フェンス待ちが保証するので、ここでは 1 度だけ警告して続行する
+        //（毎フレーム出すとログが溢れるため spammed_ でゲート）。
+        if (WaitForSingleObject(frameLatencyWaitable_, INFINITE) != WAIT_OBJECT_0 &&
+            !frameLatencyWaitWarned_) {
+            log::Warn("WaitForSingleObject(frameLatencyWaitable) did not return "
+                      "WAIT_OBJECT_0 (GetLastError=0x{:08X}).",
+                      static_cast<uint32_t>(GetLastError()));
+            frameLatencyWaitWarned_ = true;
+        }
     }
     WaitForFrame(frameIndex_);
 
@@ -325,10 +343,19 @@ void D3D12Renderer::EndFrame([[maybe_unused]] rhi::ICommandList* cmdList) {
     // vsync ON: SyncInterval=1 でモニタ更新に同期。
     // vsync OFF: SyncInterval=0。ティアリング対応環境では ALLOW_TEARING を付ける
     //（スワップチェインに同フラグが必要。未対応なら vsync_ は false にできない）。
-    if (vsync_) {
-        swapChain_->Present(1, 0);
-    } else {
-        swapChain_->Present(0, allowTearing_ ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    const HRESULT presentHr =
+        vsync_ ? swapChain_->Present(1, 0)
+               : swapChain_->Present(0, allowTearing_ ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    // Present の失敗（特にデバイスロスト DXGI_ERROR_DEVICE_REMOVED/RESET）を検知して
+    // ログに残す。ここで拾わないと以後のフレームで別箇所が壊れて見え、原因追跡が困難になる。
+    // 1 度だけ出す（デバイスロストは毎フレーム続くため）。
+    if (FAILED(presentHr) && !presentFailedWarned_) {
+        log::Error("SwapChain Present failed (0x{:08X}).", static_cast<uint32_t>(presentHr));
+        if (presentHr == DXGI_ERROR_DEVICE_REMOVED || presentHr == DXGI_ERROR_DEVICE_RESET) {
+            log::Error("Device removed/reset (reason 0x{:08X}).",
+                       static_cast<uint32_t>(device_->GetDeviceRemovedReason()));
+        }
+        presentFailedWarned_ = true;
     }
 
     ++fenceCounter_;
