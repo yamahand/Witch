@@ -59,6 +59,16 @@ public:
     /// 直近フレームの全体時間 [ms]（履歴が空なら 0）。
     float LastFrameMs() const;
 
+    /// スパイク検出ログの有効/無効を設定する。有効時、フレーム全体時間が
+    /// thresholdMs を超えたフレームの直後（次の BeginFrame）に、そのフレームの
+    /// ゾーン内訳を Logger へ Warn 出力する。原因ゾーンと発生タイミングを掴む用。
+    void SetSpikeLog(bool enabled, double thresholdMs) {
+        spikeLogEnabled_ = enabled;
+        spikeThresholdMs_ = thresholdMs;
+    }
+    bool SpikeLogEnabled() const { return spikeLogEnabled_; }
+    double SpikeThresholdMs() const { return spikeThresholdMs_; }
+
 private:
     Collector() = default;
 
@@ -80,6 +90,9 @@ private:
     std::size_t frameCount_ = 0; ///< 累積フレーム数（履歴書き込み位置 = frameCount_ % kHistoryFrames）。
     Clock::time_point lastFrameStart_{};
     bool hasFrameStart_ = false;
+
+    bool   spikeLogEnabled_  = false;
+    double spikeThresholdMs_ = 8.0; ///< この値を超えたフレームをスパイクとしてログ出力。
 
     static constexpr double kAvgSmoothing = 0.05; ///< 指数移動平均の係数（小さいほど滑らか）。
 };

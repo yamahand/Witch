@@ -1,5 +1,10 @@
 #ifdef WITCH_PROFILE_COLLECT
 #include "Core/ProfileCollector.h"
+#include "WitchEngine/Core/Logger.h"
+
+#include <algorithm>
+#include <cstdio>
+#include <string>
 
 namespace witch::profile {
 
@@ -11,11 +16,14 @@ Collector& Collector::Instance() {
 void Collector::BeginFrame() {
     // フレーム全体時間: 前回 BeginFrame からの経過を履歴に積む。
     const auto now = Clock::now();
+    double lastFrameMs = 0.0;
+    bool haveLastFrame = false;
     if (hasFrameStart_) {
         const auto elapsed = now - lastFrameStart_;
-        const double ms =
+        lastFrameMs =
             std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(elapsed).count();
-        frameMs_[frameCount_ % kHistoryFrames] = static_cast<float>(ms);
+        haveLastFrame = true;
+        frameMs_[frameCount_ % kHistoryFrames] = static_cast<float>(lastFrameMs);
         ++frameCount_;
     }
     lastFrameStart_ = now;
@@ -50,6 +58,29 @@ void Collector::BeginFrame() {
         // 次フレーム用にフレーム蓄積だけリセット（平均/最大はまたいで保持）。
         a.totalNs = 0;
         a.calls = 0;
+    }
+
+    // スパイク検出ログ: 前フレームが閾値を超えていたら、確定したゾーン内訳のうち
+    // 時間の大きい上位を Warn 出力する。どのゾーンが原因かと発生タイミング
+    //（Logger のフレーム番号 + タイムスタンプ）を時系列で掴むため。
+    if (spikeLogEnabled_ && haveLastFrame && lastFrameMs > spikeThresholdMs_) {
+        // snapshot_ を時間降順に並べ替えて上位を文字列化する（表示用コピー）。
+        std::vector<ZoneStat> sorted = snapshot_;
+        std::sort(sorted.begin(), sorted.end(),
+                  [](const ZoneStat& a, const ZoneStat& b) { return a.lastMs > b.lastMs; });
+
+        std::string detail;
+        const std::size_t kTop = 4; // 上位 4 ゾーンで原因はほぼ特定できる
+        for (std::size_t i = 0; i < sorted.size() && i < kTop; ++i) {
+            const auto& z = sorted[i];
+            detail += std::string(z.name);
+            detail += '=';
+            // 小数 2 桁で ms を追記（std::format を避け軽量に）。
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "%.2fms ", z.lastMs);
+            detail += buf;
+        }
+        log::Warn("Frame spike: {:.2f}ms  [{}]", lastFrameMs, detail);
     }
 }
 

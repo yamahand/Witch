@@ -3,6 +3,9 @@
 
 #include <imgui.h>
 
+#include "WitchEngine/Core/Services.h"
+#include "WitchEngine/Rhi/IRenderer.h"
+
 #ifdef WITCH_PROFILE_COLLECT
 #include "Core/ProfileCollector.h"
 #include <algorithm>
@@ -60,6 +63,30 @@ void ProfilerHud::Draw() {
 
     ImGui::SameLine();
     ImGui::Checkbox("Graph", &showGraph_);
+
+    // ── VSync トグル + 状態表示 ──
+    // 実際の renderer 状態を直接読む（推測でなく事実で切り分ける）。ティアリング
+    // 未対応環境では SetVSync(false) が無視されるため、チェックを外しても ON の
+    // ままになる。その場合はここのチェックが再び入って「効いていない」と分かる。
+    if (rhi::IRenderer* renderer = Services::Instance().renderer) {
+        ImGui::SameLine();
+        bool vsync = renderer->VSync();
+        if (ImGui::Checkbox("VSync", &vsync)) {
+            renderer->SetVSync(vsync);
+        }
+    }
+
+    // スパイク検出ログのトグル。ON にすると閾値超過フレームのゾーン内訳が Logger
+    // （Log Viewer / ファイル）へ Warn 出力される。原因ゾーンと発生タイミングを追う用。
+    ImGui::SameLine();
+    bool spikeLog = collector.SpikeLogEnabled();
+    if (ImGui::Checkbox("Spike log", &spikeLog)) {
+        // 閾値は「平均の 2 倍」を目安に、最低 33.3ms（vsync 2 周期 = カクつきとして
+        // 体感できる領域）。8ms 起点だと VSync ON で普通のフレームまで拾ってノイズに
+        // なるため、実害のある遅延だけを残す。
+        const double threshold = std::max(33.3, avgMs * 2.0);
+        profile::Collector::Instance().SetSpikeLog(spikeLog, threshold);
+    }
 
     // ── フレーム時間グラフ ──
     if (showGraph_ && historyCount > 1) {
