@@ -68,7 +68,7 @@ void Collector::BeginFrame() {
     // スパイク検出ログ: 前フレームが閾値を超えていたら、確定したゾーン内訳のうち
     // 時間の大きい上位を Warn 出力する。どのゾーンが原因かと発生タイミング
     //（Logger のフレーム番号 + タイムスタンプ）を時系列で掴むため。
-    if (spikeLogEnabled_ && haveLastFrame && lastFrameMs > spikeThresholdMs_) {
+    if (spikeLogEnabled_ && haveLastFrame && lastFrameMs > SpikeThresholdMs()) {
         // snapshot_ を時間降順に並べ替えて上位を文字列化する（表示用コピー）。
         std::vector<ZoneStat> sorted = snapshot_;
         std::sort(sorted.begin(), sorted.end(),
@@ -112,6 +112,21 @@ float Collector::LastFrameMs() const {
     }
     // 直近に書いた位置は (frameCount_ - 1) % N。
     return frameMs_[(frameCount_ - 1) % kHistoryFrames];
+}
+
+double Collector::SpikeThresholdMs() const {
+    // 直近フレーム履歴の平均 * 倍率と下限の大きい方を、呼ばれるたびに計算する。
+    // ON にした瞬間の平均で固定しないことで、平均が変動しても「平均の N 倍」を維持する。
+    const std::size_t count = frameCount_ < kHistoryFrames ? frameCount_ : kHistoryFrames;
+    if (count == 0) {
+        return spikeFloorMs_;
+    }
+    double sum = 0.0;
+    for (std::size_t i = 0; i < count; ++i) {
+        sum += frameMs_[i];
+    }
+    const double avg = sum / static_cast<double>(count);
+    return std::max(spikeFloorMs_, avg * spikeMultiplier_);
 }
 
 void Collector::AddSample(std::string_view name, std::uint64_t nanoseconds) {

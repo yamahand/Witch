@@ -60,14 +60,21 @@ public:
     float LastFrameMs() const;
 
     /// スパイク検出ログの有効/無効を設定する。有効時、フレーム全体時間が
-    /// thresholdMs を超えたフレームの直後（次の BeginFrame）に、そのフレームの
+    /// 「動的閾値」を超えたフレームの直後（次の BeginFrame）に、そのフレームの
     /// ゾーン内訳を Logger へ Warn 出力する。原因ゾーンと発生タイミングを掴む用。
-    void SetSpikeLog(bool enabled, double thresholdMs) {
-        spikeLogEnabled_ = enabled;
-        spikeThresholdMs_ = thresholdMs;
+    ///
+    /// 閾値は固定値ではなく「直近平均 * multiplier と floorMs の大きい方」を
+    /// BeginFrame ごとに都度計算する（SpikeThresholdMs() 参照）。ON にした瞬間の
+    /// 平均で固定すると、長時間プレイで平均が変動したとき閾値が乖離するため。
+    void SetSpikeLog(bool enabled, double multiplier, double floorMs) {
+        spikeLogEnabled_    = enabled;
+        spikeMultiplier_    = multiplier;
+        spikeFloorMs_       = floorMs;
     }
     bool SpikeLogEnabled() const { return spikeLogEnabled_; }
-    double SpikeThresholdMs() const { return spikeThresholdMs_; }
+    /// 現在の動的スパイク閾値 [ms]。直近フレーム履歴の平均 * multiplier と
+    /// floorMs の大きい方。履歴が空のうちは floorMs を返す。
+    double SpikeThresholdMs() const;
 
 private:
     Collector() = default;
@@ -91,8 +98,9 @@ private:
     Clock::time_point lastFrameStart_{};
     bool hasFrameStart_ = false;
 
-    bool   spikeLogEnabled_  = false;
-    double spikeThresholdMs_ = 8.0; ///< この値を超えたフレームをスパイクとしてログ出力。
+    bool   spikeLogEnabled_ = false;
+    double spikeMultiplier_ = 2.0;  ///< 平均に対する倍率。直近平均 * これ を閾値の基準にする。
+    double spikeFloorMs_    = 33.3; ///< 閾値の下限 [ms]（vsync 2 周期）。平均が小さくてもここまでは拾わない。
 
     static constexpr double kAvgSmoothing = 0.05; ///< 指数移動平均の係数（小さいほど滑らか）。
 };

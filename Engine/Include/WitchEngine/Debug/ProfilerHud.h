@@ -21,6 +21,11 @@ public:
     void SetOpen(bool open) { open_ = open; }
 
 private:
+    /// ウィンドウ内側の中身だけを描く。共通の open_ 判定と ImGui::Begin/End は
+    /// Draw() が握り、この関数はビルド構成（WITCH_PROFILE_COLLECT の有無）で
+    /// 中身のみ切り替える（前後処理を #ifdef の両分岐に二重記述しないため）。
+    void DrawBody();
+
     bool open_ = true;       ///< 起動時 ON。閉じても DebugMenu の "Profiler" 項目で再表示できる。
     bool showGraph_ = true;  ///< フレーム時間グラフの表示切替。
     int  sortColumn_ = 2;    ///< 0:Name 1:Calls 2:Last 3:Avg 4:Max（既定 Last の降順）。

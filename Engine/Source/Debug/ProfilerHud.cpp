@@ -29,15 +29,7 @@ ImVec4 FrameMsColor(float ms) {
 
 } // namespace
 
-void ProfilerHud::Draw() {
-    if (!open_) {
-        return;
-    }
-    if (!ImGui::Begin("Profiler", &open_)) {
-        ImGui::End();
-        return;
-    }
-
+void ProfilerHud::DrawBody() {
     const auto& collector = profile::Collector::Instance();
 
     // 履歴を時系列順に取り出す（グラフ用・折り返し解決済み）。
@@ -81,11 +73,11 @@ void ProfilerHud::Draw() {
     ImGui::SameLine();
     bool spikeLog = collector.SpikeLogEnabled();
     if (ImGui::Checkbox("Spike log", &spikeLog)) {
-        // 閾値は「平均の 2 倍」を目安に、最低 33.3ms（vsync 2 周期 = カクつきとして
-        // 体感できる領域）。8ms 起点だと VSync ON で普通のフレームまで拾ってノイズに
-        // なるため、実害のある遅延だけを残す。
-        const double threshold = std::max(33.3, avgMs * 2.0);
-        profile::Collector::Instance().SetSpikeLog(spikeLog, threshold);
+        // 閾値は Collector 側が「直近平均 * 2.0」と下限 33.3ms（vsync 2 周期 =
+        // カクつきとして体感できる領域）の大きい方を毎フレーム動的計算する。倍率と
+        // 下限だけ渡し、平均は Collector が追跡する（ON にした瞬間の平均で固定すると
+        // 長時間プレイで平均が変動したとき閾値が乖離するため）。
+        profile::Collector::Instance().SetSpikeLog(spikeLog, 2.0, 33.3);
     }
 
     // ── フレーム時間グラフ ──
@@ -171,9 +163,22 @@ void ProfilerHud::Draw() {
 
         ImGui::EndTable();
     }
+}
 
 #else  // !WITCH_PROFILE_COLLECT
 
+void ProfilerHud::DrawBody() {
+    // このビルドではインプロセス集約が無効（WITCH_PROFILE_COLLECT 未定義）。
+    // 通常 WITCH_DEBUG_UI と連動して定義されるため、ここに来るのは
+    // 手動でマクロ定義を外した特殊構成のみ。
+    ImGui::TextWrapped(
+        "Profiling collector is disabled in this build "
+        "(WITCH_PROFILE_COLLECT is not defined).");
+}
+
+#endif // WITCH_PROFILE_COLLECT
+
+// 共通の前後処理はここに一本化し、中身だけを DrawBody() で切り替える。
 void ProfilerHud::Draw() {
     if (!open_) {
         return;
@@ -182,15 +187,7 @@ void ProfilerHud::Draw() {
         ImGui::End();
         return;
     }
-    // このビルドではインプロセス集約が無効（WITCH_PROFILE_COLLECT 未定義）。
-    // 通常 WITCH_DEBUG_UI と連動して定義されるため、ここに来るのは
-    // 手動でマクロ定義を外した特殊構成のみ。
-    ImGui::TextWrapped(
-        "Profiling collector is disabled in this build "
-        "(WITCH_PROFILE_COLLECT is not defined).");
-
-#endif // WITCH_PROFILE_COLLECT
-
+    DrawBody();
     ImGui::End();
 }
 
