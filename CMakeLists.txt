@@ -58,6 +58,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Core/Log/DebugOutputSink.cpp
     Engine/Source/Core/Log/FileSink.cpp
     Engine/Source/Core/ObjectRegistry.cpp
+    Engine/Source/Core/ProfileCollector.cpp
     Engine/Source/Core/ResourceManager.cpp
     Engine/Source/Core/Time.cpp
     Engine/Source/Debug/DebugDraw.cpp
@@ -79,6 +80,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Vfs/VfsPathUtil.cpp
 
     Engine/Source/Core/Profiling.h
+    Engine/Source/Core/ProfileCollector.h
     Engine/Source/Core/Log/LogRecord.h
     Engine/Source/Core/Log/TextBuffer.h
     Engine/Source/Core/Log/TimestampFormat.h
@@ -188,6 +190,12 @@ if(WITCH_DEBUG_UI)
     target_link_libraries(WitchEngine PUBLIC imgui::imgui)
     target_compile_definitions(WitchEngine PUBLIC WITCH_DEBUG_UI)
 
+    # ProfilerHud 用のインプロセス計測集約を有効化する（PRIVATE）。
+    # ProfileCollector と Profiling.h は Source/Core/（非公開）にあり Game から
+    # 見えないため、この定義は Engine 内 TU にだけ効けばよい。Tracy（WITCH_PROFILING）
+    # とは独立で、DebugUI ビルドなら Tracy 無しでも HUD に数値が出る。
+    target_compile_definitions(WitchEngine PRIVATE WITCH_PROFILE_COLLECT)
+
     # エンジン標準の ImGui Log Viewer。ViewerSink（データ側・常時ビルド）と分離し、
     # 表示側だけを WITCH_DEBUG_UI に閉じ込める。
     # ※ 下の source_group(TREE ...) より前に追加すること。後だと SOURCES スナップショットに
@@ -196,10 +204,12 @@ if(WITCH_DEBUG_UI)
         Engine/Source/Debug/HierarchyWindow.cpp
         Engine/Source/Debug/LogViewerWindow.cpp
         Engine/Source/Debug/DebugMenu.cpp
+        Engine/Source/Debug/ProfilerHud.cpp
         Engine/Include/WitchEngine/Debug/HierarchyWindow.h
         Engine/Include/WitchEngine/Debug/LogViewerWindow.h
         Engine/Include/WitchEngine/Debug/DebugMenu.h
         Engine/Include/WitchEngine/Debug/DebugMenuItem.h
+        Engine/Include/WitchEngine/Debug/ProfilerHud.h
     )
 endif()
 

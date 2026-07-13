@@ -9,6 +9,7 @@ namespace witch::debug {
 class LogViewerWindow;
 class HierarchyWindow;
 class DebugMenu;
+class ProfilerHud;
 } // namespace witch::debug
 #endif
 
@@ -50,6 +51,8 @@ public:
     /// デバッグウィンドウ外を右クリックしたときのコンテキストメニューを設定する
     /// （非所有、Engine が所有）。null 可。
     void SetDebugMenu(debug::DebugMenu* menu) { debugMenu_ = menu; }
+    /// プロファイラ HUD を設定する（非所有、Engine が所有）。null 可。
+    void SetProfilerHud(debug::ProfilerHud* hud) { profilerHud_ = hud; }
 #endif
 
 private:
@@ -60,6 +63,7 @@ private:
     debug::LogViewerWindow* logViewer_ = nullptr;
     debug::HierarchyWindow* hierarchyWindow_ = nullptr;
     debug::DebugMenu*       debugMenu_ = nullptr;
+    debug::ProfilerHud*     profilerHud_ = nullptr;
 #endif
 };
 

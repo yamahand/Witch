@@ -14,6 +14,7 @@
 #include "WitchEngine/Debug/DebugMenu.h"
 #include "WitchEngine/Debug/HierarchyWindow.h"
 #include "WitchEngine/Debug/LogViewerWindow.h"
+#include "WitchEngine/Debug/ProfilerHud.h"
 #endif
 
 namespace witch {
@@ -102,6 +103,7 @@ bool GameLoop::Tick(Scene* currentScene) {
         if (currentScene) currentScene->DrawDebugUI();
         if (hierarchyWindow_) hierarchyWindow_->Draw(currentScene); // ヒエラルキー＋インスペクター
         if (logViewer_) logViewer_->Draw(); // エンジン標準の Log Viewer
+        if (profilerHud_) profilerHud_->Draw(); // プロファイラ HUD（フレーム/ゾーン時間）
         // デバッグウィンドウ外を右クリックしたときのコンテキストメニュー。
         // BeginPopupContextVoid はどの ImGui ウィンドウ上でもないかを内部で判定するため、
         // 他ウィンドウの描画より前後どちらでもよいが、並びを一貫させるため最後に呼ぶ。

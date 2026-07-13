@@ -21,6 +21,7 @@ class DebugDraw;
 class LogViewerWindow;
 class HierarchyWindow;
 class DebugMenu;
+class ProfilerHud;
 #endif
 } // namespace witch::debug
 
@@ -84,6 +85,7 @@ private:
     std::unique_ptr<debug::LogViewerWindow> logViewer_;
     std::unique_ptr<debug::HierarchyWindow> hierarchyWindow_;
     std::unique_ptr<debug::DebugMenu>       debugMenu_;
+    std::unique_ptr<debug::ProfilerHud>     profilerHud_;
 #endif
     std::unique_ptr<Scene>           currentScene_;
     std::unique_ptr<Scene>           pendingScene_;
