@@ -65,6 +65,22 @@
       }
     },
     {
+      "name": "release-profiling",
+      "displayName": "MSVC Release + Tracy + DebugUI (x64)",
+      "description": "最適化ビルド（Release）に Tracy プロファイラとデバッグ UI を両方有効化した実性能計測用プリセット。最適化 ON なので debug のデバッグレイヤー由来のノイズが乗らず、本来のフレーム時間を Tracy とインゲーム HUD の両方で観察できる。dev Content を直接マウントする。",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/release-profiling",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "WITCH_PROFILING": "ON",
+        "WITCH_DEBUG_UI": "ON",
+        "WITCH_DEBUG_DRAW": "ON",
+        "WITCH_MOUNT_DEV_CONTENT": "ON",
+        "WITCH_BUILD_TESTS": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "profiling;debug-ui"
+      }
+    },
+    {
       "name": "ci-base",
       "hidden": true,
       "generator": "Visual Studio 18 2026",
@@ -133,6 +149,12 @@
       "displayName": "Build Release",
       "configurePreset": "release",
       "configuration": "Release"
+    },
+    {
+      "name": "release-profiling",
+      "displayName": "Build Release + Tracy + DebugUI",
+      "configurePreset": "release-profiling",
+      "configuration": "RelWithDebInfo"
     },
     {
       "name": "build-ci-windows-debug",
