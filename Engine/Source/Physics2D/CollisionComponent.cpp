@@ -47,7 +47,11 @@ void CollisionComponent::Update(float dt) {
     const float dy = velY_ * dt;
 
     if (solidVsTiles_ && grid_ != nullptr) {
-        const physics2d::MoveResult r = physics2d::MoveAabb(*grid_, box, dx, dy);
+        // 前ステップ接地中で上向き速度が無ければ接地スナップ（下り坂・小段差の
+        // 浮き防止）。ジャンプは Update フェーズで vy < 0 になるため吸着しない。
+        const bool snapToGround = onGround_ && velY_ >= 0.0f;
+        const physics2d::MoveResult r =
+            physics2d::MoveAabb(*grid_, box, dx, dy, snapToGround);
         onGround_ = r.onGround;
         hitHead_ = r.hitHead;
         hitLeft_ = r.hitLeft;

@@ -8,6 +8,7 @@
 #include "WitchEngine/Core/ResourceManager.h"
 #include "WitchEngine/Graphics2D/CameraManager.h"
 #include "WitchEngine/Input/IInput.h"
+#include "WitchEngine/Physics2D/CollisionWorld.h"
 #include "WitchEngine/Rhi/IRenderer.h"
 #include "WitchEngine/Vfs/Vfs.h"
 #include "WitchEngine/Core/Version.h"
@@ -156,6 +157,11 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     // DebugDraw の動作確認用テストパターン（全プリミティブ 1 セット）の表示切替。
     debugMenu_->AddItem("DebugDraw Test", [this] {
         debugDraw_->SetTestPattern(!debugDraw_->TestPatternEnabled());
+    });
+    // 衝突デバッグ表示（コライダー AABB + IntGrid 衝突形状）の表示切替。
+    // 描画本体は CollisionWorld::DrawDebug（Scene::FrameUpdate が毎フレーム呼ぶ）。
+    debugMenu_->AddItem("Show Collision", [] {
+        SetCollisionDebugDrawEnabled(!CollisionDebugDrawEnabled());
     });
 #endif
     gameLoop_->SetDebugMenu(debugMenu_.get());

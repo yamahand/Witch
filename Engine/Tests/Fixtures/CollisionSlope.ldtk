@@ -1,0 +1,30 @@
+{
+  "__comment": "坂の統合テスト用 LDtk。8x6 セル箱部屋（gridSize 8px）。内側の地面 = row 4 上辺 y=32。'/' 坂(値2) = (4,3) x32..40 表面 32→24、高台(値1) = (5,3) 上辺 24、(6,3) は空で高台から 8px の段差降り。CollisionComponentTests.cpp が読む。",
+  "jsonVersion": "1.5.3",
+  "externalLevels": false,
+  "levels": [
+    {
+      "identifier": "CollisionSlopeLevel",
+      "pxWid": 64,
+      "pxHei": 48,
+      "__bgColor": "#000000",
+      "layerInstances": [
+        {
+          "__identifier": "IntGrid_layer",
+          "__type": "IntGrid",
+          "__cWid": 8,
+          "__cHei": 6,
+          "__gridSize": 8,
+          "intGridCsv": [
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 0, 0, 0, 0, 0, 0, 1,
+            1, 0, 0, 0, 0, 0, 0, 1,
+            1, 0, 0, 0, 2, 1, 0, 1,
+            1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1
+          ]
+        }
+      ]
+    }
+  ]
+}

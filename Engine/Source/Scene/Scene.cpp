@@ -4,6 +4,7 @@
 #include "WitchEngine/Core/ResourceManager.h"
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Graphics2D/TilemapComponent.h"
+#include "WitchEngine/Physics2D/TileCollision.h"
 #include "WitchEngine/Vfs/Vfs.h"
 #include "Level/LdtkLoader.h"
 #include <algorithm>
@@ -122,6 +123,10 @@ void Scene::FrameUpdate(float dt) {
     scheduler_.RunPhase(UpdatePhase::Animation, dt);
     scheduler_.RunPhase(UpdatePhase::Camera, dt);
     scheduler_.RunPhase(UpdatePhase::Render, dt);
+
+    // 衝突デバッグ表示（"Show Collision"）。カメラ確定後・毎フレーム側で提出する
+    // （トグル OFF 時は即 return する安価な呼び出し）。
+    collision_.DrawDebug(level_ ? physics2d::FindCollisionGrid(*level_) : nullptr);
 
     // 破棄回収はフレーム末。固定ステップ中に Destroy されたオブジェクトは
     // 同フレームの残りフェーズをスキップされ、ここで回収される。
