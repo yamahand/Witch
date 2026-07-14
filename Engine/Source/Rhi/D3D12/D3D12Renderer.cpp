@@ -152,6 +152,13 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     //（キューを浅くしすぎると VSync OFF で GPU を待たせてしまう）。kBackBufferCount を
     // 変えたとき値がズレないようここで一元的に導出する。VSync ON 時は BeginFrame で
     // このオブジェクトを待って遅延を抑え、VSync OFF 時は待たずに GPU 速度いっぱいまで回す。
+    //
+    // 留意: この最大レイテンシ制限は vsync 状態に関わらず常に有効。VSync OFF で
+    // 待機オブジェクトを待たなくても、CPU が GPU より kBackBufferCount-1 フレーム以上
+    // 先行すると Present() 内部が暗黙にブロックする（そのぶんは Render.Present ゾーンに
+    // 計上され、素の描画コスト計測が乱れる）。バッファ数と等しい 2 フレーム分のキューは
+    // 通常の GPU バウンドシーンでは十分深く、実機でも顕在化していないため現状はこのまま。
+    // 重負荷で問題が出たら OFF 時のみレイテンシを増やす等を検討する。
     // 失敗しても致命的ではない（待機オブジェクトが得られなければ BeginFrame の待機を
     // スキップし、従来どおり GPU フェンス待ちだけで進む）。原因切り分けのためログは残す。
     if (HRESULT hr = swapChain_->SetMaximumFrameLatency(kBackBufferCount - 1); FAILED(hr)) {
@@ -294,14 +301,19 @@ rhi::ICommandList* D3D12Renderer::BeginFrame() {
     // 張り付いてしまう（フレームレイテンシ待ちが実質 vsync 待ちとして効くため）。
     // OFF 時は待たず、フレーム進行の安全は GPU フェンス待ち（WaitForFrame）に任せる。
     if (frameLatencyWaitable_ && vsync_) {
-        // WAIT_OBJECT_0 以外（WAIT_FAILED 等）は異常。フレーム進行自体は下の
-        // GPU フェンス待ちが保証するので、ここでは 1 度だけ警告して続行する
-        //（毎フレーム出すとログが溢れるため spammed_ でゲート）。
-        if (WaitForSingleObject(frameLatencyWaitable_, INFINITE) != WAIT_OBJECT_0 &&
-            !frameLatencyWaitWarned_) {
+        // INFINITE では待たない: デバイスロスト等で待機オブジェクトが二度と
+        // シグナルされないと BeginFrame ごとメインループが復帰不能にハングする
+        //（EndFrame の Present 側でデバイスロストを検知しているのと対にする）。
+        // 有限タイムアウトにし、時間切れ・異常時は待機をスキップして続行する。
+        // フレーム進行の安全は下の GPU フェンス待ち（WaitForFrame）が保証する。
+        // 警告は 1 度だけ（毎フレーム出すとログが溢れるため）。
+        constexpr DWORD kWaitTimeoutMs = 1000; // 通常は 1 vsync 内に返る。1s は異常検知用の上限。
+        const DWORD wr = WaitForSingleObject(frameLatencyWaitable_, kWaitTimeoutMs);
+        if (wr != WAIT_OBJECT_0 && !frameLatencyWaitWarned_) {
             log::Warn("WaitForSingleObject(frameLatencyWaitable) did not return "
-                      "WAIT_OBJECT_0 (GetLastError=0x{:08X}).",
-                      static_cast<uint32_t>(GetLastError()));
+                      "WAIT_OBJECT_0 (result=0x{:08X}, GetLastError=0x{:08X}); "
+                      "falling back to fence-only sync.",
+                      static_cast<uint32_t>(wr), static_cast<uint32_t>(GetLastError()));
             frameLatencyWaitWarned_ = true;
         }
     }
