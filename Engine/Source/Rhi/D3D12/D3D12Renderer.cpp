@@ -310,10 +310,20 @@ rhi::ICommandList* D3D12Renderer::BeginFrame() {
         constexpr DWORD kWaitTimeoutMs = 1000; // 通常は 1 vsync 内に返る。1s は異常検知用の上限。
         const DWORD wr = WaitForSingleObject(frameLatencyWaitable_, kWaitTimeoutMs);
         if (wr != WAIT_OBJECT_0 && !frameLatencyWaitWarned_) {
-            log::Warn("WaitForSingleObject(frameLatencyWaitable) did not return "
-                      "WAIT_OBJECT_0 (result=0x{:08X}, GetLastError=0x{:08X}); "
-                      "falling back to fence-only sync.",
-                      static_cast<uint32_t>(wr), static_cast<uint32_t>(GetLastError()));
+            // GetLastError() が意味を持つのは WAIT_FAILED のときだけ。WAIT_TIMEOUT /
+            // WAIT_ABANDONED では直前の別 API の値が残っており、それをログに出すと
+            // 誤った原因情報になる。そのため WAIT_FAILED のときだけ error を併記する。
+            if (wr == WAIT_FAILED) {
+                log::Warn("WaitForSingleObject(frameLatencyWaitable) failed "
+                          "(result=0x{:08X}, GetLastError=0x{:08X}); "
+                          "falling back to fence-only sync.",
+                          static_cast<uint32_t>(wr), static_cast<uint32_t>(GetLastError()));
+            } else {
+                log::Warn("WaitForSingleObject(frameLatencyWaitable) did not return "
+                          "WAIT_OBJECT_0 (result=0x{:08X}); "
+                          "falling back to fence-only sync.",
+                          static_cast<uint32_t>(wr));
+            }
             frameLatencyWaitWarned_ = true;
         }
     }
