@@ -147,7 +147,9 @@ void Collector::AddSample(std::string_view name, std::uint64_t nanoseconds) {
 #else  // !WITCH_PROFILE_COLLECT
 
 // WITCH_PROFILE_COLLECT 未定義ビルドでは上記が丸ごと消え、翻訳単位が空になる。
-// MSVC /W4 の C4206（空の翻訳単位）を避けるためダミー宣言を 1 つ置く。
+// 現行の MSVC（VS2026・モジュールスキャン有効）では /W4 /WX でも C4206
+//（空の翻訳単位）は発火しないが、将来のツールチェイン変更に備えた保険として
+// ダミー宣言を 1 つ置いておく（実害なし）。
 namespace witch::profile { struct ProfileCollectorTuNotEmpty {}; }
 
 #endif // WITCH_PROFILE_COLLECT
