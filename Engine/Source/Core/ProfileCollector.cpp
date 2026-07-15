@@ -106,6 +106,25 @@ std::size_t Collector::FrameHistoryOrdered(std::array<float, kHistoryFrames>& ou
     return count;
 }
 
+void Collector::ResetMax() {
+    // ゾーンごとの移動最大を 0 へ。次に呼ばれたフレームの値から max を取り直す。
+    for (auto& a : accum_) {
+        a.maxMs = 0.0;
+    }
+    // 前フレーム確定分の maxMs も 0 にしておく（次の BeginFrame までは snapshot_ が
+    // 表示され続けるため、ここを消さないとボタンを押しても Max 列が 1 フレーム残る）。
+    for (auto& z : snapshot_) {
+        z.maxMs = 0.0;
+    }
+    // フレーム全体時間の履歴を空にする。HUD の peak はこの履歴から都度計算するため、
+    // 履歴を捨てないと過去のスパイクが peak に残る。frameCount_ を 0 に戻すと
+    // FrameHistoryOrdered / LastFrameMs / SpikeThresholdMs が「履歴なし」を返し、
+    // 次の BeginFrame から積み直す。lastFrameStart_ は保持するので、直後の
+    // フレーム時間計測がずれることはない（hasFrameStart_ は変えない）。
+    frameMs_.fill(0.0f);
+    frameCount_ = 0;
+}
+
 float Collector::LastFrameMs() const {
     if (frameCount_ == 0) {
         return 0.0f;

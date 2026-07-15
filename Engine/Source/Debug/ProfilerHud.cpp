@@ -80,6 +80,14 @@ void ProfilerHud::DrawBody() {
         profile::Collector::Instance().SetSpikeLog(spikeLog);
     }
 
+    // 蓄積 max / peak のリセット。起動時やレベル読み込みの一過性スパイクが
+    // Max 列・peak 表示に残り続けるのを消す（フレーム時間履歴もクリアするので
+    // グラフは一瞬空になる）。avg と直近の内訳は残す。
+    ImGui::SameLine();
+    if (ImGui::Button("Reset max")) {
+        profile::Collector::Instance().ResetMax();
+    }
+
     // ── フレーム時間グラフ ──
     if (showGraph_ && historyCount > 1) {
         // PlotLines は連続配列を先頭から描く。リングバッファをそのまま渡すと
