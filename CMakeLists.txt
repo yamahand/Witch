@@ -12,6 +12,18 @@ set(WITCH_ENGINE_VERSION_MINOR 1)
 set(WITCH_ENGINE_VERSION_PATCH 0)
 set(WITCH_ENGINE_VERSION "${WITCH_ENGINE_VERSION_MAJOR}.${WITCH_ENGINE_VERSION_MINOR}.${WITCH_ENGINE_VERSION_PATCH}")
 
+# ─── vcpkg applocal deploy を無効化 ──────────────────────────────────────────
+# vcpkg の MSBuild 連携は実行ファイルごとに applocal.ps1 ポストビルドを自動注入し、
+# 依存の DLL を出力先へコピーする（VCPKG_APPLOCAL_DEPS 既定 ON）。だが本プロジェクトの
+# 依存（imgui / stb / nlohmann-json / mimalloc / tracy）は overlay triplet
+# (x64-windows-mimalloc-static) で全て static / ヘッダオンリーに解決され、実行時 DLL を
+# 一切生成しない。そのため applocal は運ぶものが無いのに triplet の bin ディレクトリ
+# （存在しない）を指して "指定されたパスが見つかりません" で失敗し、MSBuild が
+# ポストビルドイベント全体を MSB3073 として巻き込んで報告する（コピー系コマンドが
+# 犯人に見えるが実際の失敗は applocal）。運ぶ DLL が無い以上 applocal は不要なので
+# 明示的に OFF にする。target を作る前（vcpkg.cmake がイベントを注入する前）に設定する。
+set(VCPKG_APPLOCAL_DEPS OFF CACHE BOOL "" FORCE)
+
 set(WITCH_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${WITCH_GENERATED_INCLUDE_DIR}/WitchEngine/Core")
 file(MAKE_DIRECTORY "${WITCH_GENERATED_INCLUDE_DIR}/WitchGame")
