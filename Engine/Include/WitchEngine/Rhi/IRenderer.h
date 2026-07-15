@@ -39,6 +39,14 @@ public:
     virtual void OnResize(int width, int height) = 0;
     virtual void Shutdown() = 0;
 
+    /// 垂直同期（vsync）の有効/無効を設定する。既定は有効。
+    /// 無効にすると Present がモニタのリフレッシュを待たなくなり、フレームレートの
+    /// 上限が外れる（純粋な描画コストの計測に使う。ティアリングは出る）。
+    /// 次フレームの Present から反映される。
+    virtual void SetVSync(bool enabled) = 0;
+    /// 現在の vsync 設定を返す。
+    virtual bool VSync() const = 0;
+
     /// 現在の描画先（バックバッファ）サイズをピクセルで返す。
     /// カメラのビューポート同期などに使う。D3D12 型は一切漏らさない。
     virtual int Width() const = 0;

@@ -84,6 +84,20 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     if (!Check(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory)), "CreateDXGIFactory2"))
         return false;
 
+    // ティアリング（vsync OFF）サポートを問い合わせる。対応 GPU/OS でのみ vsync を
+    // 実際に切れる。未対応環境では SetVSync(false) を無視して常に vsync ON のままにする。
+    {
+        ComPtr<IDXGIFactory5> factory5;
+        if (SUCCEEDED(factory.As(&factory5))) {
+            BOOL allow = FALSE;
+            if (SUCCEEDED(factory5->CheckFeatureSupport(
+                    DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allow, sizeof(allow)))) {
+                allowTearing_ = (allow == TRUE);
+            }
+        }
+    }
+    log::Info("DXGI tearing (vsync-off) support: {}.", allowTearing_ ? "yes" : "no");
+
     // 3. Device (default adapter, feature level 12.0)
     if (!Check(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device_)),
                "D3D12CreateDevice"))
@@ -113,6 +127,16 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     scDesc.BufferCount = kBackBufferCount;
     scDesc.SampleDesc  = {1, 0};
     scDesc.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    // waitable swapchain。Present をキューへ積んだあと、次フレーム先頭で待機可能
+    // オブジェクトを待つことで「Present の内部同期ブロック」を BeginFrame の明示待ちへ
+    // 移し、Present 自体を即座に返させる。これが無いと GPU が速いとき Present がキュー
+    // 詰まりで数十 ms ブロックし、フレーム時間がスパイクする。ALLOW_TEARING と併用可。
+    scDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    // ティアリング対応環境では ALLOW_TEARING フラグを付けておく。これが無いと
+    // Present(0, DXGI_PRESENT_ALLOW_TEARING) が失敗するため、vsync OFF に必須。
+    if (allowTearing_) {
+        scDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+    }
 
     ComPtr<IDXGISwapChain1> sc1;
     if (!Check(factory->CreateSwapChainForHwnd(queue_.Get(), hwnd, &scDesc,
@@ -122,6 +146,30 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
     if (!Check(sc1.As(&swapChain_), "SwapChain → IDXGISwapChain3")) return false;
     frameIndex_ = swapChain_->GetCurrentBackBufferIndex();
+
+    // waitable オブジェクトを取得。フレームレイテンシはバックバッファ数から導出し
+    // （kBackBufferCount - 1 = 2）、CPU が GPU より最大その枚数ぶん先行できるようにする
+    //（キューを浅くしすぎると VSync OFF で GPU を待たせてしまう）。kBackBufferCount を
+    // 変えたとき値がズレないようここで一元的に導出する。VSync ON 時は BeginFrame で
+    // このオブジェクトを待って遅延を抑え、VSync OFF 時は待たずに GPU 速度いっぱいまで回す。
+    //
+    // 留意: この最大レイテンシ制限は vsync 状態に関わらず常に有効。VSync OFF で
+    // 待機オブジェクトを待たなくても、CPU が GPU より kBackBufferCount-1 フレーム以上
+    // 先行すると Present() 内部が暗黙にブロックする（そのぶんは Render.Present ゾーンに
+    // 計上され、素の描画コスト計測が乱れる）。バッファ数と等しい 2 フレーム分のキューは
+    // 通常の GPU バウンドシーンでは十分深く、実機でも顕在化していないため現状はこのまま。
+    // 重負荷で問題が出たら OFF 時のみレイテンシを増やす等を検討する。
+    // 失敗しても致命的ではない（待機オブジェクトが得られなければ BeginFrame の待機を
+    // スキップし、従来どおり GPU フェンス待ちだけで進む）。原因切り分けのためログは残す。
+    if (HRESULT hr = swapChain_->SetMaximumFrameLatency(kBackBufferCount - 1); FAILED(hr)) {
+        log::Warn("SetMaximumFrameLatency failed (0x{:08X}); waitable latency disabled.",
+                  static_cast<uint32_t>(hr));
+    }
+    frameLatencyWaitable_ = swapChain_->GetFrameLatencyWaitableObject();
+    if (!frameLatencyWaitable_) {
+        log::Warn("GetFrameLatencyWaitableObject returned null; "
+                  "BeginFrame latency wait disabled (fence-only sync).");
+    }
 
     // 6. RTV descriptor heap
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
@@ -244,6 +292,46 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
 }
 
 rhi::ICommandList* D3D12Renderer::BeginFrame() {
+    // waitable swapchain: 「次フレームを描き始めてよい」= 直前フレームの表示が
+    // 進んだことを DXGI が知らせるまで待つ。これで Present 側のブロックが消え、
+    // フレーム時間のスパイク（Present が数十 ms 詰まる現象）が解消される。
+    //
+    // ただし待つのは VSync ON のときだけ。VSync OFF はモニタ更新に律速されず GPU
+    // 速度いっぱいまで出すのが目的なので、ここで待つと逆にリフレッシュレート付近へ
+    // 張り付いてしまう（フレームレイテンシ待ちが実質 vsync 待ちとして効くため）。
+    // OFF 時は待たず、フレーム進行の安全は GPU フェンス待ち（WaitForFrame）に任せる。
+    // 一度でも待機が異常終了（タイムアウト/失敗）したら、以降は waitable 待機を
+    // 完全にスキップして fence-only 同期へ恒久フォールバックする。最小化などで
+    // waitable object がシグナルされなくなる環境だと、毎フレーム kWaitTimeoutMs
+    // ぶんブロックし続けて実質 1FPS まで落ちるため。フレーム進行の安全は下の
+    // GPU フェンス待ち（WaitForFrame）が保証するので、待機を捨てても正しく回る。
+    if (frameLatencyWaitable_ && vsync_ && !frameLatencyWaitFailed_) {
+        // INFINITE では待たない: デバイスロスト等で待機オブジェクトが二度と
+        // シグナルされないと BeginFrame ごとメインループが復帰不能にハングする
+        //（EndFrame の Present 側でデバイスロストを検知しているのと対にする）。
+        // 有限タイムアウトにし、時間切れ・異常時は以降の待機を止めて続行する。
+        constexpr DWORD kWaitTimeoutMs = 1000; // 通常は 1 vsync 内に返る。1s は異常検知用の上限。
+        const DWORD wr = WaitForSingleObject(frameLatencyWaitable_, kWaitTimeoutMs);
+        if (wr != WAIT_OBJECT_0) {
+            // 以降このフラグで待機自体をスキップする（毎フレーム 1s ブロックを防ぐ）。
+            // 警告も初回のこの 1 度だけ（ログが溢れないよう）。
+            frameLatencyWaitFailed_ = true;
+            // GetLastError() が意味を持つのは WAIT_FAILED のときだけ。WAIT_TIMEOUT /
+            // WAIT_ABANDONED では直前の別 API の値が残っており、それをログに出すと
+            // 誤った原因情報になる。そのため WAIT_FAILED のときだけ error を併記する。
+            if (wr == WAIT_FAILED) {
+                log::Warn("WaitForSingleObject(frameLatencyWaitable) failed "
+                          "(result=0x{:08X}, GetLastError=0x{:08X}); "
+                          "falling back to fence-only sync from now on.",
+                          static_cast<uint32_t>(wr), static_cast<uint32_t>(GetLastError()));
+            } else {
+                log::Warn("WaitForSingleObject(frameLatencyWaitable) did not return "
+                          "WAIT_OBJECT_0 (result=0x{:08X}); "
+                          "falling back to fence-only sync from now on.",
+                          static_cast<uint32_t>(wr));
+            }
+        }
+    }
     WaitForFrame(frameIndex_);
 
     frames_[frameIndex_].allocator->Reset();
@@ -279,7 +367,23 @@ void D3D12Renderer::EndFrame([[maybe_unused]] rhi::ICommandList* cmdList) {
     ID3D12CommandList* lists[] = {cmdList_.Get()};
     queue_->ExecuteCommandLists(1, lists);
 
-    swapChain_->Present(1, 0);
+    // vsync ON: SyncInterval=1 でモニタ更新に同期。
+    // vsync OFF: SyncInterval=0。ティアリング対応環境では ALLOW_TEARING を付ける
+    //（スワップチェインに同フラグが必要。未対応なら vsync_ は false にできない）。
+    const HRESULT presentHr =
+        vsync_ ? swapChain_->Present(1, 0)
+               : swapChain_->Present(0, allowTearing_ ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    // Present の失敗（特にデバイスロスト DXGI_ERROR_DEVICE_REMOVED/RESET）を検知して
+    // ログに残す。ここで拾わないと以後のフレームで別箇所が壊れて見え、原因追跡が困難になる。
+    // 1 度だけ出す（デバイスロストは毎フレーム続くため）。
+    if (FAILED(presentHr) && !presentFailedWarned_) {
+        log::Error("SwapChain Present failed (0x{:08X}).", static_cast<uint32_t>(presentHr));
+        if (presentHr == DXGI_ERROR_DEVICE_REMOVED || presentHr == DXGI_ERROR_DEVICE_RESET) {
+            log::Error("Device removed/reset (reason 0x{:08X}).",
+                       static_cast<uint32_t>(device_->GetDeviceRemovedReason()));
+        }
+        presentFailedWarned_ = true;
+    }
 
     ++fenceCounter_;
     queue_->Signal(fence_.Get(), fenceCounter_);
@@ -295,9 +399,16 @@ void D3D12Renderer::OnResize(int width, int height) {
 
     for (auto& buf : backBuffers_) buf.Reset();
 
+    // 作成時と同じフラグを渡す。waitable は維持（外すと GetFrameLatencyWaitableObject が
+    // 無効化される）。ALLOW_TEARING も作成時に付けたなら維持する必要がある。
+    UINT resizeFlags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    if (allowTearing_) {
+        resizeFlags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+    }
     HRESULT hr = swapChain_->ResizeBuffers(0,
         static_cast<UINT>(width), static_cast<UINT>(height),
-        DXGI_FORMAT_UNKNOWN, 0);
+        DXGI_FORMAT_UNKNOWN,
+        resizeFlags);
     if (FAILED(hr)) {
         log::Error("ResizeBuffers failed (0x{:08X})", static_cast<uint32_t>(hr));
         return;
@@ -342,6 +453,12 @@ void D3D12Renderer::Shutdown() {
     if (fenceEvent_) {
         CloseHandle(fenceEvent_);
         fenceEvent_ = nullptr;
+    }
+    // waitable オブジェクトはスワップチェイン所有だが、ハンドル自体は自前で閉じる
+    //（GetFrameLatencyWaitableObject が返すのは複製ハンドル）。
+    if (frameLatencyWaitable_) {
+        CloseHandle(frameLatencyWaitable_);
+        frameLatencyWaitable_ = nullptr;
     }
     log::Info("D3D12Renderer shutdown complete.");
 }

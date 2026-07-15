@@ -15,8 +15,12 @@ namespace witch {
 
 using Microsoft::WRL::ComPtr;
 
-/// ダブルバッファリングのバックバッファ数。
-static constexpr uint32_t kBackBufferCount    = 2;
+/// トリプルバッファリングのバックバッファ数。
+/// 3 面にすることで CPU が GPU を 1 フレーム先行して積め、vsync 時に軽いフレームで
+/// 生じる待ちバブル（CPU が Present 直後のバッファ解放を待って余分な vsync 1 回分
+/// ブロックする現象）を解消する。フェンス同期・per-frame リソース配列・ImGui の
+/// NumFramesInFlight はすべてこの定数で回るため、値の変更だけで面数が揃う。
+static constexpr uint32_t kBackBufferCount    = 3;
 /// SRV ヒープのエンジンテクスチャ用スロット数。実行時に動的拡張はしない。
 static constexpr uint32_t kMaxTextures        = 64;
 /// SRV ヒープ内の ImGui フォントテクスチャ用スロット（エンジンテクスチャの直後）。
@@ -41,6 +45,11 @@ public:
     void EndFrame(rhi::ICommandList* cmdList) override;
     void OnResize(int width, int height) override;
     void Shutdown() override;
+    // ティアリング未対応環境では vsync を切れない（Present(0, ALLOW_TEARING) が使えず、
+    // SyncInterval=0 でもドライバが vsync を強制することがある）。その場合は要求を
+    // 無視して vsync ON のままにする。VSync() で実際の状態を確認できる。
+    void SetVSync(bool enabled) override { vsync_ = enabled || !allowTearing_; }
+    bool VSync() const override { return vsync_; }
     int Width() const override { return width_; }
     int Height() const override { return height_; }
 
@@ -141,6 +150,17 @@ private:
     HANDLE                            fenceEvent_   = nullptr;
     uint64_t                          fenceCounter_ = 0;
 
+    /// waitable swapchain のフレームレイテンシ待機オブジェクト。BeginFrame 先頭で待つことで
+    /// Present のキュー詰まりブロックを明示待ちへ移し、Present 自体を即座に返させる。
+    /// スワップチェイン所有（ResizeBuffers では作り直し不要）。Shutdown で CloseHandle する。
+    HANDLE                            frameLatencyWaitable_ = nullptr;
+    /// 待機オブジェクトの待ちが一度でも異常終了（タイムアウト/失敗）したら true。
+    /// 以降は waitable 待機自体をスキップして fence-only 同期へ恒久フォールバック
+    /// する（毎フレーム 1s ブロックを防ぐ）。同時に警告ログの 1 回制限も兼ねる。
+    bool                              frameLatencyWaitFailed_ = false;
+    /// Present 失敗（デバイスロスト等）の警告を 1 回だけ出すためのゲート。
+    bool                              presentFailedWarned_ = false;
+
     /// テクスチャアップロード専用コマンドリスト。cmdList_（フレーム描画用）とは完全に分離。
     ComPtr<ID3D12GraphicsCommandList> uploadCmdList_;
 
@@ -149,6 +169,8 @@ private:
     int                               height_       = 0;
     int                               virtualWidth_  = 0;  ///< 0 = 仮想解像度無効
     int                               virtualHeight_ = 0;
+    bool                              vsync_        = true; ///< Present の SyncInterval（true=1, false=0）
+    bool                              allowTearing_ = false; ///< DXGI がティアリングを許可するか（vsync OFF に必須）
 
     D3D12CommandList                  cmdListWrapper_;
 

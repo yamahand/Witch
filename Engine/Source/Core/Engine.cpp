@@ -17,6 +17,7 @@
 #include "WitchEngine/Debug/DebugMenu.h"
 #include "WitchEngine/Debug/HierarchyWindow.h"
 #include "WitchEngine/Debug/LogViewerWindow.h"
+#include "WitchEngine/Debug/ProfilerHud.h"
 #endif
 #include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
@@ -143,6 +144,11 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     hierarchyWindow_ = std::make_unique<debug::HierarchyWindow>();
     gameLoop_->SetHierarchyWindow(hierarchyWindow_.get());
 
+    // プロファイラ HUD。数値は Profiling.h 経由でインプロセス集約された
+    // ProfileCollector から取る（Tracy のリンク有無に依存しない）。
+    profilerHud_ = std::make_unique<debug::ProfilerHud>();
+    gameLoop_->SetProfilerHud(profilerHud_.get());
+
     // デバッグウィンドウ外を右クリックしたときのコンテキストメニュー。
     // エンジン標準の表示切替項目をここで登録し、以降はゲーム側が GetDebugMenu() 経由で
     // 自由に項目を追加できる。
@@ -152,6 +158,16 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
     });
     debugMenu_->AddItem("Hierarchy", [this] {
         hierarchyWindow_->SetOpen(!hierarchyWindow_->IsOpen());
+    });
+    debugMenu_->AddItem("Profiler", [this] {
+        profilerHud_->SetOpen(!profilerHud_->IsOpen());
+    });
+    // vsync のトグル。OFF にするとフレームレート上限が外れ、素の描画コストを
+    // 計測できる（Profiler の Render.WaitGpu が縮む）。ティアリング未対応環境では
+    // SetVSync が要求を無視するため、実際の状態は次回参照時に反映される。
+    debugMenu_->AddItem("VSync", [this] {
+        renderer_->SetVSync(!renderer_->VSync());
+        log::Info("VSync {}.", renderer_->VSync() ? "ON" : "OFF");
     });
 #ifdef WITCH_DEBUG_DRAW
     // DebugDraw の動作確認用テストパターン（全プリミティブ 1 セット）の表示切替。
@@ -219,6 +235,7 @@ void Engine::Shutdown() {
 
 #ifdef WITCH_DEBUG_UI
     debugMenu_.reset();
+    profilerHud_.reset();
     hierarchyWindow_.reset();
     logViewer_.reset(); // ViewerSink（Logger 所有）より先に破棄する
 #endif
