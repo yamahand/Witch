@@ -300,31 +300,36 @@ rhi::ICommandList* D3D12Renderer::BeginFrame() {
     // 速度いっぱいまで出すのが目的なので、ここで待つと逆にリフレッシュレート付近へ
     // 張り付いてしまう（フレームレイテンシ待ちが実質 vsync 待ちとして効くため）。
     // OFF 時は待たず、フレーム進行の安全は GPU フェンス待ち（WaitForFrame）に任せる。
-    if (frameLatencyWaitable_ && vsync_) {
+    // 一度でも待機が異常終了（タイムアウト/失敗）したら、以降は waitable 待機を
+    // 完全にスキップして fence-only 同期へ恒久フォールバックする。最小化などで
+    // waitable object がシグナルされなくなる環境だと、毎フレーム kWaitTimeoutMs
+    // ぶんブロックし続けて実質 1FPS まで落ちるため。フレーム進行の安全は下の
+    // GPU フェンス待ち（WaitForFrame）が保証するので、待機を捨てても正しく回る。
+    if (frameLatencyWaitable_ && vsync_ && !frameLatencyWaitFailed_) {
         // INFINITE では待たない: デバイスロスト等で待機オブジェクトが二度と
         // シグナルされないと BeginFrame ごとメインループが復帰不能にハングする
         //（EndFrame の Present 側でデバイスロストを検知しているのと対にする）。
-        // 有限タイムアウトにし、時間切れ・異常時は待機をスキップして続行する。
-        // フレーム進行の安全は下の GPU フェンス待ち（WaitForFrame）が保証する。
-        // 警告は 1 度だけ（毎フレーム出すとログが溢れるため）。
+        // 有限タイムアウトにし、時間切れ・異常時は以降の待機を止めて続行する。
         constexpr DWORD kWaitTimeoutMs = 1000; // 通常は 1 vsync 内に返る。1s は異常検知用の上限。
         const DWORD wr = WaitForSingleObject(frameLatencyWaitable_, kWaitTimeoutMs);
-        if (wr != WAIT_OBJECT_0 && !frameLatencyWaitWarned_) {
+        if (wr != WAIT_OBJECT_0) {
+            // 以降このフラグで待機自体をスキップする（毎フレーム 1s ブロックを防ぐ）。
+            // 警告も初回のこの 1 度だけ（ログが溢れないよう）。
+            frameLatencyWaitFailed_ = true;
             // GetLastError() が意味を持つのは WAIT_FAILED のときだけ。WAIT_TIMEOUT /
             // WAIT_ABANDONED では直前の別 API の値が残っており、それをログに出すと
             // 誤った原因情報になる。そのため WAIT_FAILED のときだけ error を併記する。
             if (wr == WAIT_FAILED) {
                 log::Warn("WaitForSingleObject(frameLatencyWaitable) failed "
                           "(result=0x{:08X}, GetLastError=0x{:08X}); "
-                          "falling back to fence-only sync.",
+                          "falling back to fence-only sync from now on.",
                           static_cast<uint32_t>(wr), static_cast<uint32_t>(GetLastError()));
             } else {
                 log::Warn("WaitForSingleObject(frameLatencyWaitable) did not return "
                           "WAIT_OBJECT_0 (result=0x{:08X}); "
-                          "falling back to fence-only sync.",
+                          "falling back to fence-only sync from now on.",
                           static_cast<uint32_t>(wr));
             }
-            frameLatencyWaitWarned_ = true;
         }
     }
     WaitForFrame(frameIndex_);

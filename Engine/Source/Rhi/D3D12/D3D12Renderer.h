@@ -154,8 +154,10 @@ private:
     /// Present のキュー詰まりブロックを明示待ちへ移し、Present 自体を即座に返させる。
     /// スワップチェイン所有（ResizeBuffers では作り直し不要）。Shutdown で CloseHandle する。
     HANDLE                            frameLatencyWaitable_ = nullptr;
-    /// 待機オブジェクトの待ちが異常終了したときの警告を 1 回だけ出すためのゲート。
-    bool                              frameLatencyWaitWarned_ = false;
+    /// 待機オブジェクトの待ちが一度でも異常終了（タイムアウト/失敗）したら true。
+    /// 以降は waitable 待機自体をスキップして fence-only 同期へ恒久フォールバック
+    /// する（毎フレーム 1s ブロックを防ぐ）。同時に警告ログの 1 回制限も兼ねる。
+    bool                              frameLatencyWaitFailed_ = false;
     /// Present 失敗（デバイスロスト等）の警告を 1 回だけ出すためのゲート。
     bool                              presentFailedWarned_ = false;
 

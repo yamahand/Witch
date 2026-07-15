@@ -107,7 +107,7 @@ std::size_t Collector::FrameHistoryOrdered(std::array<float, kHistoryFrames>& ou
 }
 
 void Collector::ResetMax() {
-    // ゾーンごとの移動最大を 0 へ。次に呼ばれたフレームの値から max を取り直す。
+    // ゾーンごとの全期間最大を 0 へ。次に呼ばれたフレームの値から max を取り直す。
     for (auto& a : accum_) {
         a.maxMs = 0.0;
     }

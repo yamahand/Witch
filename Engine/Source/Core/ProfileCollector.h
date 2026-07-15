@@ -25,8 +25,11 @@ struct ZoneStat {
     std::string_view name;      ///< スコープ名（マクロに渡した文字列リテラルを指す。非所有）。
     std::uint32_t    calls = 0; ///< このフレーム中に閉じた回数。
     double lastMs = 0.0;        ///< このフレームの合計時間（同名スコープは加算）[ms]。
-    double avgMs  = 0.0;        ///< 直近ウィンドウの移動平均（フレーム合計の平均）[ms]。
-    double maxMs  = 0.0;        ///< 直近ウィンドウ内でのフレーム合計の最大 [ms]。
+    double avgMs  = 0.0;        ///< 移動平均（フレーム合計の指数移動平均）[ms]。
+    double maxMs  = 0.0;        ///< フレーム合計の全期間最大 [ms]。時間窓で減衰せず、
+                                ///< ResetMax() を呼ぶまで単調に増加し続ける
+                                ///< （HUD ヘッダの peak とは別物: あちらは
+                                ///< kHistoryFrames のローリング窓で自然に下がる）。
 };
 
 /// フレーム時間履歴のリングバッファ長（グラフ表示 & 平均/最大の計算窓）。
@@ -62,7 +65,7 @@ public:
     /// 蓄積してきた最大値をリセットする（HUD の "Reset max" ボタン用）。
     /// 起動時やレベル読み込みの一過性スパイクが max/peak に残り続けるのを消す。
     /// クリアするのは 2 系統:
-    ///   1. 各ゾーンの maxMs（フレームをまたいで保持している移動最大）。
+    ///   1. 各ゾーンの maxMs（フレームをまたいで保持している全期間最大）。
     ///   2. フレーム全体時間の履歴（frameMs_）。HUD の peak はこの履歴から都度
     ///      計算されるため、履歴を空にしないと過去のスパイクが peak に残る。
     /// avgMs や snapshot_（前フレーム確定値）はリセットしない。平均は次フレーム以降
@@ -100,8 +103,9 @@ private:
         std::string_view name;
         std::uint64_t    totalNs = 0;
         std::uint32_t    calls   = 0;
-        double avgMs = 0.0; ///< 移動平均（フレームをまたいで保持）。
-        double maxMs = 0.0; ///< 移動最大（フレームをまたいで保持）。
+        double avgMs = 0.0; ///< 指数移動平均（フレームをまたいで保持）。
+        double maxMs = 0.0; ///< 全期間最大（フレームをまたいで保持。ResetMax まで
+                            ///< 単調増加し、時間窓では減衰しない）。
     };
 
     std::vector<Accum>    accum_;    ///< 現フレームの蓄積（BeginFrame で calls/totalNs をリセット）。
