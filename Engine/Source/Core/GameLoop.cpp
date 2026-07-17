@@ -1,3 +1,4 @@
+#include "WitchEngine/Audio/IAudio.h"
 #include "WitchEngine/Core/GameLoop.h"
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Core/Time.h"
@@ -85,6 +86,9 @@ bool GameLoop::Tick(Scene* currentScene) {
         if (debugDraw) debugDraw->EndFixedSteps();
         if (currentScene) currentScene->FrameUpdate(time_->DeltaTime());
     }
+
+    // 再生終了した SE ボイスの回収（audio 未初期化の環境では何もしない）。
+    if (auto* audio = Services::Instance().audio) audio->Update();
 
     // カメラのビュー変換を RHI に渡す（World スプライトに VS で適用される）。
     // Camera フェーズまでの更新で確定した今フレームの値を、描画前にここで送る。

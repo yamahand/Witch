@@ -16,6 +16,10 @@ namespace witch::debug {
 class DebugDraw;
 } // namespace witch::debug
 
+namespace witch::audio {
+class IAudio;
+} // namespace witch::audio
+
 namespace witch {
 
 class Time;
@@ -36,6 +40,9 @@ struct Services {
     vfs::Vfs*        vfs       = nullptr;
     /// デバッグプリミティブ描画。常に存在する（WITCH_DEBUG_DRAW OFF では全メソッド no-op）。
     debug::DebugDraw* debugDraw = nullptr;
+    /// オーディオ。デバイス初期化に失敗した環境では nullptr のまま（無音で続行）。
+    /// 呼び出し側は他サービスと同様に null チェックする。
+    audio::IAudio* audio = nullptr;
 
     static Services& Instance() {
         static Services s;

@@ -73,6 +73,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Core/ProfileCollector.cpp
     Engine/Source/Core/ResourceManager.cpp
     Engine/Source/Core/Time.cpp
+    Engine/Source/Audio/MiniaudioAudio.cpp
     Engine/Source/Debug/DebugDraw.cpp
     Engine/Source/Scene/ComponentScheduler.cpp
     Engine/Source/Scene/GameObject.cpp
@@ -91,6 +92,7 @@ add_library(WitchEngine STATIC
     Engine/Source/Vfs/DiskSource.cpp
     Engine/Source/Vfs/VfsPathUtil.cpp
 
+    Engine/Source/Audio/AudioFactory.h
     Engine/Source/Core/Profiling.h
     Engine/Source/Core/ProfileCollector.h
     Engine/Source/Core/Log/LogRecord.h
@@ -104,6 +106,8 @@ add_library(WitchEngine STATIC
     Engine/Source/Level/LdtkLoader.h
     Engine/Source/Vfs/VfsPathUtil.h
 
+    Engine/Include/WitchEngine/Audio/AudioClip.h
+    Engine/Include/WitchEngine/Audio/IAudio.h
     Engine/Include/WitchEngine/Core/Engine.h
     Engine/Include/WitchEngine/Core/Application.h
     Engine/Include/WitchEngine/Core/FixedString.h
@@ -265,6 +269,13 @@ endif()
 
 find_package(Stb REQUIRED)
 target_include_directories(WitchEngine PRIVATE ${Stb_INCLUDE_DIR})
+
+# オーディオバックエンド。ヘッダオンリーで CMake config を持たないため find_path で
+# 取得する（Stb と同じ方式）。miniaudio 型は Engine/Source/Audio/MiniaudioAudio.cpp の
+# 1 TU に隔離し公開ヘッダへ漏らさない（Ogg デコードは stb の stb_vorbis を同 TU で併用）。
+# WASAPI は実行時ロードのため追加のリンクライブラリは不要。
+find_path(MINIAUDIO_INCLUDE_DIRS "miniaudio.h" REQUIRED)
+target_include_directories(WitchEngine PRIVATE ${MINIAUDIO_INCLUDE_DIRS})
 
 # LDtk レベルファイルのパースに使う。使用は Engine/Source/Level/LdtkLoader.cpp の
 # 1 TU に隔離し公開ヘッダへ漏らさないため PRIVATE（例外も同 TU 内で expected に翻訳）。
