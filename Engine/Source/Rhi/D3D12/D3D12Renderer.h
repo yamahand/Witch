@@ -118,6 +118,9 @@ private:
     void CreateBackBufferRTVs();
     /// VSync 状態に合わせて DXGI の表示キュー上限を更新する。
     void UpdateMaximumFrameLatency();
+    /// GPU タイムスタンプ計測の資源（クエリヒープ + READBACK）を作る。
+    /// 失敗しても致命傷にしない（warn ログを残して計測無効のまま進む）。
+    void InitGpuTimestamps();
     /// 指定フレームインデックスの GPU 処理完了をフェンスで待つ。
     void WaitForFrame(uint32_t frameIdx);
     void WaitIdle();

@@ -195,39 +195,9 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
         return false;
     }
 
-    // 11. GPU timestamps. 1 フレームスロットにつき開始・終了の 2 個を確保し、
-    // 結果は同じスロットを再利用するときに既存のフェンス完了後に読む。
-    D3D12_QUERY_HEAP_DESC timestampHeapDesc{};
-    timestampHeapDesc.Type  = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
-    timestampHeapDesc.Count = kBackBufferCount * kTimestampsPerFrame;
-    if (!Check(device_->CreateQueryHeap(&timestampHeapDesc, IID_PPV_ARGS(&timestampQueryHeap_)),
-               "CreateQueryHeap (timestamps)"))
-        return false;
-    if (!Check(queue_->GetTimestampFrequency(&gpuTimestampFrequency_),
-               "GetTimestampFrequency"))
-        return false;
-
-    D3D12_HEAP_PROPERTIES readbackHeap{};
-    readbackHeap.Type = D3D12_HEAP_TYPE_READBACK;
-    D3D12_RESOURCE_DESC timestampBufferDesc{};
-    timestampBufferDesc.Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER;
-    timestampBufferDesc.Width            = static_cast<UINT64>(timestampHeapDesc.Count) * sizeof(uint64_t);
-    timestampBufferDesc.Height           = 1;
-    timestampBufferDesc.DepthOrArraySize = 1;
-    timestampBufferDesc.MipLevels        = 1;
-    timestampBufferDesc.Format           = DXGI_FORMAT_UNKNOWN;
-    timestampBufferDesc.SampleDesc.Count = 1;
-    timestampBufferDesc.Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-    if (!Check(device_->CreateCommittedResource(
-            &readbackHeap, D3D12_HEAP_FLAG_NONE, &timestampBufferDesc,
-            D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&timestampReadback_)),
-               "CreateCommittedResource (timestamp readback)"))
-        return false;
-    D3D12_RANGE timestampReadRange{0, static_cast<SIZE_T>(timestampBufferDesc.Width)};
-    if (!Check(timestampReadback_->Map(0, &timestampReadRange,
-                                      reinterpret_cast<void**>(&timestampReadbackMapped_)),
-               "Map (timestamp readback)"))
-        return false;
+    // 11. GPU timestamps。失敗しても致命傷にしない（HUD の GPU ms 表示が出なくなる
+    // だけで描画は成立する）。UpdateMaximumFrameLatency と同じ「診断機能は非致命」方針。
+    InitGpuTimestamps();
 
     // 12. Upload command allocator + dedicated command list for texture uploads.
     //     Kept separate from cmdList_ so CreateTexture never touches the frame recording.
@@ -374,8 +344,10 @@ rhi::ICommandList* D3D12Renderer::BeginFrame() {
     frame.allocator->Reset();
     cmdList_->Reset(frame.allocator.Get(), nullptr);
 
-    const uint32_t timestampBase = frameIndex_ * kTimestampsPerFrame;
-    cmdList_->EndQuery(timestampQueryHeap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase);
+    if (timestampQueryHeap_) {
+        const uint32_t timestampBase = frameIndex_ * kTimestampsPerFrame;
+        cmdList_->EndQuery(timestampQueryHeap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase);
+    }
 
     D3D12_RESOURCE_BARRIER barrier{};
     barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -415,6 +387,58 @@ void D3D12Renderer::UpdateMaximumFrameLatency() {
     }
 }
 
+void D3D12Renderer::InitGpuTimestamps() {
+    // 1 フレームスロットにつき開始・終了の 2 個を確保し、結果は同じスロットを
+    // 再利用するときに既存のフェンス完了後に読む（追加の CPU 待機なし）。
+    //
+    // 消費側（ProfilerHud）は WITCH_DEBUG_UI 限定だが、計測自体は常時コンパイルする。
+    // GPU 時間は Width() / VSync() と同様に RHI が公開するレンダラー固有の統計値であり、
+    // コストは毎フレーム クエリ 2 発 + 16 バイトの Resolve で無視できるため。
+    //
+    // 途中で失敗したら作りかけの資源を捨てて無効のまま戻る。BeginFrame / EndFrame は
+    // timestampQueryHeap_ の有無で計測をスキップし、HasGpuFrameTiming() は false を
+    // 返し続ける（描画自体は成立する）。
+    auto disable = [this](const char* what, HRESULT hr) {
+        log::Warn("{} failed (0x{:08X}); GPU frame timing disabled.", what,
+                  static_cast<uint32_t>(hr));
+        timestampQueryHeap_.Reset();
+        timestampReadback_.Reset();
+        timestampReadbackMapped_ = nullptr;
+        gpuTimestampFrequency_   = 0;
+    };
+
+    D3D12_QUERY_HEAP_DESC heapDesc{};
+    heapDesc.Type  = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+    heapDesc.Count = kBackBufferCount * kTimestampsPerFrame;
+    if (HRESULT hr = device_->CreateQueryHeap(&heapDesc, IID_PPV_ARGS(&timestampQueryHeap_));
+        FAILED(hr))
+        return disable("CreateQueryHeap (timestamps)", hr);
+    if (HRESULT hr = queue_->GetTimestampFrequency(&gpuTimestampFrequency_); FAILED(hr))
+        return disable("GetTimestampFrequency", hr);
+
+    D3D12_HEAP_PROPERTIES readbackHeap{};
+    readbackHeap.Type = D3D12_HEAP_TYPE_READBACK;
+    D3D12_RESOURCE_DESC bufferDesc{};
+    bufferDesc.Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER;
+    bufferDesc.Width            = static_cast<UINT64>(heapDesc.Count) * sizeof(uint64_t);
+    bufferDesc.Height           = 1;
+    bufferDesc.DepthOrArraySize = 1;
+    bufferDesc.MipLevels        = 1;
+    bufferDesc.Format           = DXGI_FORMAT_UNKNOWN;
+    bufferDesc.SampleDesc.Count = 1;
+    bufferDesc.Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    if (HRESULT hr = device_->CreateCommittedResource(
+            &readbackHeap, D3D12_HEAP_FLAG_NONE, &bufferDesc,
+            D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&timestampReadback_));
+        FAILED(hr))
+        return disable("CreateCommittedResource (timestamp readback)", hr);
+    D3D12_RANGE readRange{0, static_cast<SIZE_T>(bufferDesc.Width)};
+    if (HRESULT hr = timestampReadback_->Map(0, &readRange,
+                                             reinterpret_cast<void**>(&timestampReadbackMapped_));
+        FAILED(hr))
+        return disable("Map (timestamp readback)", hr);
+}
+
 void D3D12Renderer::EndFrame([[maybe_unused]] rhi::ICommandList* cmdList) {
     D3D12_RESOURCE_BARRIER barrier{};
     barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -426,11 +450,14 @@ void D3D12Renderer::EndFrame([[maybe_unused]] rhi::ICommandList* cmdList) {
 
     // GPU の全描画コマンドと PRESENT 状態への遷移が終わった時点を記録する。
     // Present 自体や CPU 側の待機は含めず、純粋な GPU コマンド実行時間になる。
-    const uint32_t timestampBase = frameIndex_ * kTimestampsPerFrame;
-    cmdList_->EndQuery(timestampQueryHeap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 1);
-    cmdList_->ResolveQueryData(timestampQueryHeap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
-                               timestampBase, kTimestampsPerFrame, timestampReadback_.Get(),
-                               static_cast<UINT64>(timestampBase) * sizeof(uint64_t));
+    if (timestampQueryHeap_) {
+        const uint32_t timestampBase = frameIndex_ * kTimestampsPerFrame;
+        cmdList_->EndQuery(timestampQueryHeap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
+                           timestampBase + 1);
+        cmdList_->ResolveQueryData(timestampQueryHeap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
+                                   timestampBase, kTimestampsPerFrame, timestampReadback_.Get(),
+                                   static_cast<UINT64>(timestampBase) * sizeof(uint64_t));
+    }
 
     cmdList_->Close();
 
@@ -458,7 +485,7 @@ void D3D12Renderer::EndFrame([[maybe_unused]] rhi::ICommandList* cmdList) {
     ++fenceCounter_;
     queue_->Signal(fence_.Get(), fenceCounter_);
     frames_[frameIndex_].fenceValue = fenceCounter_;
-    frames_[frameIndex_].timestampPending = true;
+    frames_[frameIndex_].timestampPending = timestampQueryHeap_ != nullptr;
 
     frameIndex_ = swapChain_->GetCurrentBackBufferIndex();
 }
