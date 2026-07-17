@@ -53,6 +53,14 @@ void ProfilerHud::DrawBody() {
                 fps, latestMs, avgMs, maxMs);
     ImGui::PopStyleColor();
 
+    // GPU タイムスタンプは、対応するフレームスロットのフェンス完了後に読む。
+    // CPU の Render.WaitGpu / Present 待機とは別の、実際の GPU コマンド実行時間。
+    if (rhi::IRenderer* renderer = Services::Instance().renderer;
+        renderer && renderer->HasGpuFrameTiming()) {
+        ImGui::SameLine();
+        ImGui::Text("GPU %.2f ms", renderer->GpuFrameMs());
+    }
+
     ImGui::SameLine();
     ImGui::Checkbox("Graph", &showGraph_);
 
