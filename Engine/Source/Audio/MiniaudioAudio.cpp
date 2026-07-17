@@ -26,6 +26,7 @@
 #include "WitchEngine/Core/ResourceManager.h"
 #include "WitchEngine/Core/Services.h"
 
+#include <cmath>
 #include <format>
 #include <memory>
 #include <utility>
@@ -135,16 +136,33 @@ public:
         if (params.loop) {
             ma_sound_set_looping(voice->sound.get(), MA_TRUE);
             if (params.loopBeginSeconds) {
-                // 負値や NaN は ma_uint64 への変換で巨大なフレーム値になるため先に弾く。
-                if (!(*params.loopBeginSeconds >= 0.0))
+                // 負値・NaN・∞ を弾く（範囲外の double → ma_uint64 変換は UB のため、
+                // 変換に到達する前に有限性まで確認する）。
+                const double seconds = *params.loopBeginSeconds;
+                if (!std::isfinite(seconds) || seconds < 0.0)
                     return std::unexpected(std::format(
-                        "loopBeginSeconds must be >= 0 (got {}) ({})", *params.loopBeginSeconds,
+                        "loopBeginSeconds must be a finite value >= 0 (got {}) ({})", seconds,
                         path));
                 // ループ折返し先をフレームに換算する。デコーダはエンジンのサンプルレートに
                 // 固定して初期化しているので、換算もエンジンレートで行えばよい。
+                ma_uint64 lengthInFrames = 0;
+                if (ma_result r = ma_data_source_get_length_in_pcm_frames(voice->decoder.get(),
+                                                                          &lengthInFrames);
+                    r != MA_SUCCESS) {
+                    return std::unexpected(
+                        std::format("ma_data_source_get_length_in_pcm_frames failed: {} ({})",
+                                    ma_result_description(r), path));
+                }
+                // クリップ末尾以降を指すループ点は成立しない（ゼロ長ループになり得る）ため
+                // エラーにする。比較を double のまま行うことで、変換前に ma_uint64 の
+                // 表現範囲内であることも同時に保証される。
+                const double frames = seconds * ma_engine_get_sample_rate(&engine_);
+                if (frames >= static_cast<double>(lengthInFrames))
+                    return std::unexpected(std::format(
+                        "loopBeginSeconds ({}s) is beyond the clip length ({} frames) ({})",
+                        seconds, lengthInFrames, path));
                 // 終端は ~0 = データ末尾（末尾まで再生 → loopBegin へ戻るイントロ付きループ）。
-                const auto loopBegin = static_cast<ma_uint64>(
-                    *params.loopBeginSeconds * ma_engine_get_sample_rate(&engine_));
+                const auto loopBegin = static_cast<ma_uint64>(frames);
                 if (ma_result r = ma_data_source_set_loop_point_in_pcm_frames(
                         voice->decoder.get(), loopBegin, ~static_cast<ma_uint64>(0));
                     r != MA_SUCCESS) {
