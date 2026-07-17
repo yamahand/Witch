@@ -94,8 +94,19 @@ public:
         if (engineReady_) ma_engine_uninit(&engine_);
     }
 
-    void PlaySe(std::string_view path, [[maybe_unused]] float volume) override {
-        log::Warn("PlaySe: not implemented yet ({})", path);
+    void PlaySe(std::string_view path, float volume) override {
+        auto voice = MakeVoice(path, &seGroup_);
+        if (!voice) {
+            log::Warn("PlaySe failed: {}", voice.error());
+            return;
+        }
+        ma_sound_set_volume(voice->sound.get(), volume);
+        if (ma_result r = ma_sound_start(voice->sound.get()); r != MA_SUCCESS) {
+            log::Warn("PlaySe: ma_sound_start failed: {} ({})", ma_result_description(r), path);
+            ReleaseVoice(*voice);
+            return;
+        }
+        seVoices_.push_back(std::move(*voice));
     }
 
     std::expected<void, std::string> PlayBgm(std::string_view path,
@@ -111,9 +122,61 @@ public:
     void SetBgmVolume(float volume) override { ma_sound_group_set_volume(&bgmGroup_, volume); }
     void SetSeVolume(float volume) override { ma_sound_group_set_volume(&seGroup_, volume); }
 
-    void Update() override {}
+    void Update() override {
+        // 再生し終えた SE ボイスの回収。ma_sound_at_end はオーディオスレッドが立てる
+        // アトミックフラグの読み取りで、メインスレッドから安全に呼べる。
+        std::erase_if(seVoices_, [](Voice& voice) {
+            if (!ma_sound_at_end(voice.sound.get()))
+                return false;
+            ReleaseVoice(voice);
+            return true;
+        });
+
+        // 非ループ BGM が終わっていたらスロットを空ける。
+        if (bgm_ && ma_sound_at_end(bgm_.sound.get()))
+            ReleaseVoice(bgm_);
+    }
 
 private:
+    /// クリップのロード（ResourceManager 経由・キャッシュ済みならヒット）から
+    /// デコーダ生成・ノードグラフへの接続までを行う。開始（ma_sound_start）は呼び出し側。
+    /// デコーダはエンジンの format / channels / sampleRate に固定して初期化する
+    /// （ミックス時の変換を無くし、ループポイントのフレーム換算もエンジンレートで統一）。
+    std::expected<Voice, std::string> MakeVoice(std::string_view path, ma_sound_group* group) {
+        auto* resources = Services::Instance().resources;
+        if (!resources)
+            return std::unexpected(std::string("ResourceManager not available"));
+
+        auto clip = resources->LoadAudio(path);
+        if (!clip)
+            return std::unexpected(clip.error());
+
+        Voice voice;
+        voice.clip = *clip;
+        voice.decoder = std::make_unique<ma_decoder>();
+        const ma_decoder_config config = ma_decoder_config_init(
+            ma_format_f32, ma_engine_get_channels(&engine_), ma_engine_get_sample_rate(&engine_));
+        if (ma_result r = ma_decoder_init_memory(voice.clip->encodedBytes.data(),
+                                                 voice.clip->encodedBytes.size(), &config,
+                                                 voice.decoder.get());
+            r != MA_SUCCESS) {
+            voice.decoder.reset(); // init 失敗した decoder を uninit しないよう外す
+            return std::unexpected(
+                std::format("ma_decoder_init_memory failed: {} ({})", ma_result_description(r), path));
+        }
+
+        voice.sound = std::make_unique<ma_sound>();
+        if (ma_result r = ma_sound_init_from_data_source(&engine_, voice.decoder.get(), 0, group,
+                                                         voice.sound.get());
+            r != MA_SUCCESS) {
+            voice.sound.reset(); // 同上
+            ReleaseVoice(voice);
+            return std::unexpected(std::format("ma_sound_init_from_data_source failed: {} ({})",
+                                               ma_result_description(r), path));
+        }
+        return voice;
+    }
+
     ma_engine engine_{};
     ma_sound_group bgmGroup_{};
     ma_sound_group seGroup_{};

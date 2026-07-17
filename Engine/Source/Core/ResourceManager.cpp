@@ -93,11 +93,38 @@ ResourceManager::LoadAseprite(std::string_view path) {
     return sheet;  // shared_ptr<AsepriteSheet> → shared_ptr<const AsepriteSheet> は暗黙変換
 }
 
+std::expected<std::shared_ptr<const audio::AudioClip>, std::string>
+ResourceManager::LoadAudio(std::string_view path) {
+    std::string key(path);
+
+    if (auto it = audioCache_.find(key); it != audioCache_.end())
+        return it->second;
+
+    auto* vfs = Services::Instance().vfs;
+    if (!vfs)
+        return std::unexpected(std::string("VFS not available"));
+
+    auto fileData = vfs->Read(path);
+    if (!fileData)
+        return std::unexpected(std::string("VFS read failed: ") + fileData.error());
+
+    auto clip = std::make_shared<audio::AudioClip>(key, std::move(fileData->bytes));
+
+    log::Info("Audio loaded: {} ({} bytes)", path, clip->encodedBytes.size());
+    audioCache_[key] = clip;
+    return clip;
+}
+
 ResourceManager::~ResourceManager() {
     UnloadAll();
 }
 
 void ResourceManager::UnloadAll() {
+    // AudioClip は CPU メモリのみで GPU リソースを持たない。再生中のボイスが
+    // shared_ptr を保持していればそのまま生き続けるため、ここは黙って手放すだけでよい
+    // （AsepriteSheet のような use_count 検査は不要）。
+    audioCache_.clear();
+
     if (textureCache_.empty() && asepriteCache_.empty())
         return;
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "WitchEngine/Audio/AudioClip.h"
 #include "WitchEngine/Core/TextureInfo.h"
 #include "WitchEngine/Graphics2D/AsepriteSheet.h"
 #include <expected>
@@ -27,6 +28,15 @@ public:
     std::expected<std::shared_ptr<const AsepriteSheet>, std::string>
     LoadAseprite(std::string_view path);
 
+    /// 音声ファイルをエンコード済みバイト列のままロードする（デコードは IAudio 実装が
+    /// 再生時に行う）。初回アクセス時は VFS 経由で読み、以降はキャッシュから返す。
+    /// 再生中のボイスも shared_ptr を保持するため、UnloadAll 後も再生終了までは生存する
+    /// （AsepriteSheet と違い use_count > 1 は正常）。
+    /// @param path VFS マウントルートからの相対パス（例 "Audio/SE/click1.ogg"）
+    /// @return 失敗時はエラーメッセージを返す
+    std::expected<std::shared_ptr<const audio::AudioClip>, std::string>
+    LoadAudio(std::string_view path);
+
     /// キャッシュ済みの全テクスチャ・Aseprite シートの GPU テクスチャを
     /// IRenderer::DestroyTexture で解放し、キャッシュを空にする。
     /// Engine のシーン切替（旧シーン破棄後・新シーン OnEnter 前）とデストラクタから呼ぶ。
@@ -39,6 +49,7 @@ public:
 private:
     std::unordered_map<std::string, TextureInfo> textureCache_;
     std::unordered_map<std::string, std::shared_ptr<const AsepriteSheet>> asepriteCache_;
+    std::unordered_map<std::string, std::shared_ptr<const audio::AudioClip>> audioCache_;
 };
 
 } // namespace witch
