@@ -1,3 +1,4 @@
+#include "WitchEngine/Audio/IAudio.h"
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/GameLoop.h"
 #include "WitchEngine/Core/Log/ConsoleSink.h"
@@ -19,6 +20,7 @@
 #include "WitchEngine/Debug/LogViewerWindow.h"
 #include "WitchEngine/Debug/ProfilerHud.h"
 #endif
+#include "Audio/AudioFactory.h"
 #include "Platform/Memory.h"
 #include "Platform/PlatformWindow.h"
 #include "Platform/PlatformFactory.h"
@@ -125,6 +127,15 @@ std::expected<void, std::string> Engine::Init(int width, int height, const char*
 
     resourceManager_ = std::make_unique<ResourceManager>();
     Services::Instance().resources = resourceManager_.get();
+
+    // オーディオサービス。デバイス初期化失敗は非致命（警告を出して無音で続行し、
+    // Services スロットは nullptr のまま。呼び出し側が null チェックする）。
+    if (auto audio = audio::CreateAudioEngine()) {
+        audio_ = std::move(*audio);
+        Services::Instance().audio = audio_.get();
+    } else {
+        log::Warn("Audio init failed: {}. Continuing without audio.", audio.error());
+    }
 
     // カメラ管理サービス。以前は Scene が Camera2D を直接持っていたが、Scene から独立させた。
     cameraManager_ = std::make_unique<CameraManager>();
@@ -247,6 +258,11 @@ void Engine::Shutdown() {
 
     Services::Instance().cameras = nullptr;
     cameraManager_.reset();
+
+    // オーディオは resources より先に破棄する（逆順破棄。再生中ボイスが保持する
+    // AudioClip の shared_ptr をここで手放してからキャッシュ側が破棄される）。
+    Services::Instance().audio = nullptr;
+    audio_.reset();
 
     Services::Instance().resources = nullptr;
     resourceManager_.reset();

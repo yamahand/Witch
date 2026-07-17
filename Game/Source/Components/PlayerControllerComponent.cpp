@@ -1,4 +1,5 @@
 #include "Components/PlayerControllerComponent.h"
+#include "WitchEngine/Audio/IAudio.h"
 #include "WitchEngine/Core/Services.h"
 #include "WitchEngine/Graphics2D/SpriteComponent.h"
 #include "WitchEngine/Input/IInput.h"
@@ -56,6 +57,10 @@ void PlayerControllerComponent::Update(float dt) {
 
     if (jumpPressed && onGround) {
         vy = jumpSpeed_;
+        // 自前エッジ検出（prevJumpHeld_）なので固定ステップの多重実行でも二重発火しない。
+        if (auto* audio = Services::Instance().audio) {
+            audio->PlaySe("Audio/SE/click1.ogg");
+        }
     }
     // 可変ジャンプ高: 上昇中に離したら減衰（離した瞬間の 1 回だけ）。
     if (jumpReleased && vy < 0.0f) {

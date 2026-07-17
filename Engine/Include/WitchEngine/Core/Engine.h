@@ -15,6 +15,10 @@ namespace witch::log {
 class Logger;
 } // namespace witch::log
 
+namespace witch::audio {
+class IAudio;
+} // namespace witch::audio
+
 namespace witch::debug {
 class DebugDraw;
 #ifdef WITCH_DEBUG_UI
@@ -78,6 +82,7 @@ private:
     std::unique_ptr<rhi::IRenderer>  renderer_;
     std::unique_ptr<IInput>          input_;
     std::unique_ptr<ResourceManager> resourceManager_;
+    std::unique_ptr<audio::IAudio>   audio_; ///< デバイス初期化失敗時は null（無音続行）
     std::unique_ptr<CameraManager>   cameraManager_;
     std::unique_ptr<debug::DebugDraw> debugDraw_;
     std::unique_ptr<GameLoop>        gameLoop_;
