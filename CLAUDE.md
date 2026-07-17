@@ -32,11 +32,13 @@ Witch/                          ← リポジトリのルート
 │   │   ├── Level/              ← LevelData（フォーマット中立のレベルデータ型のみ）
 │   │   ├── Physics2D/          ← Aabb, TileCollision, CollisionComponent, CollisionWorld
 │   │   ├── Rhi/                ← IRenderer 等のインターフェースのみ
+│   │   ├── Audio/              ← IAudio, AudioClip（インターフェースと素のデータ型のみ）
 │   │   └── Graphics2D/         ← SpriteComponent, TilemapComponent 等
 │   └── Source/                 ← 実装と非公開ヘッダ
 │       ├── Core/
 │       ├── Platform/Windows/   ← Win32。OS 差はここのファイル分割で吸収
 │       ├── Rhi/D3D12/          ← D3D12 実装。D3D12 / dxgi 型はここから出さない
+│       ├── Audio/              ← miniaudio 実装。ma_* 型はここから出さない
 │       ├── Scene/
 │       ├── Level/              ← レベルローダ（LDtk）。JSON ライブラリと例外はここから出さない
 │       └── Graphics2D/

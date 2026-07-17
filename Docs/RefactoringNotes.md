@@ -18,7 +18,7 @@ RemainingWork.md の機能追加を進める前後で直しておきたい箇所
 | 4  | 描画順がオブジェクト生成順に暗黙依存 | ✅ 済（SortKey） | — |
 | 5  | テクスチャ解放経路が無い | ✅ 済（UnloadAll） | — |
 | 6  | カメラ変換が CPU・スプライト毎 | ✅ 済（SetCamera + VS 適用） | — |
-| 7  | Services に audio メンバが無い | ⬜ 未 | M8 |
+| 7  | Services に audio メンバが無い | ✅ 済（M8 オーディオ, 2026-07-17） | — |
 | 8  | Spawn の 1 フレーム遅延 | ✅ 済（OnEnter 中は即時反映, 2026-07-10） | — |
 | 9  | クリア色が GameLoop にハードコード | ✅ 済（Scene::ClearColor, 2026-07-10） | — |
 | 10 | GetComponent が dynamic_cast 線形探索 | ✅ 済（型IDタグ方式） | — |
@@ -128,13 +128,13 @@ M6 タイルマップ着手直前に対応する（変わらず）。
 
 ## 仕様とのズレ・小さな改善（機会があれば）
 
-### 7. Services に audio メンバが無い — ⬜ 未対応（M8 オーディオで追加）
+### 7. Services に audio メンバが無い — ✅ 対応済み（M8 オーディオ, 2026-07-17）
 [Services.h](../Engine/Include/WitchEngine/Core/Services.h) —
 CLAUDE.md のコア設計では `renderer / audio / input / resources / time` の
-固定メンバとされているが、`audio` が未実装のため存在しない。
-現状の実メンバは `logger / renderer / time / resources / input / cameras / vfs`
-（`cameras` `vfs` `logger` は設計メモに無いが実装で追加された。ズレとして両向きに記録）。
-M8（オーディオ）で `IAudio` と一緒に `audio` を追加する。優先度変わらず（M8 まで着手不要）。
+固定メンバとされているが、`audio` が未実装のため存在しなかった。
+M8 で `IAudio`（miniaudio アダプタ）と一緒に `audio` を追加して解消。
+デバイス初期化失敗時は nullptr のまま（無音続行）という他サービスに無い性質があるため、
+呼び出し側の null チェックは必須（他は debugDraw 同様の任意チェック慣行）。
 
 ### 8. Spawn の 1 フレーム遅延が初期化を複雑にする — ✅ 対応済み（OnEnter 中は即時反映, 2026-07-10）
 `OnEnter` で Spawn したオブジェクトが `Find` できない・`OnSpawn` 未実行という初期化順序の
