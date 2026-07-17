@@ -1,6 +1,7 @@
 #include "Scenes/StageScene.h"
 #include "Entities/PlayerObject.h"
 #include "Scenes/EmptyScene.h"
+#include "WitchEngine/Audio/IAudio.h"
 #include "WitchEngine/Core/Engine.h"
 #include "WitchEngine/Core/Logger.h"
 #include "WitchEngine/Core/Services.h"
@@ -86,6 +87,16 @@ void StageScene::OnEnter() {
                    static_cast<float>(level->height);
         }
         camera.SetZoom(zoom);
+    }
+
+    // BGM。loopBeginSeconds はイントロ付きループ（末尾 → 2 秒地点へ戻る）の動作確認用。
+    // audio はデバイス初期化に失敗した環境では nullptr（無音で続行）。
+    if (auto* audio = Services::Instance().audio) {
+        if (auto result = audio->PlayBgm("Audio/BGM/Retro Beat.ogg",
+                                         {.volume = 0.6f, .loop = true, .loopBeginSeconds = 2.0});
+            !result) {
+            log::Warn("StageScene: PlayBgm failed: {}", result.error());
+        }
     }
 }
 

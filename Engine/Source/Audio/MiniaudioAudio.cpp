@@ -110,13 +110,50 @@ public:
     }
 
     std::expected<void, std::string> PlayBgm(std::string_view path,
-                                             [[maybe_unused]] const BgmParams& params) override {
-        return std::unexpected(std::format("PlayBgm: not implemented yet ({})", path));
+                                             const BgmParams& params) override {
+        auto voice = MakeVoice(path, &bgmGroup_);
+        if (!voice)
+            return std::unexpected(voice.error());
+
+        ma_sound_set_volume(voice->sound.get(), params.volume);
+        if (params.loop) {
+            ma_sound_set_looping(voice->sound.get(), MA_TRUE);
+            if (params.loopBeginSeconds) {
+                // ループ折返し先をフレームに換算する。デコーダはエンジンのサンプルレートに
+                // 固定して初期化しているので、換算もエンジンレートで行えばよい。
+                // 終端は ~0 = データ末尾（末尾まで再生 → loopBegin へ戻るイントロ付きループ）。
+                const auto loopBegin = static_cast<ma_uint64>(
+                    *params.loopBeginSeconds * ma_engine_get_sample_rate(&engine_));
+                if (ma_result r = ma_data_source_set_loop_point_in_pcm_frames(
+                        voice->decoder.get(), loopBegin, ~static_cast<ma_uint64>(0));
+                    r != MA_SUCCESS) {
+                    ReleaseVoice(*voice);
+                    return std::unexpected(
+                        std::format("ma_data_source_set_loop_point_in_pcm_frames failed: {} ({})",
+                                    ma_result_description(r), path));
+                }
+            }
+        }
+
+        if (ma_result r = ma_sound_start(voice->sound.get()); r != MA_SUCCESS) {
+            ReleaseVoice(*voice);
+            return std::unexpected(
+                std::format("ma_sound_start failed: {} ({})", ma_result_description(r), path));
+        }
+
+        // 新しい BGM の開始が成功してから旧 BGM を止める（失敗時に無音にしないため）。
+        ReleaseVoice(bgm_);
+        bgm_ = std::move(*voice);
+        log::Info("BGM started: {} (volume={}, loop={}, loopBegin={}s)", path, params.volume,
+                  params.loop, params.loopBeginSeconds.value_or(0.0));
+        return {};
     }
 
-    void StopBgm() override {}
+    void StopBgm() override { ReleaseVoice(bgm_); }
 
-    [[nodiscard]] bool IsBgmPlaying() const override { return false; }
+    [[nodiscard]] bool IsBgmPlaying() const override {
+        return bgm_ && ma_sound_is_playing(bgm_.sound.get());
+    }
 
     void SetMasterVolume(float volume) override { ma_engine_set_volume(&engine_, volume); }
     void SetBgmVolume(float volume) override { ma_sound_group_set_volume(&bgmGroup_, volume); }
