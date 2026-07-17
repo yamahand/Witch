@@ -43,18 +43,34 @@ struct Voice {
     std::unique_ptr<ma_decoder> decoder;
     std::unique_ptr<ma_sound> sound;
 
+    Voice() = default;
+    Voice(Voice&&) noexcept = default; ///< move 元は空になる（unique_ptr/shared_ptr に従う）
+    /// 代入先が再生中でも安全なよう、先に自分を解放してから受け取る
+    /// （BGM 差し替えや erase_if の詰め直しで再生中スロットへ move されるため）。
+    Voice& operator=(Voice&& other) noexcept {
+        if (this != &other) {
+            Release();
+            clip = std::move(other.clip);
+            decoder = std::move(other.decoder);
+            sound = std::move(other.sound);
+        }
+        return *this;
+    }
+    /// どの経路（早期 return・例外・コンテナ破棄）でも ma_*_uninit を必ず経由させる。
+    ~Voice() { Release(); }
+
+    /// sound → decoder → clip の順で解放する（冪等）。ma_sound_uninit がノードグラフ
+    /// から切り離した後は、オーディオスレッドが decoder に触ることはない。
+    void Release() {
+        if (sound) ma_sound_uninit(sound.get());
+        sound.reset();
+        if (decoder) ma_decoder_uninit(decoder.get());
+        decoder.reset();
+        clip.reset();
+    }
+
     explicit operator bool() const { return static_cast<bool>(sound); }
 };
-
-/// sound → decoder → clip の順で解放する。ma_sound_uninit がノードグラフから
-/// 切り離した後は、オーディオスレッドが decoder に触ることはない。
-void ReleaseVoice(Voice& voice) {
-    if (voice.sound) ma_sound_uninit(voice.sound.get());
-    voice.sound.reset();
-    if (voice.decoder) ma_decoder_uninit(voice.decoder.get());
-    voice.decoder.reset();
-    voice.clip.reset();
-}
 
 class MiniaudioAudio final : public IAudio {
 public:
@@ -85,9 +101,10 @@ public:
 
     ~MiniaudioAudio() override {
         // ボイス（グループにぶら下がるノード）→ グループ → エンジンの順。
+        // メンバのデストラクタは本体（この関数）より後に走るため、エンジンを
+        // uninit する前にここで明示的に解放しておく必要がある。
         // ma_engine_uninit がデバイススレッドを停止して join する。
-        ReleaseVoice(bgm_);
-        for (Voice& voice : seVoices_) ReleaseVoice(voice);
+        bgm_.Release();
         seVoices_.clear();
         if (seGroupReady_) ma_sound_group_uninit(&seGroup_);
         if (bgmGroupReady_) ma_sound_group_uninit(&bgmGroup_);
@@ -103,8 +120,7 @@ public:
         ma_sound_set_volume(voice->sound.get(), volume);
         if (ma_result r = ma_sound_start(voice->sound.get()); r != MA_SUCCESS) {
             log::Warn("PlaySe: ma_sound_start failed: {} ({})", ma_result_description(r), path);
-            ReleaseVoice(*voice);
-            return;
+            return; // voice は ~Voice が解放する
         }
         seVoices_.push_back(std::move(*voice));
     }
@@ -119,6 +135,11 @@ public:
         if (params.loop) {
             ma_sound_set_looping(voice->sound.get(), MA_TRUE);
             if (params.loopBeginSeconds) {
+                // 負値や NaN は ma_uint64 への変換で巨大なフレーム値になるため先に弾く。
+                if (!(*params.loopBeginSeconds >= 0.0))
+                    return std::unexpected(std::format(
+                        "loopBeginSeconds must be >= 0 (got {}) ({})", *params.loopBeginSeconds,
+                        path));
                 // ループ折返し先をフレームに換算する。デコーダはエンジンのサンプルレートに
                 // 固定して初期化しているので、換算もエンジンレートで行えばよい。
                 // 終端は ~0 = データ末尾（末尾まで再生 → loopBegin へ戻るイントロ付きループ）。
@@ -127,7 +148,6 @@ public:
                 if (ma_result r = ma_data_source_set_loop_point_in_pcm_frames(
                         voice->decoder.get(), loopBegin, ~static_cast<ma_uint64>(0));
                     r != MA_SUCCESS) {
-                    ReleaseVoice(*voice);
                     return std::unexpected(
                         std::format("ma_data_source_set_loop_point_in_pcm_frames failed: {} ({})",
                                     ma_result_description(r), path));
@@ -136,20 +156,19 @@ public:
         }
 
         if (ma_result r = ma_sound_start(voice->sound.get()); r != MA_SUCCESS) {
-            ReleaseVoice(*voice);
             return std::unexpected(
                 std::format("ma_sound_start failed: {} ({})", ma_result_description(r), path));
         }
 
-        // 新しい BGM の開始が成功してから旧 BGM を止める（失敗時に無音にしないため）。
-        ReleaseVoice(bgm_);
+        // 新しい BGM の開始が成功してから旧 BGM を止める（失敗時に無音にしないため。
+        // move 代入が代入先＝旧 BGM を先に解放する）。
         bgm_ = std::move(*voice);
         log::Info("BGM started: {} (volume={}, loop={}, loopBegin={}s)", path, params.volume,
                   params.loop, params.loopBeginSeconds.value_or(0.0));
         return {};
     }
 
-    void StopBgm() override { ReleaseVoice(bgm_); }
+    void StopBgm() override { bgm_.Release(); }
 
     [[nodiscard]] bool IsBgmPlaying() const override {
         return bgm_ && ma_sound_is_playing(bgm_.sound.get());
@@ -160,18 +179,15 @@ public:
     void SetSeVolume(float volume) override { ma_sound_group_set_volume(&seGroup_, volume); }
 
     void Update() override {
-        // 再生し終えた SE ボイスの回収。ma_sound_at_end はオーディオスレッドが立てる
-        // アトミックフラグの読み取りで、メインスレッドから安全に呼べる。
-        std::erase_if(seVoices_, [](Voice& voice) {
-            if (!ma_sound_at_end(voice.sound.get()))
-                return false;
-            ReleaseVoice(voice);
-            return true;
-        });
+        // 再生し終えた SE ボイスの回収（解放は ~Voice / move 代入が行う）。
+        // ma_sound_at_end はオーディオスレッドが立てるアトミックフラグの読み取りで、
+        // メインスレッドから安全に呼べる。
+        std::erase_if(seVoices_,
+                      [](const Voice& voice) { return ma_sound_at_end(voice.sound.get()) != 0; });
 
         // 非ループ BGM が終わっていたらスロットを空ける。
         if (bgm_ && ma_sound_at_end(bgm_.sound.get()))
-            ReleaseVoice(bgm_);
+            bgm_.Release();
     }
 
 private:
@@ -206,8 +222,7 @@ private:
         if (ma_result r = ma_sound_init_from_data_source(&engine_, voice.decoder.get(), 0, group,
                                                          voice.sound.get());
             r != MA_SUCCESS) {
-            voice.sound.reset(); // 同上
-            ReleaseVoice(voice);
+            voice.sound.reset(); // 同上（decoder 以降は ~Voice が解放する）
             return std::unexpected(std::format("ma_sound_init_from_data_source failed: {} ({})",
                                                ma_result_description(r), path));
         }
