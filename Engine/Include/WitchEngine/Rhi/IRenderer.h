@@ -47,6 +47,13 @@ public:
     /// 現在の vsync 設定を返す。
     virtual bool VSync() const = 0;
 
+    /// 直近に完了したフレームの GPU 描画時間 [ms]。未計測時は 0。
+    /// CPU の待機時間や Present 待機は含まない。既定実装にして、計測機能を持たない
+    /// RHI 実装とも互換にする。
+    virtual double GpuFrameMs() const { return 0.0; }
+    /// GPU タイムスタンプ計測の有効性。最初の GPU フレーム完了までは false。
+    virtual bool HasGpuFrameTiming() const { return false; }
+
     /// 現在の描画先（バックバッファ）サイズをピクセルで返す。
     /// カメラのビューポート同期などに使う。D3D12 型は一切漏らさない。
     virtual int Width() const = 0;

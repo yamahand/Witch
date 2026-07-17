@@ -48,8 +48,10 @@ public:
     // ティアリング未対応環境では vsync を切れない（Present(0, ALLOW_TEARING) が使えず、
     // SyncInterval=0 でもドライバが vsync を強制することがある）。その場合は要求を
     // 無視して vsync ON のままにする。VSync() で実際の状態を確認できる。
-    void SetVSync(bool enabled) override { vsync_ = enabled || !allowTearing_; }
+    void SetVSync(bool enabled) override;
     bool VSync() const override { return vsync_; }
+    double GpuFrameMs() const override { return latestGpuFrameMs_; }
+    bool HasGpuFrameTiming() const override { return hasGpuFrameTiming_; }
     int Width() const override { return width_; }
     int Height() const override { return height_; }
 
@@ -114,6 +116,8 @@ private:
     Letterbox ComputeLetterbox() const;
 
     void CreateBackBufferRTVs();
+    /// VSync 状態に合わせて DXGI の表示キュー上限を更新する。
+    void UpdateMaximumFrameLatency();
     /// 指定フレームインデックスの GPU 処理完了をフェンスで待つ。
     void WaitForFrame(uint32_t frameIdx);
     void WaitIdle();
@@ -131,6 +135,8 @@ private:
     struct FrameCtx {
         ComPtr<ID3D12CommandAllocator> allocator;
         uint64_t fenceValue = 0;
+        /// このフレームスロットに書いたタイムスタンプが、次の再利用時に読めるか。
+        bool timestampPending = false;
     };
 
     // ── Core D3D12 ─────────────────────────────────────────────────────────────
@@ -149,6 +155,17 @@ private:
     ComPtr<ID3D12Fence>               fence_;
     HANDLE                            fenceEvent_   = nullptr;
     uint64_t                          fenceCounter_ = 0;
+
+    // フレームごとに開始・終了の 2 クエリを記録する GPU タイムスタンプ計測。
+    // 結果は同じフレームスロットを再利用する際、既存フェンス完了後に読むため追加の
+    // CPU 待機を発生させない。
+    static constexpr uint32_t          kTimestampsPerFrame = 2;
+    ComPtr<ID3D12QueryHeap>            timestampQueryHeap_;
+    ComPtr<ID3D12Resource>             timestampReadback_;
+    uint64_t*                          timestampReadbackMapped_ = nullptr;
+    uint64_t                           gpuTimestampFrequency_ = 0;
+    double                             latestGpuFrameMs_ = 0.0;
+    bool                               hasGpuFrameTiming_ = false;
 
     /// waitable swapchain のフレームレイテンシ待機オブジェクト。BeginFrame 先頭で待つことで
     /// Present のキュー詰まりブロックを明示待ちへ移し、Present 自体を即座に返させる。

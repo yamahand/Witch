@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "Rhi/D3D12/D3D12Renderer.h"
+#include "Core/Profiling.h"
 #include "WitchEngine/Core/Logger.h"
 #include <algorithm>
 #include <cassert>
@@ -147,24 +148,9 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
     if (!Check(sc1.As(&swapChain_), "SwapChain → IDXGISwapChain3")) return false;
     frameIndex_ = swapChain_->GetCurrentBackBufferIndex();
 
-    // waitable オブジェクトを取得。フレームレイテンシはバックバッファ数から導出し
-    // （kBackBufferCount - 1 = 2）、CPU が GPU より最大その枚数ぶん先行できるようにする
-    //（キューを浅くしすぎると VSync OFF で GPU を待たせてしまう）。kBackBufferCount を
-    // 変えたとき値がズレないようここで一元的に導出する。VSync ON 時は BeginFrame で
-    // このオブジェクトを待って遅延を抑え、VSync OFF 時は待たずに GPU 速度いっぱいまで回す。
-    //
-    // 留意: この最大レイテンシ制限は vsync 状態に関わらず常に有効。VSync OFF で
-    // 待機オブジェクトを待たなくても、CPU が GPU より kBackBufferCount-1 フレーム以上
-    // 先行すると Present() 内部が暗黙にブロックする（そのぶんは Render.Present ゾーンに
-    // 計上され、素の描画コスト計測が乱れる）。バッファ数と等しい 2 フレーム分のキューは
-    // 通常の GPU バウンドシーンでは十分深く、実機でも顕在化していないため現状はこのまま。
-    // 重負荷で問題が出たら OFF 時のみレイテンシを増やす等を検討する。
-    // 失敗しても致命的ではない（待機オブジェクトが得られなければ BeginFrame の待機を
-    // スキップし、従来どおり GPU フェンス待ちだけで進む）。原因切り分けのためログは残す。
-    if (HRESULT hr = swapChain_->SetMaximumFrameLatency(kBackBufferCount - 1); FAILED(hr)) {
-        log::Warn("SetMaximumFrameLatency failed (0x{:08X}); waitable latency disabled.",
-                  static_cast<uint32_t>(hr));
-    }
+    // VSync ON は低遅延の 2 フレーム、OFF はバッファ数までキューを許容する。
+    // OFF の値は描画性能を測る診断用で、Present 内部のレイテンシ上限待機を減らす。
+    UpdateMaximumFrameLatency();
     frameLatencyWaitable_ = swapChain_->GetFrameLatencyWaitableObject();
     if (!frameLatencyWaitable_) {
         log::Warn("GetFrameLatencyWaitableObject returned null; "
@@ -209,7 +195,41 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
         return false;
     }
 
-    // 11. Upload command allocator + dedicated command list for texture uploads.
+    // 11. GPU timestamps. 1 フレームスロットにつき開始・終了の 2 個を確保し、
+    // 結果は同じスロットを再利用するときに既存のフェンス完了後に読む。
+    D3D12_QUERY_HEAP_DESC timestampHeapDesc{};
+    timestampHeapDesc.Type  = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+    timestampHeapDesc.Count = kBackBufferCount * kTimestampsPerFrame;
+    if (!Check(device_->CreateQueryHeap(&timestampHeapDesc, IID_PPV_ARGS(&timestampQueryHeap_)),
+               "CreateQueryHeap (timestamps)"))
+        return false;
+    if (!Check(queue_->GetTimestampFrequency(&gpuTimestampFrequency_),
+               "GetTimestampFrequency"))
+        return false;
+
+    D3D12_HEAP_PROPERTIES readbackHeap{};
+    readbackHeap.Type = D3D12_HEAP_TYPE_READBACK;
+    D3D12_RESOURCE_DESC timestampBufferDesc{};
+    timestampBufferDesc.Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER;
+    timestampBufferDesc.Width            = static_cast<UINT64>(timestampHeapDesc.Count) * sizeof(uint64_t);
+    timestampBufferDesc.Height           = 1;
+    timestampBufferDesc.DepthOrArraySize = 1;
+    timestampBufferDesc.MipLevels        = 1;
+    timestampBufferDesc.Format           = DXGI_FORMAT_UNKNOWN;
+    timestampBufferDesc.SampleDesc.Count = 1;
+    timestampBufferDesc.Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    if (!Check(device_->CreateCommittedResource(
+            &readbackHeap, D3D12_HEAP_FLAG_NONE, &timestampBufferDesc,
+            D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&timestampReadback_)),
+               "CreateCommittedResource (timestamp readback)"))
+        return false;
+    D3D12_RANGE timestampReadRange{0, static_cast<SIZE_T>(timestampBufferDesc.Width)};
+    if (!Check(timestampReadback_->Map(0, &timestampReadRange,
+                                      reinterpret_cast<void**>(&timestampReadbackMapped_)),
+               "Map (timestamp readback)"))
+        return false;
+
+    // 12. Upload command allocator + dedicated command list for texture uploads.
     //     Kept separate from cmdList_ so CreateTexture never touches the frame recording.
     if (!Check(device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
                                                IID_PPV_ARGS(&uploadAllocator_)),
@@ -222,17 +242,17 @@ bool D3D12Renderer::Init(void* windowHandle, int width, int height) {
         return false;
     uploadCmdList_->Close();
 
-    // 12. Sprite pipeline (shaders, root sig, PSO, per-frame buffers, SRV heap)
+    // 13. Sprite pipeline (shaders, root sig, PSO, per-frame buffers, SRV heap)
     if (!InitSpritePipeline())
         return false;
 
 #ifdef WITCH_DEBUG_DRAW
-    // 12b. Debug line pipeline (shaders, root sig, PSO, per-frame VB)
+    // 13b. Debug line pipeline (shaders, root sig, PSO, per-frame VB)
     if (!InitLinePipeline())
         return false;
 #endif
 
-    // 13. Dear ImGui (Win32 + DX12 backend)
+    // 14. Dear ImGui (Win32 + DX12 backend)
 #ifdef WITCH_DEBUG_UI
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -332,10 +352,30 @@ rhi::ICommandList* D3D12Renderer::BeginFrame() {
             }
         }
     }
-    WaitForFrame(frameIndex_);
+    {
+        WITCH_PROFILE_SCOPE_N("Render.WaitForFrame");
+        WaitForFrame(frameIndex_);
+    }
 
-    frames_[frameIndex_].allocator->Reset();
-    cmdList_->Reset(frames_[frameIndex_].allocator.Get(), nullptr);
+    // WaitForFrame 後は、このスロットの ResolveQueryData も GPU 側で完了済み。
+    // したがって Map 済みの READBACK を読むだけで、計測のための待機は増えない。
+    FrameCtx& frame = frames_[frameIndex_];
+    if (frame.timestampPending && timestampReadbackMapped_ && gpuTimestampFrequency_ != 0) {
+        const uint32_t base = frameIndex_ * kTimestampsPerFrame;
+        const uint64_t begin = timestampReadbackMapped_[base];
+        const uint64_t end   = timestampReadbackMapped_[base + 1];
+        if (end >= begin) {
+            latestGpuFrameMs_ = static_cast<double>(end - begin) * 1000.0 /
+                                static_cast<double>(gpuTimestampFrequency_);
+            hasGpuFrameTiming_ = true;
+        }
+    }
+
+    frame.allocator->Reset();
+    cmdList_->Reset(frame.allocator.Get(), nullptr);
+
+    const uint32_t timestampBase = frameIndex_ * kTimestampsPerFrame;
+    cmdList_->EndQuery(timestampQueryHeap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase);
 
     D3D12_RESOURCE_BARRIER barrier{};
     barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -353,6 +393,28 @@ rhi::ICommandList* D3D12Renderer::BeginFrame() {
     return &cmdListWrapper_;
 }
 
+void D3D12Renderer::SetVSync(bool enabled) {
+    const bool newVsync = enabled || !allowTearing_;
+    if (vsync_ == newVsync) return;
+
+    vsync_ = newVsync;
+    UpdateMaximumFrameLatency();
+    log::Info("VSync {}; maximum frame latency {}.", vsync_ ? "ON" : "OFF",
+              vsync_ ? kBackBufferCount - 1 : kBackBufferCount);
+}
+
+void D3D12Renderer::UpdateMaximumFrameLatency() {
+    if (!swapChain_) return;
+
+    // ON: CPU の先行を 2 フレームに抑え、低遅延を優先する。
+    // OFF: 全バックバッファまでキューを許容し、Present 内部での待機を診断時に減らす。
+    const UINT maximumLatency = vsync_ ? kBackBufferCount - 1 : kBackBufferCount;
+    if (HRESULT hr = swapChain_->SetMaximumFrameLatency(maximumLatency); FAILED(hr)) {
+        log::Warn("SetMaximumFrameLatency({}) failed (0x{:08X}).", maximumLatency,
+                  static_cast<uint32_t>(hr));
+    }
+}
+
 void D3D12Renderer::EndFrame([[maybe_unused]] rhi::ICommandList* cmdList) {
     D3D12_RESOURCE_BARRIER barrier{};
     barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -361,6 +423,14 @@ void D3D12Renderer::EndFrame([[maybe_unused]] rhi::ICommandList* cmdList) {
     barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_PRESENT;
     barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     cmdList_->ResourceBarrier(1, &barrier);
+
+    // GPU の全描画コマンドと PRESENT 状態への遷移が終わった時点を記録する。
+    // Present 自体や CPU 側の待機は含めず、純粋な GPU コマンド実行時間になる。
+    const uint32_t timestampBase = frameIndex_ * kTimestampsPerFrame;
+    cmdList_->EndQuery(timestampQueryHeap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + 1);
+    cmdList_->ResolveQueryData(timestampQueryHeap_.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
+                               timestampBase, kTimestampsPerFrame, timestampReadback_.Get(),
+                               static_cast<UINT64>(timestampBase) * sizeof(uint64_t));
 
     cmdList_->Close();
 
@@ -388,6 +458,7 @@ void D3D12Renderer::EndFrame([[maybe_unused]] rhi::ICommandList* cmdList) {
     ++fenceCounter_;
     queue_->Signal(fence_.Get(), fenceCounter_);
     frames_[frameIndex_].fenceValue = fenceCounter_;
+    frames_[frameIndex_].timestampPending = true;
 
     frameIndex_ = swapChain_->GetCurrentBackBufferIndex();
 }
@@ -448,6 +519,10 @@ void D3D12Renderer::Shutdown() {
 #ifdef WITCH_DEBUG_DRAW
         if (lineVbMapped_[i] && lineVbUpload_[i]) { lineVbUpload_[i]->Unmap(0, nullptr); lineVbMapped_[i] = nullptr; }
 #endif
+    }
+    if (timestampReadbackMapped_ && timestampReadback_) {
+        timestampReadback_->Unmap(0, nullptr);
+        timestampReadbackMapped_ = nullptr;
     }
 
     if (fenceEvent_) {
